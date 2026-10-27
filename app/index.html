@@ -229,10 +229,8 @@ td.r,th.r{text-align:right}
     <nav class="tabs" id="tabs">
       <button data-t="overview" class="on">Overview</button>
       <button data-t="profile">Profile</button>
-      <button data-t="expiries">Expiries</button>
-      <button data-t="signature">Signature</button>
-      <button data-t="logbook">Logbook</button>
       <button data-t="import">Your data</button>
+      <button data-t="logbook">Logbook</button>
       <button data-t="stats">Statistics</button>
       <button data-t="crewbase">Crew Base</button>
       <button data-t="jobs">Jobs</button>
@@ -278,21 +276,7 @@ td.r,th.r{text-align:right}
         </div>
         <div class="row-actions"><button class="btn" type="submit">Save profile</button><span id="profSaved" class="ok-msg"></span></div>
       </form>
-      <div class="card" id="defCard">
-        <h3>How you log your flights</h3>
-        <p class="hint" style="margin:0 0 14px;font-size:14px">Filled in automatically when an imported or added flight doesn't have them. A value already on a flight is never changed.</p>
-        <div class="field" style="max-width:360px"><label for="pRole">I fly as</label>
-          <select id="pRole"><option value="PIC">Pilot in command (captain)</option><option value="CP">Co-pilot (first officer)</option></select>
-          <div class="hint">Decides whether a flight's time goes to PIC or co-pilot. Files with their own PIC/co-pilot columns (like eCrew) keep their values.</div></div>
-        <label style="display:flex;gap:8px;align-items:flex-start;font-weight:400;margin:0 0 8px"><input type="checkbox" id="pIfr" style="width:auto;margin-top:3px"> <span>Airline flights are IFR: a flight between two airports gets IFR time equal to its total time.</span></label>
-        <label style="display:flex;gap:8px;align-items:flex-start;font-weight:400;margin:0 0 14px"><input type="checkbox" id="pNight" style="width:auto;margin-top:3px"> <span>Work out night time from the block times and airports (times in UTC). Night is when the sun is more than 6° below the horizon, along the route.</span></label>
-        <div class="row-actions" style="margin:0"><button class="btn ghost" type="button" id="pApply">Apply to flights already in my logbook</button><span id="pApplyMsg" class="ok-msg"></span></div>
-      </div>
-    </div>
-
-    <!-- expiries -->
-    <div data-p="expiries" class="hidden">
-      <h2>Expiry dates</h2>
+      <h2 id="expSection" style="margin-top:30px">Expiry dates</h2>
       <p class="lead">Your licence, medical and OPC. Use <b>+ Add item</b> for anything else you want to track. Amber means due within 60 days.</p>
       <div class="card" id="recencyCard"></div>
       <div class="card">
@@ -300,11 +284,7 @@ td.r,th.r{text-align:right}
         <div id="expList"></div>
         <div class="row-actions" style="margin-top:14px"><button class="btn ghost small" id="btnAddExp" type="button">+ Add item</button><span id="expSaved" class="ok-msg"></span></div>
       </div>
-    </div>
-
-    <!-- signature -->
-    <div data-p="signature" class="hidden">
-      <h2>Logbook signature</h2>
+      <h2 id="sigSection" style="margin-top:30px">Logbook signature</h2>
       <p class="lead">Used to sign each page of your printed logbook. Draw with a finger, stylus or mouse.</p>
       <div class="grid2" style="gap:18px">
         <div class="card">
@@ -323,6 +303,16 @@ td.r,th.r{text-align:right}
           <p class="hint" style="margin:0 0 12px">This is what will appear on your pages.</p>
           <div id="sigCurrent"></div>
         </div>
+      </div>
+      <h2 style="margin-top:30px">How you log your flights</h2>
+      <div class="card" id="defCard">
+        <p class="hint" style="margin:0 0 14px;font-size:14px">Filled in automatically when an imported or added flight doesn't have them. A value already on a flight is never changed.</p>
+        <div class="field" style="max-width:360px"><label for="pRole">I fly as</label>
+          <select id="pRole"><option value="PIC">Pilot in command (captain)</option><option value="CP">Co-pilot (first officer)</option></select>
+          <div class="hint">Decides whether a flight's time goes to PIC or co-pilot. Files with their own PIC/co-pilot columns (like eCrew) keep their values.</div></div>
+        <label style="display:flex;gap:8px;align-items:flex-start;font-weight:400;margin:0 0 8px"><input type="checkbox" id="pIfr" style="width:auto;margin-top:3px"> <span>Airline flights are IFR: a flight between two airports gets IFR time equal to its total time.</span></label>
+        <label style="display:flex;gap:8px;align-items:flex-start;font-weight:400;margin:0 0 14px"><input type="checkbox" id="pNight" style="width:auto;margin-top:3px"> <span>Work out night time from the block times and airports (times in UTC). Night is when the sun is more than 6° below the horizon, along the route.</span></label>
+        <div class="row-actions" style="margin:0"><button class="btn ghost" type="button" id="pApply">Apply to flights already in my logbook</button><span id="pApplyMsg" class="ok-msg"></span></div>
       </div>
     </div>
 
@@ -727,7 +717,7 @@ $("#btnOut").addEventListener("click", () => Auth.signOut());
 function tab(t){
   $$("#tabs button").forEach(b => b.classList.toggle("on", b.dataset.t === t));
   $$("[data-p]").forEach(p => p.classList.toggle("hidden", p.dataset.p !== t));
-  ({ overview: renderOverview, profile: renderProfile, expiries: renderExpiries, signature: renderSignature, logbook: renderLogbook, import: renderYourData, stats: renderStats, crewbase: renderCrewBase })[t]?.();
+  ({ overview: renderOverview, profile: () => { renderProfile(); renderExpiries(); renderSignature(); }, logbook: renderLogbook, import: renderYourData, stats: renderStats, crewbase: renderCrewBase })[t]?.();
   window.scrollTo(0,0);
 }
 $("#tabs").addEventListener("click", e => { if (e.target.dataset.t) tab(e.target.dataset.t); });
@@ -756,7 +746,7 @@ function renderOverview(){
   $("#hello").textContent = first ? `Welcome, ${first}` : "Welcome";
   const missing = [];
   if (!p.name || !p.lic) missing.push('<a href="#" data-go="profile">complete your profile</a>');
-  if (!data.signature) missing.push('<a href="#" data-go="signature">add your signature</a>');
+  if (!data.signature) missing.push('<a href="#" data-go="profile" data-scroll="#sigSection">add your signature</a>');
   if (!data.flights.length) missing.push('<a href="#" data-go="import">import your flights</a>');
   $("#setupNotice").classList.toggle("hidden", !missing.length);
   $("#setupNotice").innerHTML = "<b>Finish setting up:</b> " + missing.join(", ") + ".";
@@ -768,7 +758,7 @@ function renderOverview(){
   const set = data.expiries.filter(e => e.date).map(e => ({...e, s: expStatus(e.date)})).sort((a,b) => a.s.days - b.s.days);
   $("#sNext").innerHTML = set[0] ? `${esc(set[0].name)}<br><span class="chip ${set[0].s.c}" style="margin-top:6px">${fmtDate(set[0].date)}</span>` : "—";
   const warn = set.filter(e => e.s.c !== "ok");
-  $("#ovExp").innerHTML = !set.length ? 'No dates entered yet. <a href="#" data-go="expiries">Add them</a>.'
+  $("#ovExp").innerHTML = !set.length ? 'No dates entered yet. <a href="#" data-go="profile" data-scroll="#expSection">Add them</a>.'
     : warn.length ? warn.map(e => `<div style="display:flex;justify-content:space-between;gap:10px;padding:6px 0"><span>${esc(e.name)}</span><span class="chip ${e.s.c}">${e.s.c==="bad"?"Expired":"Due "+fmtDate(e.date)}</span></div>`).join("")
     : `<span class="chip ok">All ${set.length} items valid</span> for at least 60 days.`;
 }
