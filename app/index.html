@@ -340,12 +340,12 @@ td.r,th.r{text-align:right}
             <li>In the left menu open <b>Reports</b> → <b>Pilot LogBook report</b>.</li>
             <li>Set the <b>Period</b> (for example 01/09/2026 – 30/09/2026, or a whole year) and press <b>Go</b>.</li>
             <li>Click the <b>Export</b> button in the report toolbar (the save icon with a small ▾ arrow, next to the print icons).</li>
-            <li>Choose <b>CSV</b>. If CSV isn't listed, choose <b>Excel (XLSX)</b>; both work.</li>
-            <li>Drop the file below.</li>
+            <li>Choose <b>CSV</b> or <b>Excel (XLSX)</b>; both work. On iPhone, save the file to Files.</li>
+            <li>Drop the file below, or tap the box and pick it from Files. It is read automatically.</li>
           </ol>
           <div class="drop" id="dropAims"><b>Drop your Etihad eCrew file here</b><br><span class="hint">or click to choose files · .csv, .xlsx</span>
             <input type="file" id="aimsFile" accept=".csv,.txt,.tsv,.xlsx,.xls" multiple class="hidden"></div>
-          <p class="hint" style="margin:12px 0 0">Overlapping periods are fine: flights already in your logbook are skipped. The heading, crew line and "Totals" row are ignored. Simulator sessions aren't imported yet.</p>
+          <p class="hint" style="margin:12px 0 0">Overlapping periods are fine: flights already in your logbook are skipped. Simulator sessions go into the FSTD columns of your logbook.</p>
         </div>
         <div class="notice" style="margin:16px 0 0;background:var(--bg);border-color:var(--line)">
           <b>Don't see your airline?</b> Send us these and we will add your airline:
@@ -458,7 +458,7 @@ td.r,th.r{text-align:right}
         <div class="stats" id="stTiles"></div>
         <div class="card"><h3>Recent experience</h3><div class="tablewrap" id="stPeriods"></div></div>
         <div class="card"><h3>By aircraft type</h3><div class="tablewrap" id="stTypes"></div></div>
-        <p class="hint">Simulator (FSTD) time is not included.</p>
+        <p class="hint">Simulator (FSTD) time is shown on its own and not included in total time.</p>
       </div>
     </div>
 
@@ -928,12 +928,15 @@ function parseCSV(text){
   return rows.filter(r => r.some(c => c.trim() !== ""));
 }
 async function readFile(f){
-  if (/\.xlsx?$/i.test(f.name)) {
+  const buf = await f.arrayBuffer(), b = new Uint8Array(buf, 0, Math.min(4, buf.byteLength));
+  // Excel files are often saved with a .csv name (eCrew on iPhone does this): check the bytes. PK = .xlsx (zip), D0 CF = old .xls
+  const excel = (b[0] === 0x50 && b[1] === 0x4B) || (b[0] === 0xD0 && b[1] === 0xCF) || /\.xlsx?$/i.test(f.name);
+  if (excel) {
     if (!window.XLSX) await loadScript("https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js");
-    const wb = XLSX.read(await f.arrayBuffer(), { type: "array", cellDates: false, raw: false });
+    const wb = XLSX.read(buf, { type: "array", cellDates: false, raw: false });
     return XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false, defval: "" }).filter(r => r.some(c => String(c).trim() !== ""));
   }
-  return parseCSV(await f.text());
+  return parseCSV(new TextDecoder().decode(buf));
 }
 // find header row: first row (in first 15) with >= 3 recognisable column names
 function findHeader(rows){
@@ -962,6 +965,15 @@ function ecrewMap(headers){
     pic: h.indexOf("pic"), copilot: h.findIndex(x => x === "co-plt" || x === "co plt" || x === "co-pilot"), instructor: h.indexOf("instr")
   };
   // takeoffs: first day/night pair (kept for remarks-free recency in future)
+  for (const k in m) if (m[k] < 0) delete m[k];
+  return m;
+}
+function ecrewListMap(headers){
+  const h = headers.map(norm), at = w => h.indexOf(w);
+  if (at("depplace") < 0 || at("arrplace") < 0 || at("flttime") < 0) return null;
+  const m = { date: at("date"), from: at("depplace"), out: at("deptime"), to: at("arrplace"), in: at("arrtime"), acType: at("actype"), reg: at("reg"),
+    total: at("flttime"), picName: at("picname"), ldgDay: at("landsday"), ldgNight: at("landsnight"), pic: at("pic"), copilot: at("coplt"),
+    instructor: at("instr"), simTime: at("simtime"), simType: at("simtype") };
   for (const k in m) if (m[k] < 0) delete m[k];
   return m;
 }
@@ -1020,11 +1032,18 @@ function rowToFlight(r, map, fmt){
     ldgDay: parseInt(g("ldgDay")) || 0, ldgNight: parseInt(g("ldgNight")) || 0, remarks: g("remarks")
   };
   if (/^data:image\/png;base64,[A-Za-z0-9+\/=]+$/.test(g("remarkSig"))) f.remarkSig = g("remarkSig");
-  if (!f.total && f.out && f.in) f.total = tdiff(f.out, f.in);
+  if (g("fstdTime")) { f.fstdTime = parseDur(g("fstdTime")); f.fstdType = g("fstdType"); }
+  // eCrew simulator session (SimTime, no flight time): goes in the FSTD columns, not as a flight
+  const sim = parseDur(g("simTime"));
+  if (sim && !f.total) { const l = f.ldgDay + f.ldgNight;
+    Object.assign(f, { fstdTime: sim, fstdType: f.acType, remarks: [g("simType"), l ? `${l} landing${l === 1 ? "" : "s"}` : "", f.remarks].filter(Boolean).join(" · "),
+      from: "", to: "", out: "", off: "", on: "", in: "", acType: "", reg: "", picName: "", pic: 0, copilot: 0, instructor: 0, ldgDay: 0, ldgNight: 0 }); }
+  if (!f.total && !f.fstdTime && f.out && f.in) f.total = tdiff(f.out, f.in);
   return f;
 }
-const valid = f => f.date && (f.from || f.to || f.total);
-const dupKey = f => [f.date, f.from, f.to, f.out || f.flightNo].join("|");
+const isSim = f => !!f.fstdTime && !f.total;
+const valid = f => f.date && (f.from || f.to || f.total || f.fstdTime);
+const dupKey = f => [f.date, f.from, f.to, f.out || f.flightNo, f.fstdTime || ""].join("|");
 
 /* several files in one go (e.g. last time's CrewBase Log CSV + a new eCrew export):
    our own CSV imports straight away, other files go through the column check one by one */
@@ -1039,12 +1058,13 @@ async function nextFile(){
   while (impQueue.length) {
     const f = impQueue.shift(), err = await handleFile(f);
     if (err) { impLog.push(`<b>${esc(f.name)}</b>: <span style="color:var(--bad)">${esc(err)}</span>`); impErrs++; continue; }
-    if (imp?.own) { doImport(); imp = null; continue; }
+    if (imp?.own || imp?.auto) { doImport(); imp = null; continue; }
     if (imp) return; // waiting for the column check
   }
   if (!impLog.length) return;
   if (impErrs === impLog.length) return $("#impErr").innerHTML = impLog.join("<br>");
-  $("#impDoneLog").innerHTML = impLog.join("<br>") + `<br>Your logbook now has <b>${data.flights.length.toLocaleString()} flights</b>.`;
+  const ns = data.flights.filter(isSim).length, nf = data.flights.length - ns;
+  $("#impDoneLog").innerHTML = impLog.join("<br>") + `<br>Your logbook now has <b>${nf.toLocaleString()} flight${nf === 1 ? "" : "s"}</b>` + (ns ? ` and <b>${ns} simulator session${ns === 1 ? "" : "s"}</b>` : "") + ".";
   $("#impDone").classList.remove("hidden"); $("#impDone").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 async function handleFile(f){
@@ -1055,8 +1075,10 @@ async function handleFile(f){
   if (rows.length < 2) return "The file looks empty.";
   const h = findHeader(rows), headers = rows[h].map(c => String(c).trim()), body = rows.slice(h+1);
   const sig = headers.map(norm).join("|");
-  // our own CSV (files from before the signature column have one column less)
-  if ([LOG_COLS, LOG_COLS.slice(0, -1)].some(L => sig === L.map(c => norm(c[1])).join("|"))) { imp = { headers, rows: body, map: Object.fromEntries(LOG_COLS.map((c, i) => [c[0], i])), sig, name: f.name, own: true }; return; }
+  // our own CSV (older files have fewer of the trailing columns)
+  const ecl = ecrewListMap(headers);
+  if (ecl) { imp = { headers, rows: body, map: ecl, sig, name: f.name, auto: true, fmt: "DMY" }; return; }
+  if (LOG_COLS.some((_, n) => n >= 20 && sig === LOG_COLS.slice(0, n + 1).map(c => norm(c[1])).join("|"))) { imp = { headers, rows: body, map: Object.fromEntries(LOG_COLS.map((c, i) => [c[0], i])), sig, name: f.name, own: true }; return; }
   const fmt = $("#mDateFmt").value;
   const works = m => m && body.some(r => valid(rowToFlight(r, m, fmt)));
   // a saved matching only wins if it actually produces flights (an earlier failed import may have saved a bad one)
@@ -1085,7 +1107,7 @@ $("#mapGrid").addEventListener("change", e => { const k = e.target.dataset.k; im
 $("#mDateFmt").addEventListener("change", renderPreview);
 $("#btnCancelImp").addEventListener("click", () => { impLog.push(`<b>${esc(imp.name)}</b>: skipped`); imp = null; $("#mapCard").classList.add("hidden"); nextFile(); });
 function doImport(){
-  const fmt = imp.own ? "YMD" : $("#mDateFmt").value, existing = new Map(data.flights.map(f => [dupKey(f), f]));
+  const fmt = imp.fmt || (imp.own ? "YMD" : $("#mDateFmt").value), existing = new Map(data.flights.map(f => [dupKey(f), f]));
   let added = 0, dup = 0, bad = 0;
   for (const r of imp.rows) {
     const f = rowToFlight(r, imp.map, fmt);
@@ -1097,7 +1119,7 @@ function doImport(){
   data.flights.sort((a,b) => (a.date+a.out).localeCompare(b.date+b.out));
   if (!imp.own && (added || dup)) data.templates[imp.sig] = Object.fromEntries(Object.entries(imp.map).filter(([,v]) => v !== undefined));
   if (!save()) return false;
-  impLog.push(`<b>${esc(imp.name)}</b>: ${added} new flight${added===1?"":"s"}` + (dup ? `, ${dup} already in your logbook` : "") + (bad ? `, ${bad} rows without a date/route ignored` : ""));
+  impLog.push(`<b>${esc(imp.name)}</b>: ${added} new entr${added===1?"y":"ies"}` + (dup ? `, ${dup} already in your logbook` : "") + (bad ? `, ${bad} rows without a date/route ignored` : ""));
   return true;
 }
 $("#btnImport").addEventListener("click", () => {
@@ -1117,8 +1139,8 @@ $("#dlSample").addEventListener("click", e => {
 /* the full-logbook CSV: fixed columns, ISO dates, H:MM durations, so it imports straight back */
 const LOG_COLS = [["date","Date"],["flightNo","Flight no"],["from","From"],["to","To"],["out","Off-block"],["off","Take-off"],["on","Landing"],["in","On-block"],
   ["acType","Aircraft type"],["reg","Registration"],["picName","PIC name"],["total","Total time"],["pic","PIC time"],["copilot","Co-pilot time"],["dual","Dual time"],
-  ["instructor","Instructor time"],["night","Night time"],["ifr","IFR time"],["ldgDay","Landings day"],["ldgNight","Landings night"],["remarks","Remarks"],["remarkSig","Remarks signature"]];
-const LOG_DUR = new Set(["total","pic","copilot","dual","instructor","night","ifr"]);
+  ["instructor","Instructor time"],["night","Night time"],["ifr","IFR time"],["ldgDay","Landings day"],["ldgNight","Landings night"],["remarks","Remarks"],["remarkSig","Remarks signature"],["fstdType","FSTD type"],["fstdTime","FSTD time"]];
+const LOG_DUR = new Set(["total","pic","copilot","dual","instructor","night","ifr","fstdTime"]);
 function logbookCSV(){
   const cell = v => /[",\r\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
   const val = (f, k) => LOG_DUR.has(k) ? (f[k] ? fmtMin(f[k]) : "") : k.startsWith("ldg") ? (f[k] ? String(f[k]) : "") : String(f[k] ?? "");
@@ -1158,7 +1180,7 @@ function easaLineHTML(f){
   const cells = [f.date ? ddmmyy(f.date) : "", f.from, f.out, f.to, f.in, f.acType, f.reg,
     tick(crew === "SPSE" && f.total), tick(crew === "SPME" && f.total), crew === "MP" ? t(f.total) : "", t(f.total),
     self ? (f.from || f.to || f.total ? "SELF" : "") : f.picName, c(f.ldgDay), c(f.ldgNight), t(f.night), t(f.ifr),
-    t(f.pic), t(f.copilot), t(f.dual), t(f.instructor), "", "", f.remarks];
+    t(f.pic), t(f.copilot), t(f.dual), t(f.instructor), f.fstdType || "", t(f.fstdTime), f.remarks];
   return `<table class="lbline"><thead>
     <tr><th rowspan="2">DATE<br>dd/mm/yy</th><th colspan="2">DEPARTURE</th><th colspan="2">ARRIVAL</th><th colspan="2">AIRCRAFT</th><th colspan="2">SINGLE PILOT TIME</th><th rowspan="2">MULTI PILOT<br>TIME</th><th rowspan="2">TOTAL<br>TIME</th><th rowspan="2">PIC NAME</th><th colspan="2">LANDINGS</th><th colspan="2">OP. COND. TIME</th><th colspan="4">PILOT FUNCTION TIME</th><th colspan="2">FSTD SESSION</th><th rowspan="2">REMARKS AND<br>ENDORSEMENTS</th></tr>
     <tr><th>PLACE</th><th>TIME</th><th>PLACE</th><th>TIME</th><th>TYPE</th><th>REG</th><th>SE</th><th>ME</th><th>DAY</th><th>NIGHT</th><th>NIGHT</th><th>IFR</th><th>PIC</th><th>COP</th><th>DUAL</th><th>INSTR</th><th>TYPE</th><th>TIME</th></tr>
@@ -1187,8 +1209,10 @@ $("#addForm").addEventListener("submit", e => {
 /* ---------- statistics (hours for job applications) ---------- */
 const crewOf = () => data.profile.crew || "MP";
 function statTotals(F){
-  const crew = crewOf(), o = { n: F.length, total: 0, pic: 0, copilot: 0, dual: 0, instructor: 0, night: 0, ifr: 0, mp: 0, me: 0, se: 0, ldg: 0, ldgNight: 0, last: "" };
+  const crew = crewOf(), o = { n: 0, sims: 0, fstd: 0, total: 0, pic: 0, copilot: 0, dual: 0, instructor: 0, night: 0, ifr: 0, mp: 0, me: 0, se: 0, ldg: 0, ldgNight: 0, last: "" };
   for (const f of F) {
+    if (isSim(f)) { o.sims++; o.fstd += f.fstdTime; continue; }
+    o.n++;
     for (const k of ["total","pic","copilot","dual","instructor","night","ifr"]) o[k] += f[k] || 0;
     if (crew === "MP") o.mp += f.total || 0;
     if (crew === "SPSE") o.se += f.total || 0; else o.me += f.total || 0;
@@ -1203,7 +1227,8 @@ function renderStats(){
   if (!F.length) return;
   const T = statTotals(F), h = fmtMin;
   const tiles = [["Total time", h(T.total)], ["PIC", h(T.pic)], ["Co-pilot (SIC)", h(T.copilot)], ["Multi-crew (multi-pilot)", h(T.mp)], ["Multi-engine", h(T.me)],
-    ["Single-engine", h(T.se)], ["IFR", h(T.ifr)], ["Night", h(T.night)], ["Instructor", h(T.instructor)], ["Dual received", h(T.dual)], ["Sectors", T.n.toLocaleString()], ["Landings", `${T.ldg.toLocaleString()}${T.ldgNight ? ` (${T.ldgNight} night)` : ""}`]];
+    ["Single-engine", h(T.se)], ["IFR", h(T.ifr)], ["Night", h(T.night)], ["Instructor", h(T.instructor)], ["Dual received", h(T.dual)], ["Sectors", T.n.toLocaleString()], ["Landings", `${T.ldg.toLocaleString()}${T.ldgNight ? ` (${T.ldgNight} night)` : ""}`],
+    ["Simulator (FSTD)", `${h(T.fstd)}${T.sims ? ` · ${T.sims} session${T.sims === 1 ? "" : "s"}` : ""}`]];
   $("#stTiles").innerHTML = tiles.map(([k, v]) => `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`).join("");
   const ago = d => new Date(Date.now() - d*864e5).toISOString().slice(0, 10);
   const per = [["Last 28 days", 28], ["Last 90 days", 90], ["Last 6 months", 182], ["Last 12 months", 365], ["Last 24 months", 730], ["All time", 0]]
@@ -1222,7 +1247,7 @@ $("#stCopy").addEventListener("click", async () => {
   const P = data.profile, T = statTotals(data.flights), h = fmtMin;
   const lines = [`Flight hours summary${P.name ? " - " + P.name : ""}${P.lic ? " (" + P.lic + ")" : ""}`, `As of ${fmtDate(todayISO())}`, "",
     `Total time: ${h(T.total)}`, `PIC: ${h(T.pic)}`, `Co-pilot (SIC): ${h(T.copilot)}`, `Multi-crew: ${h(T.mp)}`, `Multi-engine: ${h(T.me)}`,
-    `IFR: ${h(T.ifr)}`, `Night: ${h(T.night)}`, `Instructor: ${h(T.instructor)}`, `Sectors: ${T.n}`, `Landings: ${T.ldg}`, "",
+    `IFR: ${h(T.ifr)}`, `Night: ${h(T.night)}`, `Instructor: ${h(T.instructor)}`, `Sectors: ${T.n}`, `Landings: ${T.ldg}`, `Simulator (FSTD): ${h(T.fstd)}`, "",
     ...[...$("#stPeriods").querySelectorAll("tr"), ...$("#stTypes").querySelectorAll("tr")].map(r => [...r.children].map(c => c.textContent).join("\t"))];
   try { await navigator.clipboard.writeText(lines.join("\n")); $("#stCopy").textContent = "Copied"; } catch { $("#stCopy").textContent = "Copy failed"; }
   setTimeout(() => $("#stCopy").textContent = "Copy summary", 1500);
@@ -1233,7 +1258,7 @@ function download(name, type, text){ const a = document.createElement("a"); a.hr
 /* ---------- logbook ---------- */
 function renderLogbook(){
   const F = data.flights, sum = k => F.reduce((s,f) => s + (f[k]||0), 0);
-  $("#lbStats").innerHTML = [["Flights", F.length.toLocaleString()], ["Total", fmtMin(sum("total"))], ["PIC", fmtMin(sum("pic"))], ["Night", fmtMin(sum("night"))]]
+  $("#lbStats").innerHTML = [["Flights", F.filter(f => !isSim(f)).length.toLocaleString()], ["Total", fmtMin(sum("total"))], ["PIC", fmtMin(sum("pic"))], ["Night", fmtMin(sum("night"))]]
     .map(([k,v]) => `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`).join("");
   const q = $("#lbSearch").value.trim().toLowerCase();
   const hits = F.map((f, i) => ({ f, i })).filter(({ f }) => !q || [fmtDate(f.date), f.date, f.flightNo, f.from, f.to, f.acType, f.reg, f.picName, f.remarks].join(" ").toLowerCase().includes(q));
@@ -1241,7 +1266,7 @@ function renderLogbook(){
   $("#lbTable").innerHTML = !F.length ? '<p class="hint" style="padding:16px;margin:0">No flights yet. <a href="#" data-go="import">Import some</a>.</p>' :
     !hits.length ? '<p class="hint" style="padding:16px;margin:0">No flights match your search.</p>' :
     `<table><thead><tr><th>Date</th><th>Flight</th><th>From</th><th>To</th><th>Out</th><th>In</th><th>Type</th><th>Reg</th><th>PIC</th><th class="r">Total</th><th class="r">Night</th><th class="r">Ldg</th><th></th></tr></thead><tbody>` +
-    rows.map(({ f, i }) => `<tr><td>${fmtDate(f.date)}</td><td>${esc(f.flightNo)}</td><td>${esc(f.from)}</td><td>${esc(f.to)}</td><td>${f.out}</td><td>${f.in}</td><td>${esc(f.acType)}</td><td>${esc(f.reg)}</td><td>${esc(f.picName)}${f.remarkSig ? ' <span title="Signed by instructor">✍</span>' : ""}</td><td class="r">${fmtMin(f.total)}</td><td class="r">${f.night?fmtMin(f.night):""}</td><td class="r">${(f.ldgDay+f.ldgNight)||""}</td><td class="r" style="white-space:nowrap"><button class="rowbtn" type="button" data-edit="${i}">Edit</button><button class="rowbtn del" type="button" data-fdel="${i}" title="Delete this flight">Delete</button></td></tr>`).join("") + "</tbody></table>";
+    rows.map(({ f, i }) => `<tr><td>${fmtDate(f.date)}</td><td>${isSim(f) ? `<span class="tag">FSTD</span> ${esc(f.fstdType || "")}` : esc(f.flightNo)}</td><td>${esc(f.from)}</td><td>${esc(f.to)}</td><td>${f.out}</td><td>${f.in}</td><td>${esc(f.acType)}</td><td>${esc(f.reg)}</td><td>${esc(f.picName)}${f.remarkSig ? ' <span title="Signed by instructor">✍</span>' : ""}</td><td class="r">${fmtMin(isSim(f) ? f.fstdTime : f.total)}</td><td class="r">${f.night?fmtMin(f.night):""}</td><td class="r">${(f.ldgDay+f.ldgNight)||""}</td><td class="r" style="white-space:nowrap"><button class="rowbtn" type="button" data-edit="${i}">Edit</button><button class="rowbtn del" type="button" data-fdel="${i}" title="Delete this flight">Delete</button></td></tr>`).join("") + "</tbody></table>";
   $("#lbMore").textContent = hits.length > 100 ? `Showing the latest 100 of ${hits.length.toLocaleString()} ${q ? "matching " : ""}flights.${q ? "" : " Search to find older ones."}` : "";
 }
 /* one flight at a time: edit or delete */
