@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CrewBase Log — EASA pilot logbook</title>
+<meta name="description" content="An offline-first EASA FCL.050 pilot logbook. Your flights, on your device, with print-ready logbook PDFs.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230b3d5c'/%3E%3Cpath d='M12 38l40-14-10 22-8-6-6 8v-10z' fill='%23f2b544'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f7f8fa; --surface:#ffffff; --ink:#0f1c27; --muted:#5a6b78; --line:#e2e7ec;
+  --brand:#0b3d5c; --accent:#d9971c; --accent-soft:#fdf3e1;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#0b141b; --surface:#111e28; --ink:#e8eef3; --muted:#9aabb8; --line:#1f2f3c;
+         --brand:#7cc4ee; --accent:#f2b544; --accent-soft:#2a2213; }
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 Inter,system-ui,-apple-system,Segoe UI,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:inherit}
+.wrap{max-width:1080px;margin:0 auto;padding:0 20px}
+header{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--bg) 85%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+.nav{display:flex;align-items:center;justify-content:space-between;height:64px}
+.logo{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:-.01em;text-decoration:none}
+.logo svg{width:30px;height:30px}
+.nav a.btn{font-size:14px}
+.btn{display:inline-block;padding:11px 20px;border-radius:10px;background:var(--brand);color:var(--bg);font-weight:600;text-decoration:none;transition:transform .15s}
+.btn:hover{transform:translateY(-1px)}
+.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+.hero{padding-block:88px 64px;display:grid;grid-template-columns:1.1fr .9fr;gap:56px;align-items:center}
+.eyebrow{font:500 12px/1 "JetBrains Mono",monospace;letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+h1{font-size:clamp(36px,5.2vw,58px);line-height:1.05;letter-spacing:-.03em;margin:16px 0 20px}
+.lede{font-size:19px;color:var(--muted);max-width:34em;margin:0 0 32px}
+.cta{display:flex;gap:12px;flex-wrap:wrap}
+/* logbook card */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:22px;box-shadow:0 20px 50px -24px rgba(11,61,92,.35)}
+.card-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px}
+.card-head b{font-size:14px}
+.card-head span{font:500 12px "JetBrains Mono",monospace;color:var(--muted)}
+table{width:100%;border-collapse:collapse;font:500 12.5px "JetBrains Mono",monospace}
+th{font-weight:500;color:var(--muted);text-align:left;padding:6px 4px;border-bottom:1px solid var(--line);font-size:11px;text-transform:uppercase;letter-spacing:.06em}
+td{padding:9px 4px;border-bottom:1px dashed var(--line)}
+td.r,th.r{text-align:right}
+.tot{display:flex;justify-content:space-between;margin-top:14px;padding:12px 14px;border-radius:10px;background:var(--accent-soft);font:500 13px "JetBrains Mono",monospace}
+.tot b{color:var(--accent)}
+section{padding:64px 0}
+h2{font-size:clamp(26px,3.4vw,36px);letter-spacing:-.02em;margin:0 0 12px}
+.sub{color:var(--muted);max-width:40em;margin:0 0 40px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+.feat{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:24px}
+.feat .ic{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent);margin-bottom:14px}
+.feat h3{margin:0 0 6px;font-size:17px}
+.feat p{margin:0;color:var(--muted);font-size:15px}
+.band{background:var(--surface);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:28px;counter-reset:s}
+.step{counter-increment:s}
+.step:before{content:counter(s,decimal-leading-zero);font:500 13px "JetBrains Mono",monospace;color:var(--accent);display:block;margin-bottom:8px}
+.step h3{margin:0 0 6px;font-size:17px}
+.step p{margin:0;color:var(--muted);font-size:15px}
+.final{text-align:center}
+.final .sub{margin:0 auto 28px}
+footer{border-top:1px solid var(--line);padding:28px 0;color:var(--muted);font-size:14px}
+footer .wrap{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+@media (max-width:860px){
+  .hero{grid-template-columns:1fr;padding-block:56px 40px;gap:40px}
+  .grid,.steps{grid-template-columns:1fr}
+  section{padding:48px 0}
+}
+@media (max-width:420px){ .wrap{padding:0 16px} td:nth-child(3),th:nth-child(3){display:none} }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap nav">
+    <a class="logo" href="#">
+      <svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="#0b3d5c"/><path d="M12 38l40-14-10 22-8-6-6 8v-10z" fill="#f2b544"/></svg>
+      CrewBase Log
+    </a>
+    <a class="btn" href="#access">Get early access</a>
+  </div>
+</header>
+
+<main>
+  <div class="wrap hero">
+    <div>
+      <div class="eyebrow">EASA FCL.050 · Offline-first</div>
+      <h1>The pilot logbook that lives on your device.</h1>
+      <p class="lede">Log flights in seconds, keep years of history, and print a regulation-format logbook whenever you need it. No subscription lock-in, no signal required.</p>
+      <div class="cta">
+        <a class="btn" href="#access">Get early access</a>
+        <a class="btn ghost" href="#features">See features</a>
+      </div>
+    </div>
+    <div class="card" aria-label="Example logbook entries">
+      <div class="card-head"><b>Recent flights</b><span>UTC</span></div>
+      <table>
+        <thead><tr><th>Date</th><th>Route</th><th>Type</th><th class="r">Block</th></tr></thead>
+        <tbody>
+          <tr><td>24 Oct</td><td>AUH–LHR</td><td>B789</td><td class="r">7:42</td></tr>
+          <tr><td>22 Oct</td><td>LHR–AUH</td><td>B789</td><td class="r">6:51</td></tr>
+          <tr><td>18 Oct</td><td>AUH–BKK</td><td>B789</td><td class="r">6:05</td></tr>
+          <tr><td>16 Oct</td><td>BKK–AUH</td><td>B789</td><td class="r">6:48</td></tr>
+        </tbody>
+      </table>
+      <div class="tot"><span>Last 28 days</span><b>27:26</b></div>
+    </div>
+  </div>
+
+  <section id="features">
+    <div class="wrap">
+      <h2>Built by a line pilot, for line pilots</h2>
+      <p class="sub">Everything you need to keep an accurate, auditable record of your flying, without a monthly fee.</p>
+      <div class="grid">
+        <div class="feat"><div class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg></div><h3>EASA FCL.050 PDFs</h3><p>Print or export a regulation-format logbook, page totals and all, ready for a licence renewal or job application.</p></div>
+        <div class="feat"><div class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 1l22 22M16.7 11.1A10.9 10.9 0 0 1 19 12.5M5 12.5a10.9 10.9 0 0 1 5.2-2.4M10.7 5.1A16 16 0 0 1 22.6 9M1.4 9a16 16 0 0 1 4.4-2.7M8.5 16.1a5 5 0 0 1 7 0M12 20h.01"/></svg></div><h3>Works fully offline</h3><p>Installs like an app and runs without a connection: in the crew bus, the hotel, or at 41,000 ft.</p></div>
+        <div class="feat"><div class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div><h3>Your data stays yours</h3><p>Entries are stored on your device. Export everything at any time; nothing is held hostage behind an account.</p></div>
+        <div class="feat"><div class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg></div><h3>Bring your history</h3><p>Import years of existing entries so your totals carry over from day one.</p></div>
+        <div class="feat"><div class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="10" r="3"/><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"/></svg></div><h3>Airport lookup</h3><p>Find the nearest airport from your GPS position and fill ICAO codes automatically.</p></div>
+        <div class="feat"><div class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></div><h3>Totals at a glance</h3><p>Block, PIC, night, IFR and per-type totals, plus rolling 28-day and 12-month views.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="wrap">
+      <h2>How it works</h2>
+      <p class="sub">From blocks-on to logged in under a minute.</p>
+      <div class="steps">
+        <div class="step"><h3>Open it anywhere</h3><p>Add CrewBase Log to your home screen on phone, tablet or laptop.</p></div>
+        <div class="step"><h3>Log the sector</h3><p>Enter OOOI times, route and crew. Times and night hours are calculated for you.</p></div>
+        <div class="step"><h3>Print when needed</h3><p>Generate an FCL.050 logbook PDF in one tap, for any date range.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="access" class="final">
+    <div class="wrap">
+      <h2>Be first on board</h2>
+      <p class="sub">CrewBase Log is in private testing. Drop us a line and we'll let you know when it opens up.</p>
+      <a class="btn" href="mailto:hello@crewbaselog.com?subject=CrewBase%20Log%20early%20access">Request early access</a>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>© 2026 CrewBase Log</span>
+    <a href="mailto:hello@crewbaselog.com">hello@crewbaselog.com</a>
+  </div>
+</footer>
+</body>
+</html>
