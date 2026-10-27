@@ -278,6 +278,16 @@ td.r,th.r{text-align:right}
         </div>
         <div class="row-actions"><button class="btn" type="submit">Save profile</button><span id="profSaved" class="ok-msg"></span></div>
       </form>
+      <div class="card" id="defCard">
+        <h3>How you log your flights</h3>
+        <p class="hint" style="margin:0 0 14px;font-size:14px">Filled in automatically when an imported or added flight doesn't have them. A value already on a flight is never changed.</p>
+        <div class="field" style="max-width:360px"><label for="pRole">I fly as</label>
+          <select id="pRole"><option value="PIC">Pilot in command (captain)</option><option value="CP">Co-pilot (first officer)</option></select>
+          <div class="hint">Decides whether a flight's time goes to PIC or co-pilot. Files with their own PIC/co-pilot columns (like eCrew) keep their values.</div></div>
+        <label style="display:flex;gap:8px;align-items:flex-start;font-weight:400;margin:0 0 8px"><input type="checkbox" id="pIfr" style="width:auto;margin-top:3px"> <span>Airline flights are IFR: a flight between two airports gets IFR time equal to its total time.</span></label>
+        <label style="display:flex;gap:8px;align-items:flex-start;font-weight:400;margin:0 0 14px"><input type="checkbox" id="pNight" style="width:auto;margin-top:3px"> <span>Work out night time from the block times and airports (times in UTC). Night is when the sun is more than 6° below the horizon, along the route.</span></label>
+        <div class="row-actions" style="margin:0"><button class="btn ghost" type="button" id="pApply">Apply to flights already in my logbook</button><span id="pApplyMsg" class="ok-msg"></span></div>
+      </div>
     </div>
 
     <!-- expiries -->
@@ -375,7 +385,7 @@ td.r,th.r{text-align:right}
 
       <form class="card" id="addForm">
         <h3><span class="stepn">3</span>Add a flight by hand</h3>
-        <p class="hint" style="margin:0 0 14px;font-size:14px">For a flight that isn't in any file. The preview below shows the line exactly as it will appear in your EASA logbook.</p>
+        <p class="hint" style="margin:0 0 14px;font-size:14px">For a flight that isn't in any file. Times in UTC. Leave PIC/co-pilot, night and IFR empty to have them filled in from your <a href="#" data-go="profile">profile</a>. The preview shows the line exactly as it will appear in your EASA logbook.</p>
         <div class="lbgrid" id="addFields"></div>
         <div class="field" style="margin-top:4px"><label>Preview: your logbook line</label><div class="tablewrap"><div id="addPreview"></div></div></div>
         <div class="row-actions" style="margin:0"><button class="btn" type="submit">Add flight to logbook</button><button class="btn ghost" type="button" id="addClear">Clear</button><span class="err" id="addErr" style="margin:0"></span><span class="ok-msg" id="addOk"></span></div>
@@ -777,7 +787,19 @@ document.addEventListener("click", e => { const g = e.target.closest("[data-go]"
 /* ---------- profile ---------- */
 const PF = { pName: "name", pEmail: "email", pLic: "lic", pType: "type", pBase: "base" };
 const PF_DROPPED = ["auth", "phone", "employer", "location", "lic2", "auth2", "type2"];
-function renderProfile(){ for (const [id,k] of Object.entries(PF)) $("#"+id).value = data.profile[k] || ""; $("#profSaved").textContent = ""; }
+function renderProfile(){
+  for (const [id,k] of Object.entries(PF)) $("#"+id).value = data.profile[k] || ""; $("#profSaved").textContent = "";
+  $("#pRole").value = data.profile.role || "PIC"; $("#pIfr").checked = data.profile.autoIfr !== false; $("#pNight").checked = data.profile.autoNight !== false; $("#pApplyMsg").textContent = "";
+}
+$("#defCard").addEventListener("change", () => { data.profile.role = $("#pRole").value; data.profile.autoIfr = $("#pIfr").checked; data.profile.autoNight = $("#pNight").checked; save(); });
+$("#pApply").addEventListener("click", async () => {
+  const msg = $("#pApplyMsg"); msg.style.color = ""; msg.textContent = "Working…";
+  if (!Object.keys(await loadAirports()).length) { msg.style.color = "var(--bad)"; msg.textContent = "Couldn't load the airport list. Check your connection and try again."; return; }
+  const c = { fn: 0, ifr: 0, night: 0 };
+  for (const f of data.flights) { const r = autoFill(f); if (r & 1) c.fn++; if (r & 2) c.ifr++; if (r & 4) c.night++; }
+  if (!save()) return;
+  msg.textContent = c.fn + c.ifr + c.night ? `Done: PIC/co-pilot time on ${c.fn}, IFR on ${c.ifr}, night time on ${c.night} flight${c.night === 1 ? "" : "s"}.` : "Nothing to fill in: your flights already have these.";
+});
 $("#profForm").addEventListener("submit", e => {
   e.preventDefault();
   for (const [id,k] of Object.entries(PF)) if (k !== "email") data.profile[k] = $("#"+id).value.trim();
@@ -1042,6 +1064,52 @@ function rowToFlight(r, map, fmt){
   return f;
 }
 const isSim = f => !!f.fstdTime && !f.total;
+
+/* airport positions (IATA and ICAO codes, OurAirports, public domain), loaded when first needed */
+let AIRPORTS = null;
+async function loadAirports(){
+  if (AIRPORTS) return AIRPORTS;
+  try { const r = await fetch("airports.json"); AIRPORTS = r.ok ? await r.json() : {}; } catch (e) { AIRPORTS = {}; }
+  const got = AIRPORTS; if (!Object.keys(got).length) AIRPORTS = null; // try again next time
+  return got;
+}
+// sun elevation in degrees at lat/lon (degrees) and time t (ms, UTC); low-precision almanac, good to ~0.1°
+function sunElevation(lat, lon, t){
+  const rad = Math.PI / 180, d = t / 864e5 - 10957.5;
+  const g = (357.529 + 0.98560028 * d) * rad, q = 280.459 + 0.98564736 * d;
+  const L = (q + 1.915 * Math.sin(g) + 0.020 * Math.sin(2 * g)) * rad, e = (23.439 - 0.00000036 * d) * rad;
+  const ra = Math.atan2(Math.cos(e) * Math.sin(L), Math.cos(L)), dec = Math.asin(Math.sin(e) * Math.sin(L));
+  const gmst = ((18.697374558 + 24.06570982441908 * d) % 24 + 24) % 24;
+  const ha = (gmst * 15 + lon) * rad - ra;
+  return Math.asin(Math.sin(lat * rad) * Math.sin(dec) + Math.cos(lat * rad) * Math.cos(dec) * Math.cos(ha)) / rad;
+}
+// night minutes of a flight: sample each minute between off-block and on-block along the great circle;
+// night = sun more than 6° below the horizon (end of evening to start of morning civil twilight). Scaled to the flight's total time.
+function nightMinutes(f){
+  const A = AIRPORTS?.[f.from], B = AIRPORTS?.[f.to];
+  if (!A || !B || !f.date || !f.out || !f.in || !f.total) return 0;
+  const block = tdiff(f.out, f.in); if (!block) return 0;
+  const t0 = Date.parse(`${f.date}T${f.out}:00Z`), rad = Math.PI / 180;
+  const v = ([la, lo]) => [Math.cos(la * rad) * Math.cos(lo * rad), Math.cos(la * rad) * Math.sin(lo * rad), Math.sin(la * rad)];
+  const a = v(A), b = v(B), om = Math.acos(Math.min(1, a[0]*b[0] + a[1]*b[1] + a[2]*b[2]));
+  let night = 0;
+  for (let m = 0; m < block; m++) {
+    const x = (m + 0.5) / block, k1 = om ? Math.sin((1 - x) * om) / Math.sin(om) : 1 - x, k2 = om ? Math.sin(x * om) / Math.sin(om) : x;
+    const pt = [0, 1, 2].map(i => k1 * a[i] + k2 * b[i]);
+    const lat = Math.atan2(pt[2], Math.hypot(pt[0], pt[1])) / rad, lon = Math.atan2(pt[1], pt[0]) / rad;
+    if (sunElevation(lat, lon, t0 + (m + 0.5) * 6e4) < -6) night++;
+  }
+  return Math.min(f.total, Math.round(night * f.total / block));
+}
+// fill what a flight is missing from the profile's logging defaults; never overwrites a value. Returns bits: 1 function time, 2 IFR, 4 night
+function autoFill(f){
+  if (isSim(f) || !f.total) return 0;
+  const P = data.profile; let r = 0;
+  if (!f.pic && !f.copilot && !f.dual && !f.instructor) { f[P.role === "CP" ? "copilot" : "pic"] = f.total; r |= 1; }
+  if (P.autoIfr !== false && !f.ifr && AIRPORTS?.[f.from] && AIRPORTS?.[f.to]) { f.ifr = f.total; r |= 2; }
+  if (P.autoNight !== false && !f.night) { const n = nightMinutes(f); if (n) { f.night = n; r |= 4; } }
+  return r;
+}
 const valid = f => f.date && (f.from || f.to || f.total || f.fstdTime);
 const dupKey = f => [f.date, f.from, f.to, f.out || f.flightNo, f.fstdTime || ""].join("|");
 
@@ -1068,6 +1136,7 @@ async function nextFile(){
   $("#impDone").classList.remove("hidden"); $("#impDone").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 async function handleFile(f){
+  await loadAirports();
   $("#impResult").textContent = "";
   if (f.size > 20e6) return "That file is over 20 MB. Try exporting a smaller date range.";
   let rows;
@@ -1112,6 +1181,7 @@ function doImport(){
   for (const r of imp.rows) {
     const f = rowToFlight(r, imp.map, fmt);
     if (!valid(f)) { bad++; continue; }
+    if (!imp.own) autoFill(f);
     // already there: only pick up an instructor signature the stored copy lacks
     const k = dupKey(f), had = existing.get(k); if (had) { if (f.remarkSig && !had.remarkSig) had.remarkSig = f.remarkSig; dup++; continue; }
     existing.set(k, f); data.flights.push(f); added++;
@@ -1153,7 +1223,7 @@ document.addEventListener("click", e => {
 });
 /* ---------- your data: airlines, add a flight by hand ---------- */
 function renderYourData(){
-  renderPrint();
+  renderPrint(); loadAirports().then(renderAddPreview);
   if (!$("#addFields").children.length) { $("#addFields").innerHTML = flightFieldsHTML("n_"); renderAddPreview(); }
 }
 $("#airlines").addEventListener("click", e => {
@@ -1176,7 +1246,7 @@ $("#airMail").addEventListener("click", e => {
 // one line of the EASA (FCL.050) logbook, same columns and formatting as the PDF
 function easaLineHTML(f){
   const crew = $("#prCrew").value, t = m => lbTime(m), c = n => n ? String(n) : "", tick = on => on ? "✓" : "";
-  const self = !f.picName || /^self$/i.test(f.picName.trim());
+  const self = /^self$/i.test((f.picName || "").trim()) || (!f.picName && !(f.copilot && !f.pic));
   const cells = [f.date ? ddmmyy(f.date) : "", f.from, f.out, f.to, f.in, f.acType, f.reg,
     tick(crew === "SPSE" && f.total), tick(crew === "SPME" && f.total), crew === "MP" ? t(f.total) : "", t(f.total),
     self ? (f.from || f.to || f.total ? "SELF" : "") : f.picName, c(f.ldgDay), c(f.ldgNight), t(f.night), t(f.ifr),
@@ -1190,6 +1260,7 @@ function easaLineHTML(f){
 }
 function renderAddPreview(){
   const { f, err } = readFlightForm("n_");
+  if (!err) autoFill(f);
   $("#addPreview").innerHTML = easaLineHTML(f);
   return err;
 }
@@ -1199,6 +1270,7 @@ $("#addClear").addEventListener("click", () => { $("#addFields").innerHTML = fli
 $("#addForm").addEventListener("submit", e => {
   e.preventDefault(); $("#addOk").textContent = "";
   const { f, err } = readFlightForm("n_"); if (err) return $("#addErr").textContent = err;
+  autoFill(f);
   if (data.flights.some(x => dupKey(x) === dupKey(f))) return $("#addErr").textContent = "That flight is already in your logbook.";
   data.flights.push(f); data.flights.sort((a,b) => (a.date+a.out).localeCompare(b.date+b.out));
   if (!save()) return;
@@ -1745,7 +1817,7 @@ async function makeEasaPdf(F, bf, rowsPerPage, crew, before = [], pageOffset = 0
     chunk.forEach((f, r) => {
       const top = TOP + r * rh, bot = top + rh, cell = (i, t) => cellText(pg, t, X[i], X[i+1], top, bot);
       cell(0, ddmmyy(f.date)); cell(1, f.from); cell(2, f.out); cell(3, f.to); cell(4, f.in); cell(5, f.acType); cell(6, f.reg);
-      cell(11, isSelf(f.picName) ? (f.from || f.to || f.total ? "SELF" : "") : f.picName);
+      cell(11, isSelf(f.picName) ? (f.from || f.to || f.total) && !(f.copilot && !f.pic && !f.picName) ? "SELF" : "" : f.picName);
       cell(20, f.fstdType || "");
       NUM.forEach(([i, fn, kind], k) => {
         const v = +fn(f) || 0; sum[k] += v;
