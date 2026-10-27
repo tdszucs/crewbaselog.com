@@ -528,20 +528,23 @@ const Auth = (() => {
 
 /* ================= DATA (per user, on device) ================= */
 const DEFAULT_EXPIRIES = [["lic", "Licence"], ["med", "Medical"], ["opc", "OPC"]].map(([id, name]) => ({ id, name, date: "", note: "" }));
-// the old default list; untouched (no date, no note) rows from it are dropped on load
+// the old default list; rows from it are dropped on load (Medical / OPC dates carry over)
 const OLD_DEFAULT_EXPIRIES = ["Medical certificate (Class 1)", "Type rating / LPC", "Instrument rating (IR)", "Operator proficiency check (OPC)",
   "Line check", "Emergency & safety equipment (SEP)", "CRM training", "Dangerous goods", "Language proficiency (ELP)", "Passport", "Crew ID / airport pass"];
 
 let user = null, data = null;
 const key = () => "cbl_data_" + user.id;
-function blank(){ return { profile: { name: "", email: user.email, lic: "", type: "", format: "EASA", base: "", dateFmt: "DMY" }, signature: "", expiries: structuredClone(DEFAULT_EXPIRIES), expV: 2, flights: [], templates: {} }; }
+function blank(){ return { profile: { name: "", email: user.email, lic: "", type: "", format: "EASA", base: "", dateFmt: "DMY" }, signature: "", expiries: structuredClone(DEFAULT_EXPIRIES), expV: 3, flights: [], templates: {} }; }
 function load(){ data = store.get(key(), null) || blank(); data.profile.email = user.email; migrateExpiries(); }
 function migrateExpiries(){
-  if (data.expV >= 2) return;
-  const kept = data.expiries.filter(e => e.date || e.note || !OLD_DEFAULT_EXPIRIES.includes(e.name));
-  const has = re => kept.some(e => re.test(e.name));
-  const core = [[/licen[cs]e/i, 0], [/medical/i, 1], [/\bOPC\b|operator proficiency/i, 2]].filter(([re]) => !has(re)).map(([, i]) => ({ ...DEFAULT_EXPIRIES[i] }));
-  data.expiries = [...core, ...kept]; data.expV = 2; save();
+  if (data.expV >= 3) return;
+  const old = data.expiries || [];
+  const core = DEFAULT_EXPIRIES.map(d => {
+    const prev = old.find(e => e.id === d.id) || old.find(e => e.name === { med: "Medical certificate (Class 1)", opc: "Operator proficiency check (OPC)" }[d.id]);
+    return { ...d, date: prev?.date || "", note: prev?.note || "" };
+  });
+  const custom = old.filter(e => !DEFAULT_EXPIRIES.some(d => d.id === e.id) && !OLD_DEFAULT_EXPIRIES.includes(e.name));
+  data.expiries = [...core, ...custom]; data.expV = 3; save();
 }
 function save(){ return store.set(key(), data); }
 
@@ -1598,7 +1601,7 @@ function openSample(){
   const sd = {
     profile: { name: "Alex Morgan", email: u.email, lic: "IE.FCL.10482", type: "ATPL(A)", format: "EASA", base: "LIRF", dateFmt: "DMY" },
     signature: sampleSignature(),
-    expiries: DEFAULT_EXPIRIES.map(e => ({ ...e })), expV: 2,
+    expiries: DEFAULT_EXPIRIES.map(e => ({ ...e })), expV: 3,
     flights: [], templates: {}
   };
   const dates = { Licence: 1400, Medical: 41, OPC: 74 };
