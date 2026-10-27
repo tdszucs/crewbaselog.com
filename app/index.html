@@ -143,6 +143,7 @@ td.r,th.r{text-align:right}
 .fbox b{display:block;font-size:14.5px;margin-bottom:2px}
 .fbox small{display:block;color:var(--muted);font-size:12.5px;line-height:1.45}
 .fbox.out{background:var(--accent-soft);border-color:color-mix(in srgb,var(--accent) 35%,var(--line))}
+.fstart{margin:0 0 18px;max-width:520px;color:inherit;text-decoration:none}.fstart:hover{border-color:var(--brand)}
 .fn{position:absolute;top:-9px;left:-9px;width:22px;height:22px;border-radius:50%;background:var(--accent);color:#fff;font:700 12px/22px Inter,sans-serif;text-align:center}
 .fic{width:26px;height:26px;flex:none;color:var(--brand);margin-top:1px}
 .fbox.out .fic{color:var(--accent)}
@@ -261,10 +262,11 @@ td.r,th.r{text-align:right}
     <!-- overview -->
     <div data-p="overview">
       <h2 id="hello">Welcome</h2>
-      <p class="lead">Your logbook is stored in this browser on this device; nothing about your flying is uploaded. Only a Crew Base roster you add is saved to your account, for the friends you choose.</p>
+      <p class="lead">A logbook that stays with you: nothing about your flying is uploaded.</p>
       <div id="setupNotice" class="notice hidden"></div>
       <div class="card flow">
         <h3>How CrewBase Log works</h3>
+        <a class="fbox fstart" href="#" data-go="profile"><span class="fn">0</span><svg class="fic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg><div><b>First, set up your profile</b><small>Name, licence, signature and expiry dates. They go on the cover and every page of your PDF logbook.</small></div></a>
         <div class="flowgrid">
           <div class="fcol">
             <div class="fbox"><span class="fn">1</span><svg class="fic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v17H6.5A2.5 2.5 0 0 0 4 21.5z"/><path d="M4 21.5A2.5 2.5 0 0 1 6.5 19H20v3H6.5A2.5 2.5 0 0 1 4 21.5zM9 7h7M9 11h5"/></svg><div><b>Add your old logbook</b><small>CSV or Excel from another app, your own sheet, or the CrewBase Log CSV you saved last time</small></div></div>
@@ -279,6 +281,16 @@ td.r,th.r{text-align:right}
           </div>
         </div>
         <div class="row-actions" style="margin:16px 0 0"><button class="btn" type="button" data-go="import">Go to Your data</button></div>
+      </div>
+      <div class="card">
+        <h3>Your data, your control</h3>
+        <ul style="margin:0 0 14px;padding-left:20px;line-height:1.75;font-size:14.5px">
+          <li>Your logbook, profile, signature and expiry dates are stored <b>only in this browser on this device</b>. We never see them.</li>
+          <li><b>Clearing your browser data (cookies and site data)</b>, or opening CrewBase Log on another phone or browser, starts empty: everything has to come back from your files.</li>
+          <li>The files you download are yours and stay on your device: the <b>CSV file</b> brings back all your flights; the <b>full backup</b> brings back everything, including profile and signature. Download them after each update.</li>
+          <li>Only a Crew Base roster you add is saved to your account, for the friends you choose.</li>
+        </ul>
+        <div class="row-actions" style="margin:0"><button class="btn" type="button" data-csv>Download CSV file</button><button class="btn ghost" type="button" id="ovBackup">Download full backup</button><button class="btn ghost" type="button" id="ovRestore">Restore a backup</button></div>
       </div>
       <div class="card flow">
         <h3>Crew Base: share your roster with friends</h3>
@@ -793,6 +805,8 @@ function renderOverview(){
   if (due.length) lines.push(`<b>Expiry dates:</b> ${due.map(e => `${esc(e.name)} ${expStatus(e.date).c === "bad" ? "has expired" : "is due " + fmtDate(e.date)}`).join(", ")}. <a href="#" data-go="profile" data-scroll="#expSection">Check them</a>.`);
   $("#setupNotice").innerHTML = lines.join("<br>"); $("#setupNotice").classList.toggle("hidden", !lines.length);
 }
+$("#ovBackup").addEventListener("click", () => $("#btnBackup").click());
+$("#ovRestore").addEventListener("click", () => $("#restoreFile").click());
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 $("#fbForm").addEventListener("submit", async e => {
@@ -1439,7 +1453,7 @@ $("#restoreFile").addEventListener("change", async e => {
   const f = e.target.files[0]; e.target.value = ""; if (!f) return;
   try { const j = JSON.parse(await f.text()); if (!j.data?.flights) throw 0;
     if (!confirm(`Replace everything on this device with the backup from ${j.exported?.slice(0,10) || "file"} (${j.data.flights.length} flights)?`)) return;
-    data = j.data; data.profile.email = user.email; migrateExpiries(); save(); renderLogbook();
+    data = j.data; data.profile.email = user.email; migrateExpiries(); save(); renderLogbook(); renderOverview();
   } catch { alert("That isn't a CrewBase Log backup file."); }
 });
 $("#btnClearFlights").addEventListener("click", () => { if (data.flights.length && confirm(`Delete all ${data.flights.length} flights from this device? Download a backup first if unsure.`)) { data.flights = []; lbCloseEdit(); save(); renderLogbook(); } });
