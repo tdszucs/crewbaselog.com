@@ -1084,8 +1084,8 @@ function parseRosterLine(line, base) {
   let free = false, lands = null;
   if (FREE_CODES.test(rest)) free = true;
   else {
-    const route = rest.match(/\b([A-Z]{3,4})\s*[-\/>]\s*([A-Z]{3,4})\b/);
-    if (route) lands = route[2];
+    const route = rest.match(/\b[A-Z]{3,4}(?:\s*[-\/>]\s*[A-Z]{3,4})+\b/);
+    if (route) lands = route[0].match(/[A-Z]{3,4}$/)[0];
     const times = [...rest.matchAll(/(\d{1,2}[:.]?\d{2})\s*[-–]\s*(\d{1,2}[:.]?\d{2})/g)];
     if (times.length) for (const t of times) {
       const a = clock(t[1].replace('.',':')), b = clock(t[2].replace('.',':'));
@@ -1235,12 +1235,11 @@ function renderCrewBase() {
 
 /* The month grid: one row per pilot, one square per day, plus a combined row. */
 let CALMONTH = null, CALSEL = null;
+// one pilot's own row: any duty is red; a day off is green at base, grey down route
 function dayState(f, day) {
   if (!day) return 'none';
-  const free = f.windows.reduce((s,w) => s + (w[1]-w[0]), 0);
-  if (free >= DAY - 1) return 'free';
-  if (free > 0) return 'part';
-  return f.away ? 'away' : 'duty';
+  if (!day.free) return 'duty';
+  return f.away || !f.windows.length ? 'away' : 'free';
 }
 function renderCalendar(rosters, perDay, minw) {
   const byIso = {}; perDay.forEach(d => byIso[d.iso] = d);
