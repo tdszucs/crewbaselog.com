@@ -136,6 +136,7 @@ td.r,th.r{text-align:right}
     <a class="logo" href="/"><svg viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#0b3d5c"/><path d="M12 38l40-14-10 22-8-6-6 8v-10z" fill="#f2b544"/></svg>CrewBase Log</a>
     <h1 id="authTitle">Log in</h1>
     <p class="sub" id="authSub">Welcome back. Your logbook stays on your device.</p>
+    <div id="gisBtn" class="hidden" style="display:flex;justify-content:center;min-height:44px"></div>
     <button class="btn google block" id="btnGoogle" type="button">
       <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>
       Continue with Google
@@ -351,7 +352,8 @@ td.r,th.r{text-align:right}
 const CONFIG = {
   SUPABASE_URL: "https://pwpkecvqljxpprricfho.supabase.co",
   SUPABASE_ANON_KEY: "sb_publishable_he0QsgUmKOiGydtLGkDo6g_FEdDRjhu",
-  GOOGLE_ENABLED: true
+  GOOGLE_ENABLED: true,
+  GOOGLE_CLIENT_ID: "1007945186786-l2tff9qe5tiqtc0vhbgpsvekdf2hedvg.apps.googleusercontent.com"
 };
 const LIVE = !!(CONFIG.SUPABASE_URL && CONFIG.SUPABASE_ANON_KEY);
 const REDIRECT = location.origin + location.pathname;
@@ -419,6 +421,7 @@ const Auth = (() => {
       return { id: data.user.id, email: data.user.email };
     },
     async google(){ if (!CONFIG.GOOGLE_ENABLED) throw new Error("Google sign-in is coming soon. Please use email for now."); const { error } = await sb.auth.signInWithOAuth({ provider: "google", options: { redirectTo: REDIRECT } }); if (error) throw error; },
+    async googleIdToken(token, nonce){ const { error } = await sb.auth.signInWithIdToken({ provider: "google", token, nonce }); if (error) throw error; },
     async resend(email){ const { error } = await sb.auth.resend({ type: "signup", email, options: { emailRedirectTo: REDIRECT } }); if (error) throw error; },
     async signOut(){ await sb.auth.signOut(); emit(null); },
     async current(){ const { data } = await sb.auth.getSession(); const u = data.session?.user; return u ? { id: u.id, email: u.email } : null; }
@@ -428,7 +431,7 @@ const Auth = (() => {
     live: LIVE,
     init: () => LIVE ? L.init() : Promise.resolve(),
     onChange: f => listeners.push(f),
-    signUp: (e,p) => impl.signUp(e,p), signIn: (e,p) => impl.signIn(e,p), google: () => impl.google(),
+    signUp: (e,p) => impl.signUp(e,p), signIn: (e,p) => impl.signIn(e,p), google: () => impl.google(), googleIdToken: (t,n) => L.googleIdToken(t,n),
     resend: e => impl.resend(e), signOut: () => impl.signOut(), current: () => impl.current(),
     demoVerify: e => D.verify(e.toLowerCase()),
     demoSession: u => { store.set("cbl_demo_session", u); emit(u); }
@@ -450,7 +453,7 @@ function save(){ return store.set(key(), data); }
 
 /* ================= VIEWS ================= */
 let mode = "login", pendingEmail = "";
-function show(v){ ["#vAuth","#vVerify","#vApp"].forEach(id => $(id).classList.toggle("hidden", id !== v)); }
+function show(v){ ["#vAuth","#vVerify","#vApp"].forEach(id => $(id).classList.toggle("hidden", id !== v)); if (v === "#vAuth") setupGIS(); }
 function setMode(m){
   mode = m; const s = m === "signup";
   $("#authTitle").textContent = s ? "Create your account" : "Log in";
@@ -477,6 +480,30 @@ $("#authForm").addEventListener("submit", async e => {
   $("#btnAuth").disabled = false;
 });
 $("#btnGoogle").addEventListener("click", async () => { try { await Auth.google(); } catch (x) { $("#authErr").textContent = x.message; } });
+
+/* Google's own button (shows "crewbaselog.com" instead of the Supabase address).
+   Only on HTTPS, which Google requires; on plain HTTP the redirect button above is used. */
+let gisReady = false;
+async function setupGIS(){
+  if (gisReady || !Auth.live || !CONFIG.GOOGLE_ENABLED || location.protocol !== "https:") return;
+  gisReady = true;
+  try {
+    await loadScript("https://accounts.google.com/gsi/client");
+    const raw = [...crypto.getRandomValues(new Uint8Array(16))].map(b => b.toString(16).padStart(2,"0")).join("");
+    const hashed = await sha256(raw);
+    google.accounts.id.initialize({
+      client_id: CONFIG.GOOGLE_CLIENT_ID, nonce: hashed, use_fedcm_for_prompt: true, context: "signin", ux_mode: "popup",
+      callback: async r => {
+        $("#authErr").textContent = "";
+        try { await Auth.googleIdToken(r.credential, raw); }
+        catch (x) { $("#authErr").textContent = x.message || "Google sign-in failed."; }
+      }
+    });
+    const dark = matchMedia("(prefers-color-scheme: dark)").matches;
+    google.accounts.id.renderButton($("#gisBtn"), { type: "standard", theme: dark ? "filled_black" : "outline", size: "large", text: "continue_with", shape: "rectangular", logo_alignment: "center", width: 354 });
+    $("#gisBtn").classList.remove("hidden"); $("#btnGoogle").classList.add("hidden");
+  } catch (e) { console.warn("Google button unavailable, using redirect sign-in", e); gisReady = false; }
+}
 
 function toVerify(email){
   pendingEmail = email; $("#vEmail").textContent = email; $("#verifyMsg").textContent = "";
