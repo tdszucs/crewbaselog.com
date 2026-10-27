@@ -134,6 +134,27 @@ td.r,th.r{text-align:right}
 .fmt.on{border-color:var(--accent);background:var(--accent-soft);box-shadow:0 0 0 1px var(--accent)}
 .tag{font:500 11px "JetBrains Mono",monospace;color:var(--accent);text-transform:uppercase;letter-spacing:.08em}
 
+/* overview: how it works */
+.flow h3{margin-bottom:16px}
+.flowgrid{display:grid;grid-template-columns:minmax(0,1fr) 40px minmax(0,.85fr) 40px minmax(0,1fr);align-items:center;gap:10px}
+.flowgrid.cb{grid-template-columns:minmax(0,1fr) 40px minmax(0,1fr) 40px minmax(0,1fr)}
+.fcol{display:grid;gap:10px}
+.fbox{position:relative;display:flex;gap:12px;align-items:flex-start;padding:14px 14px 14px 16px;border:1px solid var(--line);border-radius:12px;background:var(--bg);min-width:0}
+.fbox b{display:block;font-size:14.5px;margin-bottom:2px}
+.fbox small{display:block;color:var(--muted);font-size:12.5px;line-height:1.45}
+.fbox.out{background:var(--accent-soft);border-color:color-mix(in srgb,var(--accent) 35%,var(--line))}
+.fn{position:absolute;top:-9px;left:-9px;width:22px;height:22px;border-radius:50%;background:var(--accent);color:#fff;font:700 12px/22px Inter,sans-serif;text-align:center}
+.fic{width:26px;height:26px;flex:none;color:var(--brand);margin-top:1px}
+.fbox.out .fic{color:var(--accent)}
+.fhub{display:grid;justify-items:center;text-align:center;gap:6px;padding:18px 14px;border-radius:16px;background:var(--surface);border:2px solid var(--brand);box-shadow:0 14px 34px -18px rgba(11,61,92,.45)}
+.fhublogo{width:44px;height:44px}
+.fhub b{font-size:15.5px}.fhub small{color:var(--muted);font-size:12.5px;line-height:1.45}
+.farr{color:var(--muted);display:grid;place-items:center}.farr svg{width:40px;height:16px}
+.fdays{display:grid;grid-template-columns:repeat(7,9px);gap:3px;flex:none;margin-top:4px}.fdays .d{height:18px;border-radius:2px;cursor:default}
+@media (max-width:760px){
+  .flowgrid,.flowgrid.cb{grid-template-columns:1fr}
+  .farr svg{transform:rotate(90deg)}
+}
 /* crew base (shared rosters) */
 :root{--free:#1f8a4c;--part:#8fd0a9;--duty:#c0362c;--sby:#e2a21b;--away:#8794a5;--none:#e3e8ed}
 @media (prefers-color-scheme: dark){:root{--free:#3fb877;--part:#2b6447;--duty:#b0443a;--sby:#c98d1c;--away:#55606e;--none:#1c2a36}}
@@ -242,17 +263,36 @@ td.r,th.r{text-align:right}
       <h2 id="hello">Welcome</h2>
       <p class="lead">Your logbook is stored in this browser on this device; nothing about your flying is uploaded. Only a Crew Base roster you add is saved to your account, for the friends you choose.</p>
       <div id="setupNotice" class="notice hidden"></div>
-      <div class="stats">
-        <div class="stat"><div class="k">Flights</div><div class="v" id="sFlights">0</div></div>
-        <div class="stat"><div class="k">Block time</div><div class="v" id="sBlock">0:00</div></div>
-        <div class="stat"><div class="k">Last 28 days</div><div class="v" id="s28">0:00</div></div>
-        <div class="stat"><div class="k">Next expiry</div><div class="v" id="sNext" style="font:600 14px/1.35 Inter,sans-serif;margin-top:8px">—</div></div>
+      <div class="card flow">
+        <h3>How CrewBase Log works</h3>
+        <div class="flowgrid">
+          <div class="fcol">
+            <div class="fbox"><span class="fn">1</span><svg class="fic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v17H6.5A2.5 2.5 0 0 0 4 21.5z"/><path d="M4 21.5A2.5 2.5 0 0 1 6.5 19H20v3H6.5A2.5 2.5 0 0 1 4 21.5zM9 7h7M9 11h5"/></svg><div><b>Add your old logbook</b><small>CSV or Excel from another app, your own sheet, or the CrewBase Log CSV you saved last time</small></div></div>
+            <div class="fbox"><span class="fn">2</span><svg class="fic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 16l20-7-6 13-4-5-5 3v-5z"/></svg><div><b>Add your AIMS / eCrew file</b><small>The Pilot LogBook report you download from your airline's crew system</small></div></div>
+          </div>
+          <div class="farr" aria-hidden="true"><svg viewBox="0 0 40 16"><path d="M2 8h32M28 2l7 6-7 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <div class="fhub"><svg viewBox="0 0 64 64" class="fhublogo" aria-hidden="true"><rect width="64" height="64" rx="14" fill="#0b3d5c"/><path d="M12 38l40-14-10 22-8-6-6 8v-10z" fill="#f2b544"/></svg><b>CrewBase Log</b><small>Merges both, skips duplicates, fills in night and IFR time. All in your browser.</small></div>
+          <div class="farr" aria-hidden="true"><svg viewBox="0 0 40 16"><path d="M2 8h32M28 2l7 6-7 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <div class="fcol">
+            <div class="fbox out"><span class="fn">3</span><svg class="fic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><div><b>Your full logbook as CSV</b><small>Your private copy to keep. Next time it is step 1.</small></div></div>
+            <div class="fbox out"><svg class="fic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 15h1.5a1.5 1.5 0 0 0 0-3H8v5M13 12v5h1a2 2 0 0 0 2-2.5v0A2 2 0 0 0 14 12z"/></svg><div><b>PDF logbook</b><small>EASA, UK CAA or FAA layout: full logbook, last 10 pages or between dates</small></div></div>
+          </div>
+        </div>
+        <div class="row-actions" style="margin:16px 0 0"><button class="btn" type="button" data-go="import">Go to Your data</button></div>
       </div>
-      <div class="grid2" style="gap:18px">
-        <div class="card"><h3>Expiries</h3><div id="ovExp" class="hint" style="font-size:14px"></div></div>
-        <div class="card"><h3>Pilot jobs</h3><div class="hint" style="font-size:14px">No jobs posted yet. <a href="#" data-go="jobs">Why jobs?</a></div></div>
+      <div class="card flow">
+        <h3>Crew Base: share your roster with friends</h3>
+        <div class="flowgrid cb">
+          <div class="fbox"><svg class="fic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/></svg><div><b>Drop your roster PDF</b><small>The Personal Crew Schedule from eCrew</small></div></div>
+          <div class="farr" aria-hidden="true"><svg viewBox="0 0 40 16"><path d="M2 8h32M28 2l7 6-7 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <div class="fbox"><svg class="fic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17" cy="9" r="2.8"/><path d="M15.5 14.2A5.5 5.5 0 0 1 22 19.5"/></svg><div><b>Add friends by email</b><small>When you have added each other, your rosters appear side by side</small></div></div>
+          <div class="farr" aria-hidden="true"><svg viewBox="0 0 40 16"><path d="M2 8h32M28 2l7 6-7 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <div class="fbox"><div class="fdays" aria-hidden="true"><i class="d free"></i><i class="d duty"></i><i class="d duty"></i><i class="d sby"></i><i class="d free"></i><i class="d free"></i><i class="d duty"></i></div><div><b>See when you are all free</b><small>Green off · amber standby · red duty or away. Times in UTC.</small></div></div>
+        </div>
+        <div class="row-actions" style="margin:16px 0 0"><button class="btn ghost" type="button" data-go="crewbase">Open Crew Base</button></div>
       </div>
-      <form class="card" id="fbForm" style="margin-top:18px">
+      <div class="card"><h3>Pilot jobs</h3><div class="hint" style="font-size:14px">No jobs posted yet. <a href="#" data-go="jobs">Why jobs?</a></div></div>
+      <form class="card" id="fbForm">
         <h3>Feedback</h3>
         <p class="hint" style="margin:0 0 12px;font-size:14px">CrewBase Log is in a trial phase. Anything that is broken, confusing or missing, tell us. All feedback is appreciated.</p>
         <div class="field"><label for="fbMsg">Your feedback</label><textarea id="fbMsg" rows="4" required placeholder="What worked, what didn't, what you'd like to see…"></textarea></div>
@@ -744,23 +784,14 @@ function renderOverview(){
   const fe = $("#fbEmail"); if (!fe.value || fe.value === fe.dataset.auto) fe.value = fe.dataset.auto = user.id === "sample" ? "" : user.email || "";
   const p = data.profile, first = (p.name || "").split(" ")[0];
   $("#hello").textContent = first ? `Welcome, ${first}` : "Welcome";
-  const missing = [];
+  // reminders: what is still to set up, and expiry dates due within 60 days
+  const missing = [], due = data.expiries.filter(e => e.date && expStatus(e.date).c !== "ok"), lines = [];
   if (!p.name || !p.lic) missing.push('<a href="#" data-go="profile">complete your profile</a>');
   if (!data.signature) missing.push('<a href="#" data-go="profile" data-scroll="#sigSection">add your signature</a>');
   if (!data.flights.length) missing.push('<a href="#" data-go="import">import your flights</a>');
-  $("#setupNotice").classList.toggle("hidden", !missing.length);
-  $("#setupNotice").innerHTML = "<b>Finish setting up:</b> " + missing.join(", ") + ".";
-  const tot = data.flights.reduce((s,f) => s + (f.total||0), 0);
-  const since = new Date(Date.now() - 28*864e5).toISOString().slice(0,10);
-  const t28 = data.flights.filter(f => f.date >= since).reduce((s,f) => s + (f.total||0), 0);
-  $("#sFlights").textContent = data.flights.length.toLocaleString();
-  $("#sBlock").textContent = fmtMin(tot); $("#s28").textContent = fmtMin(t28);
-  const set = data.expiries.filter(e => e.date).map(e => ({...e, s: expStatus(e.date)})).sort((a,b) => a.s.days - b.s.days);
-  $("#sNext").innerHTML = set[0] ? `${esc(set[0].name)}<br><span class="chip ${set[0].s.c}" style="margin-top:6px">${fmtDate(set[0].date)}</span>` : "—";
-  const warn = set.filter(e => e.s.c !== "ok");
-  $("#ovExp").innerHTML = !set.length ? 'No dates entered yet. <a href="#" data-go="profile" data-scroll="#expSection">Add them</a>.'
-    : warn.length ? warn.map(e => `<div style="display:flex;justify-content:space-between;gap:10px;padding:6px 0"><span>${esc(e.name)}</span><span class="chip ${e.s.c}">${e.s.c==="bad"?"Expired":"Due "+fmtDate(e.date)}</span></div>`).join("")
-    : `<span class="chip ok">All ${set.length} items valid</span> for at least 60 days.`;
+  if (missing.length) lines.push("<b>Finish setting up:</b> " + missing.join(", ") + ".");
+  if (due.length) lines.push(`<b>Expiry dates:</b> ${due.map(e => `${esc(e.name)} ${expStatus(e.date).c === "bad" ? "has expired" : "is due " + fmtDate(e.date)}`).join(", ")}. <a href="#" data-go="profile" data-scroll="#expSection">Check them</a>.`);
+  $("#setupNotice").innerHTML = lines.join("<br>"); $("#setupNotice").classList.toggle("hidden", !lines.length);
 }
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
