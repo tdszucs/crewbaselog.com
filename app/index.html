@@ -227,6 +227,7 @@ td.r,th.r{text-align:right}
       <button data-t="signature">Signature</button>
       <button data-t="logbook">Logbook</button>
       <button data-t="import">Your data</button>
+      <button data-t="stats">Statistics</button>
       <button data-t="crewbase">Crew Base</button>
       <button data-t="jobs">Jobs</button>
     </nav>
@@ -414,10 +415,6 @@ td.r,th.r{text-align:right}
       <h2>Logbook</h2>
       <p class="lead">Your flights are kept only in this browser. Download your full logbook CSV after each import and keep it safe: if you clear your browser data or change device, import it again.</p>
       <div class="stats" id="lbStats"></div>
-      <div class="card hidden" id="lbSummary">
-        <div style="display:flex;justify-content:space-between;gap:12px;align-items:baseline;flex-wrap:wrap"><h3>Hours summary for job applications</h3><button class="btn ghost small" type="button" id="lbSumCopy">Copy table</button></div>
-        <div class="tablewrap" id="lbSumTable"></div>
-      </div>
       <div class="card">
         <div class="row-actions" style="margin:0 0 14px">
           <button class="btn small" type="button" data-csv>Download CSV file</button>
@@ -429,11 +426,33 @@ td.r,th.r{text-align:right}
         <form class="notice hidden" id="lbEdit" style="margin:0 0 14px;background:var(--bg);border-color:var(--line)">
           <h3 style="margin:0 0 12px" id="lbEditTitle">Edit flight</h3>
           <div class="lbgrid" id="lbEditFields"></div>
+          <div class="field">
+            <label>Instructor signature <span class="hint" style="font-weight:400">(optional, printed in the remarks column)</span></label>
+            <div id="lbSigCur" class="hidden" style="display:flex;align-items:center;gap:12px;margin:0 0 8px"></div>
+            <canvas id="lbSigPad" class="sigpad" style="height:130px;max-width:520px"></canvas>
+            <div class="row-actions" style="margin:6px 0 0"><button class="btn ghost small" type="button" id="lbSigClear">Clear pad</button><span class="hint">The instructor signs here with a finger, pen or mouse.</span></div>
+          </div>
           <div class="row-actions" style="margin:4px 0 0"><button class="btn small" type="submit">Save flight</button><button class="btn ghost small" type="button" id="lbEditCancel">Cancel</button><button class="btn danger small" type="button" id="lbEditDel">Delete flight</button><span class="err" id="lbEditErr" style="margin:0"></span></div>
         </form>
         <div class="field" style="max-width:340px"><input id="lbSearch" type="search" placeholder="Search date, flight, airport, registration…" aria-label="Search flights"></div>
         <div class="tablewrap" id="lbTable"></div>
         <p class="hint" id="lbMore"></p>
+      </div>
+    </div>
+
+    <!-- statistics -->
+    <div data-p="stats" class="hidden">
+      <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-end;flex-wrap:wrap">
+        <div><h2>Statistics</h2><p class="lead" style="margin-bottom:0">The hours airlines ask for in a job application, from your logbook. <span id="stInfo"></span></p></div>
+        <button class="btn ghost small" type="button" id="stCopy">Copy summary</button>
+      </div>
+      <div class="field" style="max-width:320px;margin-top:16px"><label for="stCrew">Your flights are</label><select id="stCrew"><option value="MP">Multi-pilot (multi-crew, multi-engine)</option><option value="SPME">Single-pilot, multi-engine</option><option value="SPSE">Single-pilot, single-engine</option></select><div class="hint">Decides multi-crew and multi-engine time. Also used in your PDF.</div></div>
+      <div class="card hidden" id="stEmpty"><p class="hint" style="margin:0">No flights yet. <a href="#" data-go="import">Import or add your flights</a>.</p></div>
+      <div id="stBody">
+        <div class="stats" id="stTiles"></div>
+        <div class="card"><h3>Recent experience</h3><div class="tablewrap" id="stPeriods"></div></div>
+        <div class="card"><h3>By aircraft type</h3><div class="tablewrap" id="stTypes"></div></div>
+        <p class="hint">Simulator (FSTD) time is not included.</p>
       </div>
     </div>
 
@@ -683,7 +702,7 @@ $("#btnOut").addEventListener("click", () => Auth.signOut());
 function tab(t){
   $$("#tabs button").forEach(b => b.classList.toggle("on", b.dataset.t === t));
   $$("[data-p]").forEach(p => p.classList.toggle("hidden", p.dataset.p !== t));
-  ({ overview: renderOverview, profile: renderProfile, expiries: renderExpiries, signature: renderSignature, logbook: renderLogbook, import: renderYourData, crewbase: renderCrewBase })[t]?.();
+  ({ overview: renderOverview, profile: renderProfile, expiries: renderExpiries, signature: renderSignature, logbook: renderLogbook, import: renderYourData, stats: renderStats, crewbase: renderCrewBase })[t]?.();
   window.scrollTo(0,0);
 }
 $("#tabs").addEventListener("click", e => { if (e.target.dataset.t) tab(e.target.dataset.t); });
@@ -812,6 +831,27 @@ pad.addEventListener("pointermove", e => {
 });
 ["pointerup","pointercancel","pointerleave"].forEach(ev => pad.addEventListener(ev, () => drawing = false));
 $("#sigClear").addEventListener("click", setupPad);
+// pointer drawing on any canvas; returns { reset, inked }
+function makePad(canvas){
+  let ctx, down = false, ink = false, prev = null;
+  const at = e => { const r = canvas.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+  canvas.addEventListener("pointerdown", e => { down = true; prev = at(e); canvas.setPointerCapture(e.pointerId); });
+  canvas.addEventListener("pointermove", e => { if (!down) return; const q = at(e); ctx.beginPath(); ctx.moveTo(prev.x, prev.y); ctx.lineTo(q.x, q.y); ctx.stroke(); prev = q; ink = true; });
+  ["pointerup","pointercancel","pointerleave"].forEach(ev => canvas.addEventListener(ev, () => down = false));
+  return {
+    reset(){ const r = canvas.getBoundingClientRect(), dpr = window.devicePixelRatio || 1; canvas.width = r.width * dpr; canvas.height = r.height * dpr;
+      ctx = canvas.getContext("2d"); ctx.scale(dpr, dpr); ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.strokeStyle = "#0b2a4a"; ctx.lineWidth = 2.2; ink = false; },
+    inked: () => ink
+  };
+}
+// trimmed signature scaled down to fit maxW x maxH (a few KB)
+function smallSigPNG(canvas, maxW = 240, maxH = 60){
+  const url = trimmedPNG(canvas); if (!url) return Promise.resolve("");
+  return new Promise(res => { const im = new Image(); im.onload = () => {
+    const k = Math.min(1, maxW / im.width, maxH / im.height), o = document.createElement("canvas");
+    o.width = Math.max(1, Math.round(im.width * k)); o.height = Math.max(1, Math.round(im.height * k));
+    o.getContext("2d").drawImage(im, 0, 0, o.width, o.height); res(o.toDataURL("image/png")); }; im.src = url; });
+}
 function trimmedPNG(canvas){
   const c = canvas.getContext("2d"), { width: w, height: h } = canvas, d = c.getImageData(0,0,w,h).data;
   let x0 = w, y0 = h, x1 = 0, y1 = 0;
@@ -973,6 +1013,7 @@ function rowToFlight(r, map, fmt){
     instructor: parseDur(g("instructor")), night: parseDur(g("night")), ifr: parseDur(g("ifr")),
     ldgDay: parseInt(g("ldgDay")) || 0, ldgNight: parseInt(g("ldgNight")) || 0, remarks: g("remarks")
   };
+  if (/^data:image\/png;base64,[A-Za-z0-9+\/=]+$/.test(g("remarkSig"))) f.remarkSig = g("remarkSig");
   if (!f.total && f.out && f.in) f.total = tdiff(f.out, f.in);
   return f;
 }
@@ -1008,7 +1049,8 @@ async function handleFile(f){
   if (rows.length < 2) return "The file looks empty.";
   const h = findHeader(rows), headers = rows[h].map(c => String(c).trim()), body = rows.slice(h+1);
   const sig = headers.map(norm).join("|");
-  if (sig === LOG_COLS.map(c => norm(c[1])).join("|")) { imp = { headers, rows: body, map: Object.fromEntries(LOG_COLS.map((c, i) => [c[0], i])), sig, name: f.name, own: true }; return; }
+  // our own CSV (files from before the signature column have one column less)
+  if ([LOG_COLS, LOG_COLS.slice(0, -1)].some(L => sig === L.map(c => norm(c[1])).join("|"))) { imp = { headers, rows: body, map: Object.fromEntries(LOG_COLS.map((c, i) => [c[0], i])), sig, name: f.name, own: true }; return; }
   const fmt = $("#mDateFmt").value;
   const works = m => m && body.some(r => valid(rowToFlight(r, m, fmt)));
   // a saved matching only wins if it actually produces flights (an earlier failed import may have saved a bad one)
@@ -1037,13 +1079,14 @@ $("#mapGrid").addEventListener("change", e => { const k = e.target.dataset.k; im
 $("#mDateFmt").addEventListener("change", renderPreview);
 $("#btnCancelImp").addEventListener("click", () => { impLog.push(`<b>${esc(imp.name)}</b>: skipped`); imp = null; $("#mapCard").classList.add("hidden"); nextFile(); });
 function doImport(){
-  const fmt = imp.own ? "YMD" : $("#mDateFmt").value, existing = new Set(data.flights.map(dupKey));
+  const fmt = imp.own ? "YMD" : $("#mDateFmt").value, existing = new Map(data.flights.map(f => [dupKey(f), f]));
   let added = 0, dup = 0, bad = 0;
   for (const r of imp.rows) {
     const f = rowToFlight(r, imp.map, fmt);
     if (!valid(f)) { bad++; continue; }
-    const k = dupKey(f); if (existing.has(k)) { dup++; continue; }
-    existing.add(k); data.flights.push(f); added++;
+    // already there: only pick up an instructor signature the stored copy lacks
+    const k = dupKey(f), had = existing.get(k); if (had) { if (f.remarkSig && !had.remarkSig) had.remarkSig = f.remarkSig; dup++; continue; }
+    existing.set(k, f); data.flights.push(f); added++;
   }
   data.flights.sort((a,b) => (a.date+a.out).localeCompare(b.date+b.out));
   if (!imp.own && (added || dup)) data.templates[imp.sig] = Object.fromEntries(Object.entries(imp.map).filter(([,v]) => v !== undefined));
@@ -1068,7 +1111,7 @@ $("#dlSample").addEventListener("click", e => {
 /* the full-logbook CSV: fixed columns, ISO dates, H:MM durations, so it imports straight back */
 const LOG_COLS = [["date","Date"],["flightNo","Flight no"],["from","From"],["to","To"],["out","Off-block"],["off","Take-off"],["on","Landing"],["in","On-block"],
   ["acType","Aircraft type"],["reg","Registration"],["picName","PIC name"],["total","Total time"],["pic","PIC time"],["copilot","Co-pilot time"],["dual","Dual time"],
-  ["instructor","Instructor time"],["night","Night time"],["ifr","IFR time"],["ldgDay","Landings day"],["ldgNight","Landings night"],["remarks","Remarks"]];
+  ["instructor","Instructor time"],["night","Night time"],["ifr","IFR time"],["ldgDay","Landings day"],["ldgNight","Landings night"],["remarks","Remarks"],["remarkSig","Remarks signature"]];
 const LOG_DUR = new Set(["total","pic","copilot","dual","instructor","night","ifr"]);
 function logbookCSV(){
   const cell = v => /[",\r\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
@@ -1113,7 +1156,9 @@ function easaLineHTML(f){
   return `<table class="lbline"><thead>
     <tr><th rowspan="2">DATE<br>dd/mm/yy</th><th colspan="2">DEPARTURE</th><th colspan="2">ARRIVAL</th><th colspan="2">AIRCRAFT</th><th colspan="2">SINGLE PILOT TIME</th><th rowspan="2">MULTI PILOT<br>TIME</th><th rowspan="2">TOTAL<br>TIME</th><th rowspan="2">PIC NAME</th><th colspan="2">LANDINGS</th><th colspan="2">OP. COND. TIME</th><th colspan="4">PILOT FUNCTION TIME</th><th colspan="2">FSTD SESSION</th><th rowspan="2">REMARKS AND<br>ENDORSEMENTS</th></tr>
     <tr><th>PLACE</th><th>TIME</th><th>PLACE</th><th>TIME</th><th>TYPE</th><th>REG</th><th>SE</th><th>ME</th><th>DAY</th><th>NIGHT</th><th>NIGHT</th><th>IFR</th><th>PIC</th><th>COP</th><th>DUAL</th><th>INSTR</th><th>TYPE</th><th>TIME</th></tr>
-  </thead><tbody><tr>${cells.map(v => `<td>${esc(v || "")}</td>`).join("")}</tr></tbody></table>`;
+  </thead><tbody><tr>${cells.map((v, i) => i === cells.length - 1 && f.remarkSig
+    ? `<td><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span>${esc(v || "")}</span><img src="${f.remarkSig}" alt="" style="height:20px"></div></td>`
+    : `<td>${esc(v || "")}</td>`).join("")}</tr></tbody></table>`;
 }
 function renderAddPreview(){
   const { f, err } = readFlightForm("n_");
@@ -1121,7 +1166,7 @@ function renderAddPreview(){
   return err;
 }
 $("#addFields").addEventListener("input", () => { renderAddPreview(); $("#addErr").textContent = ""; $("#addOk").textContent = ""; });
-$("#prCrew").addEventListener("change", renderAddPreview);
+$("#prCrew").addEventListener("change", e => { data.profile.crew = e.target.value; save(); renderAddPreview(); });
 $("#addClear").addEventListener("click", () => { $("#addFields").innerHTML = flightFieldsHTML("n_"); renderAddPreview(); $("#addErr").textContent = ""; });
 $("#addForm").addEventListener("submit", e => {
   e.preventDefault(); $("#addOk").textContent = "";
@@ -1133,29 +1178,54 @@ $("#addForm").addEventListener("submit", e => {
   $("#addOk").textContent = `Added ${flightLabel(f)}. Your logbook has ${data.flights.length.toLocaleString()} flights.`; renderPrint();
 });
 
-/* ---------- hours summary (for job applications) ---------- */
-function renderSummary(){
-  const F = data.flights, box = $("#lbSummary");
-  box.classList.toggle("hidden", !F.length); if (!F.length) return;
-  const K = ["total","pic","copilot","night","ifr"], add = (o, f) => { o.n++; K.forEach(k => o[k] += f[k] || 0); if (f.date > o.last) o.last = f.date; return o; };
-  const blank = () => ({ n: 0, last: "", ...Object.fromEntries(K.map(k => [k, 0])) });
-  const by = {}; F.forEach(f => add(by[f.acType || "Unknown"] ||= blank(), f));
-  const all = F.reduce(add, blank()), since = new Date(Date.now() - 365*864e5).toISOString().slice(0, 10), y = F.filter(f => f.date >= since).reduce(add, blank());
-  const row = (name, o, b) => `<tr${b ? ' style="font-weight:700"' : ""}><td>${esc(name)}</td><td class="r">${o.n.toLocaleString()}</td>${K.map(k => `<td class="r">${fmtMin(o[k])}</td>`).join("")}<td>${o.last ? fmtDate(o.last) : ""}</td></tr>`;
-  $("#lbSumTable").innerHTML = `<table><thead><tr><th>Aircraft type</th><th class="r">Flights</th><th class="r">Total</th><th class="r">PIC</th><th class="r">Co-pilot</th><th class="r">Night</th><th class="r">IFR</th><th>Last flown</th></tr></thead><tbody>` +
-    Object.entries(by).sort((a, b) => b[1].total - a[1].total).map(([t, o]) => row(t, o)).join("") + row("All types", all, true) + row("Last 12 months", y) + "</tbody></table>";
+/* ---------- statistics (hours for job applications) ---------- */
+const crewOf = () => data.profile.crew || "MP";
+function statTotals(F){
+  const crew = crewOf(), o = { n: F.length, total: 0, pic: 0, copilot: 0, dual: 0, instructor: 0, night: 0, ifr: 0, mp: 0, me: 0, se: 0, ldg: 0, ldgNight: 0, last: "" };
+  for (const f of F) {
+    for (const k of ["total","pic","copilot","dual","instructor","night","ifr"]) o[k] += f[k] || 0;
+    if (crew === "MP") o.mp += f.total || 0;
+    if (crew === "SPSE") o.se += f.total || 0; else o.me += f.total || 0;
+    o.ldg += (f.ldgDay || 0) + (f.ldgNight || 0); o.ldgNight += f.ldgNight || 0;
+    if (f.date > o.last) o.last = f.date;
+  }
+  return o;
 }
-$("#lbSumCopy").addEventListener("click", async () => {
-  const t = [...$("#lbSumTable").querySelectorAll("tr")].map(r => [...r.children].map(c => c.textContent).join("\t")).join("\n");
-  try { await navigator.clipboard.writeText(t); $("#lbSumCopy").textContent = "Copied"; } catch { $("#lbSumCopy").textContent = "Copy failed"; }
-  setTimeout(() => $("#lbSumCopy").textContent = "Copy table", 1500);
+function renderStats(){
+  const F = data.flights; $("#stCrew").value = crewOf();
+  $("#stEmpty").classList.toggle("hidden", !!F.length); $("#stBody").classList.toggle("hidden", !F.length);
+  if (!F.length) return;
+  const T = statTotals(F), h = fmtMin;
+  const tiles = [["Total time", h(T.total)], ["PIC", h(T.pic)], ["Co-pilot (SIC)", h(T.copilot)], ["Multi-crew (multi-pilot)", h(T.mp)], ["Multi-engine", h(T.me)],
+    ["Single-engine", h(T.se)], ["IFR", h(T.ifr)], ["Night", h(T.night)], ["Instructor", h(T.instructor)], ["Dual received", h(T.dual)], ["Sectors", T.n.toLocaleString()], ["Landings", `${T.ldg.toLocaleString()}${T.ldgNight ? ` (${T.ldgNight} night)` : ""}`]];
+  $("#stTiles").innerHTML = tiles.map(([k, v]) => `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`).join("");
+  const ago = d => new Date(Date.now() - d*864e5).toISOString().slice(0, 10);
+  const per = [["Last 28 days", 28], ["Last 90 days", 90], ["Last 6 months", 182], ["Last 12 months", 365], ["Last 24 months", 730], ["All time", 0]]
+    .map(([k, d]) => [k, statTotals(d ? F.filter(f => f.date >= ago(d)) : F)]);
+  const cols = [["Total","total"],["PIC","pic"],["Co-pilot","copilot"],["Multi-crew","mp"],["IFR","ifr"],["Night","night"]];
+  $("#stPeriods").innerHTML = `<table><thead><tr><th>Period</th>${cols.map(c => `<th class="r">${c[0]}</th>`).join("")}<th class="r">Sectors</th><th class="r">Landings</th></tr></thead><tbody>` +
+    per.map(([k, o]) => `<tr${k === "All time" ? ' style="font-weight:700"' : ""}><td>${k}</td>${cols.map(c => `<td class="r">${h(o[c[1]])}</td>`).join("")}<td class="r">${o.n}</td><td class="r">${o.ldg}</td></tr>`).join("") + "</tbody></table>";
+  const by = {}; F.forEach(f => (by[f.acType || "Unknown"] ||= []).push(f));
+  $("#stTypes").innerHTML = `<table><thead><tr><th>Aircraft type</th><th class="r">Sectors</th>${cols.map(c => `<th class="r">${c[0]}</th>`).join("")}<th>Last flown</th></tr></thead><tbody>` +
+    Object.entries(by).map(([t, fl]) => [t, statTotals(fl)]).sort((a, b) => b[1].total - a[1].total)
+      .map(([t, o]) => `<tr><td>${esc(t)}</td><td class="r">${o.n}</td>${cols.map(c => `<td class="r">${h(o[c[1]])}</td>`).join("")}<td>${fmtDate(o.last)}</td></tr>`).join("") + "</tbody></table>";
+  $("#stInfo").textContent = `${F.length.toLocaleString()} flights, ${fmtDate(F[0].date)} to ${fmtDate(F[F.length-1].date)}.`;
+}
+$("#stCrew").addEventListener("change", e => { data.profile.crew = e.target.value; save(); renderStats(); });
+$("#stCopy").addEventListener("click", async () => {
+  const P = data.profile, T = statTotals(data.flights), h = fmtMin;
+  const lines = [`Flight hours summary${P.name ? " - " + P.name : ""}${P.lic ? " (" + P.lic + ")" : ""}`, `As of ${fmtDate(todayISO())}`, "",
+    `Total time: ${h(T.total)}`, `PIC: ${h(T.pic)}`, `Co-pilot (SIC): ${h(T.copilot)}`, `Multi-crew: ${h(T.mp)}`, `Multi-engine: ${h(T.me)}`,
+    `IFR: ${h(T.ifr)}`, `Night: ${h(T.night)}`, `Instructor: ${h(T.instructor)}`, `Sectors: ${T.n}`, `Landings: ${T.ldg}`, "",
+    ...[...$("#stPeriods").querySelectorAll("tr"), ...$("#stTypes").querySelectorAll("tr")].map(r => [...r.children].map(c => c.textContent).join("\t"))];
+  try { await navigator.clipboard.writeText(lines.join("\n")); $("#stCopy").textContent = "Copied"; } catch { $("#stCopy").textContent = "Copy failed"; }
+  setTimeout(() => $("#stCopy").textContent = "Copy summary", 1500);
 });
 
 function download(name, type, text){ const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); }
 
 /* ---------- logbook ---------- */
 function renderLogbook(){
-  renderSummary();
   const F = data.flights, sum = k => F.reduce((s,f) => s + (f[k]||0), 0);
   $("#lbStats").innerHTML = [["Flights", F.length.toLocaleString()], ["Total", fmtMin(sum("total"))], ["PIC", fmtMin(sum("pic"))], ["Night", fmtMin(sum("night"))]]
     .map(([k,v]) => `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`).join("");
@@ -1165,7 +1235,7 @@ function renderLogbook(){
   $("#lbTable").innerHTML = !F.length ? '<p class="hint" style="padding:16px;margin:0">No flights yet. <a href="#" data-go="import">Import some</a>.</p>' :
     !hits.length ? '<p class="hint" style="padding:16px;margin:0">No flights match your search.</p>' :
     `<table><thead><tr><th>Date</th><th>Flight</th><th>From</th><th>To</th><th>Out</th><th>In</th><th>Type</th><th>Reg</th><th>PIC</th><th class="r">Total</th><th class="r">Night</th><th class="r">Ldg</th><th></th></tr></thead><tbody>` +
-    rows.map(({ f, i }) => `<tr><td>${fmtDate(f.date)}</td><td>${esc(f.flightNo)}</td><td>${esc(f.from)}</td><td>${esc(f.to)}</td><td>${f.out}</td><td>${f.in}</td><td>${esc(f.acType)}</td><td>${esc(f.reg)}</td><td>${esc(f.picName)}</td><td class="r">${fmtMin(f.total)}</td><td class="r">${f.night?fmtMin(f.night):""}</td><td class="r">${(f.ldgDay+f.ldgNight)||""}</td><td class="r" style="white-space:nowrap"><button class="rowbtn" type="button" data-edit="${i}">Edit</button><button class="rowbtn del" type="button" data-fdel="${i}" title="Delete this flight">Delete</button></td></tr>`).join("") + "</tbody></table>";
+    rows.map(({ f, i }) => `<tr><td>${fmtDate(f.date)}</td><td>${esc(f.flightNo)}</td><td>${esc(f.from)}</td><td>${esc(f.to)}</td><td>${f.out}</td><td>${f.in}</td><td>${esc(f.acType)}</td><td>${esc(f.reg)}</td><td>${esc(f.picName)}${f.remarkSig ? ' <span title="Signed by instructor">✍</span>' : ""}</td><td class="r">${fmtMin(f.total)}</td><td class="r">${f.night?fmtMin(f.night):""}</td><td class="r">${(f.ldgDay+f.ldgNight)||""}</td><td class="r" style="white-space:nowrap"><button class="rowbtn" type="button" data-edit="${i}">Edit</button><button class="rowbtn del" type="button" data-fdel="${i}" title="Delete this flight">Delete</button></td></tr>`).join("") + "</tbody></table>";
   $("#lbMore").textContent = hits.length > 100 ? `Showing the latest 100 of ${hits.length.toLocaleString()} ${q ? "matching " : ""}flights.${q ? "" : " Search to find older ones."}` : "";
 }
 /* one flight at a time: edit or delete */
@@ -1195,9 +1265,18 @@ function readFlightForm(pre, base = {}){
     : !valid(f) ? "A flight needs a date and a route or total time." : "";
   return { f, err };
 }
+const lbPad = makePad($("#lbSigPad")); let lbSigDrop = false;
+function lbShowSig(){
+  const sig = lbEditing?.remarkSig && !lbSigDrop ? lbEditing.remarkSig : "";
+  $("#lbSigCur").innerHTML = sig ? `<span class="hint" style="margin:0">Signed:</span><img src="${sig}" alt="Instructor signature" style="height:40px;background:#fff;border:1px solid var(--line);border-radius:6px;padding:2px 6px"><button class="btn danger small" type="button" id="lbSigDel">Remove signature</button>` : "";
+  $("#lbSigCur").classList.toggle("hidden", !sig);
+}
+$("#lbSigCur").addEventListener("click", e => { if (e.target.id === "lbSigDel") { lbSigDrop = true; lbShowSig(); } });
+$("#lbSigClear").addEventListener("click", () => lbPad.reset());
 function lbOpenEdit(i){
-  const f = data.flights[i]; if (!f) return; lbEditing = f;
+  const f = data.flights[i]; if (!f) return; lbEditing = f; lbSigDrop = false;
   $("#lbEditFields").innerHTML = flightFieldsHTML("e_", f);
+  lbShowSig(); requestAnimationFrame(() => lbPad.reset());
   $("#lbEditTitle").textContent = "Edit flight: " + flightLabel(f); $("#lbEditErr").textContent = "";
   $("#lbEdit").classList.remove("hidden"); $("#lbEdit").scrollIntoView({ behavior: "smooth", block: "start" }); $("#e_date").focus({ preventScroll: true });
 }
@@ -1213,10 +1292,12 @@ $("#lbTable").addEventListener("click", e => {
 $("#lbSearch").addEventListener("input", renderLogbook);
 $("#lbEditCancel").addEventListener("click", lbCloseEdit);
 $("#lbEditDel").addEventListener("click", () => lbDelete(data.flights.indexOf(lbEditing)));
-$("#lbEdit").addEventListener("submit", e => {
+$("#lbEdit").addEventListener("submit", async e => {
   e.preventDefault();
   const at = data.flights.indexOf(lbEditing); if (at < 0) return lbCloseEdit();
   const { f, err } = readFlightForm("e_", lbEditing); if (err) return $("#lbEditErr").textContent = err;
+  if (lbPad.inked()) f.remarkSig = await smallSigPNG($("#lbSigPad")); else if (lbSigDrop) delete f.remarkSig;
+  if (data.flights.indexOf(lbEditing) !== at) return lbCloseEdit();
   data.flights[at] = f; data.flights.sort((a,b) => (a.date+a.out).localeCompare(b.date+b.out));
   if (save()) { lbCloseEdit(); renderLogbook(); }
 });
@@ -1432,6 +1513,7 @@ $("#cbMin").addEventListener("change", renderCrewBase);
 /* ================= PRINT (PDF logbook) ================= */
 let prFmt = null, pdfUrl = null;
 function renderPrint(){
+  $("#prCrew").value = data.profile.crew || "MP";
   if (!prFmt) { prFmt = data.profile.format === "FAA" ? "FAA" : data.profile.format === "UK CAA" ? "UK" : "EASA"; $("#prFmtSel").value = prFmt; }
   const F = data.flights;
   if (F.length && !$("#prFrom").value) { $("#prFrom").value = F[0].date; $("#prTo").value = F[F.length-1].date; }
@@ -1606,6 +1688,8 @@ async function makeEasaPdf(F, bf, rowsPerPage, crew, before = [], pageOffset = 0
   const pages = Math.max(1, Math.ceil(F.length / rowsPerPage));
   const totalPages = pre.length + pageOffset + pages;
   const prev = NUM.map(([, fn]) => before.reduce((s, f) => s + (+fn(f) || 0), 0)); prev[3] += bf || 0;
+  const sigImgs = new Map();
+  for (const f of F) if (f.remarkSig && !sigImgs.has(f.remarkSig)) { try { sigImgs.set(f.remarkSig, await doc.embedPng(f.remarkSig)); } catch (e) { sigImgs.set(f.remarkSig, null); } }
   const tick = (pg, x0, x1, top, bot) => { const cx = (x0 + x1)/2, cy = Y((top + bot)/2); pg.drawSvgPath("M0 2.2 L1.8 4.2 L5 -0.6", { x: cx - 2.5, y: cy + 1.8, borderColor: black, borderWidth: 0.6 }); };
 
   for (let p = 0; p < pages; p++) {
@@ -1637,9 +1721,17 @@ async function makeEasaPdf(F, bf, rowsPerPage, crew, before = [], pageOffset = 0
         if ((i === 7 || i === 8) && v) tick(pg, X[i], X[i+1], top, bot);
         else cell(i, fmtN(kind, v));
       });
-      const rem = wrap(f.remarks || "", font, 6, X[23] - X[22] - 8, 3);
-      const mid = (top + bot)/2 + 2.33;
-      rem.forEach((l, i) => center(pg, l, X[22], X[23], mid + (i - (rem.length - 1)/2) * 5.6, 6));
+      const sigI = f.remarkSig && sigImgs.get(f.remarkSig), mid = (top + bot)/2 + 2.33;
+      if (sigI) {
+        // remark on the left half, instructor signature on the right (or centred when there is no remark)
+        const hasRem = !!(f.remarks || "").trim(), x0 = hasRem ? X[22] + (X[23] - X[22]) * 0.55 : X[22], w = X[23] - x0 - 4;
+        const d = sigI.scaleToFit(w, rh - 3);
+        pg.drawImage(sigI, { x: x0 + (X[23] - x0 - d.width)/2, y: Y(bot) + (rh - d.height)/2, width: d.width, height: d.height });
+        if (hasRem) { const rem = wrap(f.remarks, font, 6, (X[23] - X[22]) * 0.55 - 6, 3); rem.forEach((l, i) => put(pg, l, X[22] + 3, mid + (i - (rem.length - 1)/2) * 5.6, 6)); }
+      } else {
+        const rem = wrap(f.remarks || "", font, 6, X[23] - X[22] - 8, 3);
+        rem.forEach((l, i) => center(pg, l, X[22], X[23], mid + (i - (rem.length - 1)/2) * 5.6, 6));
+      }
     });
 
     // grid: horizontal rules
