@@ -113,6 +113,8 @@ td.r,th.r{text-align:right}
 .job:last-child{border-bottom:0}
 .job b{display:block}
 .job .meta{color:var(--muted);font-size:13px}
+.fmt{cursor:pointer;display:block}
+.fmt.on{border-color:var(--accent);background:var(--accent-soft);box-shadow:0 0 0 1px var(--accent)}
 .tag{font:500 11px "JetBrains Mono",monospace;color:var(--accent);text-transform:uppercase;letter-spacing:.08em}
 
 @media (max-width:820px){
@@ -180,6 +182,7 @@ td.r,th.r{text-align:right}
       <button data-t="signature">Signature</button>
       <button data-t="import">Import</button>
       <button data-t="logbook">Logbook</button>
+      <button data-t="print">Print</button>
       <button data-t="jobs">Jobs</button>
     </nav>
   </div>
@@ -304,6 +307,31 @@ td.r,th.r{text-align:right}
         <div class="tablewrap" id="lbTable"></div>
         <p class="hint" id="lbMore"></p>
       </div>
+    </div>
+
+    <!-- print -->
+    <div data-p="print" class="hidden">
+      <h2>Print your logbook</h2>
+      <p class="lead">Make a print-ready PDF of your flights, page totals and signature included. The PDF is made in your browser.</p>
+      <div class="grid3" style="margin-bottom:18px" id="fmtCards">
+        <label class="opt fmt" data-f="EASA"><input type="radio" name="fmt" value="EASA" class="hidden"><span class="tag">A4 landscape · hh:mm</span><h4>EASA</h4><p>Part-FCL layout (FCL.050): single/multi-pilot time, landings, night/IFR, pilot function, FSTD.</p></label>
+        <label class="opt fmt" data-f="FAA"><input type="radio" name="fmt" value="FAA" class="hidden"><span class="tag">Letter landscape · decimal</span><h4>FAA</h4><p>US style (14 CFR 61.51): category/class, cross-country, night, instrument, PIC/SIC, decimal hours.</p></label>
+        <label class="opt fmt" data-f="UK"><input type="radio" name="fmt" value="UK" class="hidden"><span class="tag">A4 landscape · hh:mm</span><h4>UK CAA</h4><p>UK Part-FCL layout (UK FCL.050). Same columns as EASA, with UK headings.</p></label>
+      </div>
+      <div class="card">
+        <div class="grid3" style="gap:0 18px">
+          <div class="field"><label for="prFrom">From date</label><input type="date" id="prFrom"></div>
+          <div class="field"><label for="prTo">To date</label><input type="date" id="prTo"></div>
+          <div class="field"><label for="prRows">Lines per page</label><select id="prRows"><option>14</option><option selected>18</option><option>24</option></select></div>
+          <div class="field"><label for="prCrew">Flights are</label><select id="prCrew"><option value="MP">Multi-pilot</option><option value="SPME">Single-pilot, multi-engine</option><option value="SPSE">Single-pilot, single-engine</option></select><div class="hint">Decides which time column is filled.</div></div>
+          <div class="field"><label for="prPaper">Paper size</label><select id="prPaper"><option value="auto">Format default</option><option value="A4">A4</option><option value="LETTER">US Letter</option></select></div>
+          <div class="field"><label for="prBF">Brought forward (hh:mm, optional)</label><input id="prBF" class="mono" placeholder="e.g. 3250:15"><div class="hint">Total time from a previous logbook.</div></div>
+        </div>
+        <label style="display:flex;gap:8px;align-items:center;font-weight:400;margin:2px 0 4px"><input type="checkbox" id="prCover" checked style="width:auto"> Include cover page</label>
+        <label style="display:flex;gap:8px;align-items:center;font-weight:400;margin:0 0 14px"><input type="checkbox" id="prSig" checked style="width:auto"> Sign each page with my saved signature</label>
+        <div class="row-actions"><button class="btn" id="btnMakePdf" type="button">Create PDF</button><a class="btn ghost hidden" id="pdfDl">Download PDF</a><span id="prMsg" class="hint"></span></div>
+      </div>
+      <div class="card hidden" id="pdfCard" style="padding:0;overflow:hidden"><iframe id="pdfFrame" title="Logbook preview" style="width:100%;height:78vh;border:0;display:block;background:#fff"></iframe></div>
     </div>
 
     <!-- jobs -->
@@ -468,7 +496,7 @@ $("#btnOut").addEventListener("click", () => Auth.signOut());
 function tab(t){
   $$("#tabs button").forEach(b => b.classList.toggle("on", b.dataset.t === t));
   $$("[data-p]").forEach(p => p.classList.toggle("hidden", p.dataset.p !== t));
-  ({ overview: renderOverview, profile: renderProfile, expiries: renderExpiries, signature: renderSignature, logbook: renderLogbook, jobs: renderJobs })[t]?.();
+  ({ overview: renderOverview, profile: renderProfile, expiries: renderExpiries, signature: renderSignature, logbook: renderLogbook, print: renderPrint, jobs: renderJobs })[t]?.();
   window.scrollTo(0,0);
 }
 $("#tabs").addEventListener("click", e => { if (e.target.dataset.t) tab(e.target.dataset.t); });
@@ -794,6 +822,198 @@ $("#restoreFile").addEventListener("change", async e => {
   } catch { alert("That isn't a CrewBase Log backup file."); }
 });
 $("#btnClearFlights").addEventListener("click", () => { if (data.flights.length && confirm(`Delete all ${data.flights.length} flights from this device? Download a backup first if unsure.`)) { data.flights = []; save(); renderLogbook(); } });
+
+/* ================= PRINT (PDF logbook) ================= */
+let prFmt = null, pdfUrl = null;
+function renderPrint(){
+  if (!prFmt) prFmt = data.profile.format === "FAA" ? "FAA" : data.profile.format === "UK CAA" ? "UK" : "EASA";
+  $$(".fmt").forEach(c => c.classList.toggle("on", c.dataset.f === prFmt));
+  const F = data.flights;
+  if (F.length && !$("#prFrom").value) { $("#prFrom").value = F[0].date; $("#prTo").value = F[F.length-1].date; }
+  $("#prMsg").textContent = F.length ? "" : "Import some flights first.";
+}
+$("#fmtCards").addEventListener("click", e => { const c = e.target.closest(".fmt"); if (!c) return; e.preventDefault(); prFmt = c.dataset.f; renderPrint(); });
+
+const dec = m => m ? (m/60).toFixed(1) : "";
+const hm = m => m ? fmtMin(m) : "";
+const ddmmyy = iso => { const [y,m,d] = iso.split("-"); return `${d}/${m}/${y.slice(2)}`; };
+const mmddyy = iso => { const [y,m,d] = iso.split("-"); return `${m}/${d}/${y.slice(2)}`; };
+const hhmm = t => t ? t.replace(":","") : "";
+
+function easaColumns(crew){
+  const se = f => crew === "SPSE" ? f.total : 0, me = f => crew === "SPME" ? f.total : 0, mp = f => crew === "MP" ? f.total : 0;
+  return [
+    { g:"", h:"DATE\n(dd/mm/yy)", w:34, v:f => ddmmyy(f.date) },
+    { g:"DEPARTURE", h:"PLACE", w:24, v:f => f.from }, { g:"DEPARTURE", h:"TIME", w:20, v:f => hhmm(f.out) },
+    { g:"ARRIVAL", h:"PLACE", w:24, v:f => f.to }, { g:"ARRIVAL", h:"TIME", w:20, v:f => hhmm(f.in) },
+    { g:"AIRCRAFT", h:"MAKE, MODEL,\nVARIANT", w:34, v:f => f.acType }, { g:"AIRCRAFT", h:"REGISTRATION", w:34, v:f => f.reg },
+    { g:"SINGLE PILOT TIME", h:"SE", w:22, n:se, t:"t" }, { g:"SINGLE PILOT TIME", h:"ME", w:22, n:me, t:"t" },
+    { g:"", h:"MULTI-\nPILOT\nTIME", w:24, n:mp, t:"t" },
+    { g:"", h:"TOTAL\nTIME OF\nFLIGHT", w:26, n:f => f.total, t:"t" },
+    { g:"", h:"NAME PIC", w:46, v:f => f.picName },
+    { g:"LANDINGS", h:"DAY", w:16, n:f => f.ldgDay, t:"c" }, { g:"LANDINGS", h:"NIGHT", w:16, n:f => f.ldgNight, t:"c" },
+    { g:"OPERATIONAL\nCONDITION TIME", h:"NIGHT", w:22, n:f => f.night, t:"t" }, { g:"OPERATIONAL\nCONDITION TIME", h:"IFR", w:22, n:f => f.ifr, t:"t" },
+    { g:"PILOT FUNCTION TIME", h:"PILOT-IN-\nCOMMAND", w:24, n:f => f.pic, t:"t" }, { g:"PILOT FUNCTION TIME", h:"CO-\nPILOT", w:22, n:f => f.copilot, t:"t" },
+    { g:"PILOT FUNCTION TIME", h:"DUAL", w:22, n:f => f.dual, t:"t" }, { g:"PILOT FUNCTION TIME", h:"INSTRUC-\nTOR", w:22, n:f => f.instructor, t:"t" },
+    { g:"FSTD SESSION", h:"DATE", w:24, v:() => "" }, { g:"FSTD SESSION", h:"TYPE", w:22, v:() => "" }, { g:"FSTD SESSION", h:"TOTAL TIME\nOF SESSION", w:24, v:() => "", t:"t", n:() => 0 },
+    { g:"", h:"REMARKS AND\nENDORSEMENTS", w:62, v:f => f.remarks }
+  ];
+}
+function faaColumns(crew){
+  const xc = f => f.from && f.to && f.from !== f.to ? f.total : 0;
+  return [
+    { g:"", h:"DATE", w:32, v:f => mmddyy(f.date) },
+    { g:"", h:"AIRCRAFT\nTYPE", w:32, v:f => f.acType }, { g:"", h:"AIRCRAFT\nIDENT", w:34, v:f => f.reg },
+    { g:"ROUTE OF FLIGHT", h:"FROM", w:24, v:f => f.from }, { g:"ROUTE OF FLIGHT", h:"TO", w:24, v:f => f.to },
+    { g:"", h:"REMARKS AND\nENDORSEMENTS", w:62, v:f => [f.flightNo, f.remarks].filter(Boolean).join(" ") },
+    { g:"", h:"NR\nINST\nAPP", w:16, v:() => "" },
+    { g:"LANDINGS", h:"DAY", w:16, n:f => f.ldgDay, t:"c" }, { g:"LANDINGS", h:"NIGHT", w:16, n:f => f.ldgNight, t:"c" },
+    { g:"CATEGORY & CLASS", h:"SEL", w:22, n:f => crew === "SPSE" ? f.total : 0, t:"d" }, { g:"CATEGORY & CLASS", h:"MEL", w:22, n:f => crew === "SPSE" ? 0 : f.total, t:"d" },
+    { g:"", h:"CROSS\nCOUNTRY", w:24, n:xc, t:"d" },
+    { g:"CONDITIONS OF FLIGHT", h:"NIGHT", w:22, n:f => f.night, t:"d" }, { g:"CONDITIONS OF FLIGHT", h:"ACTUAL\nINSTR.", w:22, n:f => f.ifr, t:"d" }, { g:"CONDITIONS OF FLIGHT", h:"SIM.\nINSTR.", w:22, v:() => "", n:() => 0, t:"d" },
+    { g:"", h:"FLIGHT\nSIMU-\nLATOR", w:22, v:() => "", n:() => 0, t:"d" },
+    { g:"TYPE OF PILOTING TIME", h:"DUAL\nRECEIVED", w:24, n:f => f.dual, t:"d" }, { g:"TYPE OF PILOTING TIME", h:"PIC", w:22, n:f => f.pic, t:"d" },
+    { g:"TYPE OF PILOTING TIME", h:"SIC", w:22, n:f => f.copilot, t:"d" }, { g:"TYPE OF PILOTING TIME", h:"AS FLIGHT\nINSTR.", w:24, n:f => f.instructor, t:"d" },
+    { g:"", h:"TOTAL\nDURATION\nOF FLIGHT", w:28, n:f => f.total, t:"d" }
+  ];
+}
+const pdfSafe = s => String(s ?? "").replace(/[–—]/g,"-").replace(/[‘’]/g,"'").replace(/[“”]/g,'"').replace(/[^\x20-\x7E\xA0-\xFF]/g,"?");
+function parseHM(s){ s = String(s||"").trim(); if (!s) return 0; const m = s.match(/^(\d+)(?::(\d{1,2}))?$/); return m ? +m[1]*60 + (+(m[2]||0)) : NaN; }
+
+async function makePdf(){
+  const crew = $("#prCrew").value, rows = +$("#prRows").value, from = $("#prFrom").value || "0000", to = $("#prTo").value || "9999";
+  const F = data.flights.filter(f => f.date >= from && f.date <= to);
+  if (!F.length) throw new Error("No flights in that date range.");
+  const bf = parseHM($("#prBF").value); if (isNaN(bf)) throw new Error("Brought-forward total should look like 3250:15.");
+  if (!window.PDFLib) await loadScript("https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js");
+  const { PDFDocument, StandardFonts, rgb } = PDFLib;
+  const isFAA = prFmt === "FAA";
+  const cols = isFAA ? faaColumns(crew) : easaColumns(crew);
+  const paper = $("#prPaper").value === "auto" ? (isFAA ? "LETTER" : "A4") : $("#prPaper").value;
+  const [W,H] = paper === "A4" ? [841.89, 595.28] : [792, 612];
+  const fmtV = (c, m) => c.t === "c" ? (m || "") + "" : c.t === "d" ? dec(m) : hm(m);
+  const doc = await PDFDocument.create();
+  doc.setTitle("Pilot logbook - " + pdfSafe(data.profile.name)); doc.setCreator("CrewBase Log");
+  const font = await doc.embedFont(StandardFonts.Helvetica), bold = await doc.embedFont(StandardFonts.HelveticaBold);
+  let sigImg = null;
+  if ($("#prSig").checked && data.signature) {
+    try { sigImg = data.signature.startsWith("data:image/png") ? await doc.embedPng(data.signature) : await doc.embedJpg(data.signature); } catch (e) { sigImg = null; }
+  }
+  const ink = rgb(0.06,0.11,0.16), grey = rgb(0.42,0.47,0.52), rule = rgb(0.72,0.76,0.8), band = rgb(0.93,0.95,0.97), navy = rgb(0.043,0.24,0.36), gold = rgb(0.85,0.59,0.11);
+  const P = data.profile, M = 26;
+  const title = isFAA ? "PILOT LOGBOOK" : prFmt === "UK" ? "PILOT LOGBOOK - UK PART-FCL (FCL.050)" : "PILOT LOGBOOK - EASA PART-FCL (FCL.050)";
+  const fit = (t, f, size, w) => { t = pdfSafe(t); while (t && f.widthOfTextAtSize(t, size) > w) t = t.slice(0,-1); return t; };
+  const text = (pg, t, x, y, o = {}) => pg.drawText(pdfSafe(t), { x, y, size: o.size || 7, font: o.font || font, color: o.color || ink });
+  const logo = (pg, x, y, s) => {
+    pg.drawRectangle({ x, y, width: s, height: s, color: navy });
+    pg.drawSvgPath("M12 38l40-14-10 22-8-6-6 8v-10z", { x, y: y + s, scale: s/64, color: gold });
+  };
+
+  // ---- cover ----
+  if ($("#prCover").checked) {
+    const pg = doc.addPage([W,H]);
+    logo(pg, M, H - M - 30, 30); text(pg, "CrewBase Log", M + 40, H - M - 20, { size: 13, font: bold });
+    text(pg, isFAA ? "PILOT LOGBOOK" : "PILOT LOGBOOK", W/2 - bold.widthOfTextAtSize("PILOT LOGBOOK", 30)/2, H/2 + 70, { size: 30, font: bold, color: navy });
+    const sub = isFAA ? "Format: FAA (14 CFR 61.51)" : prFmt === "UK" ? "Format: UK Part-FCL (UK FCL.050)" : "Format: EASA Part-FCL (FCL.050)";
+    text(pg, sub, W/2 - font.widthOfTextAtSize(sub, 11)/2, H/2 + 46, { size: 11, color: grey });
+    const info = [["Holder's name", P.name], ["Licence number", P.lic], ["Issuing authority", P.auth], ["Licence type", P.type], ["Period", `${fmtDate(F[0].date)} - ${fmtDate(F[F.length-1].date)}`], ["Flights in this volume", String(F.length)]];
+    let y = H/2 - 4; const lx = W/2 - 170;
+    for (const [k,v] of info) { text(pg, k, lx, y, { size: 10, color: grey }); text(pg, v || "-", lx + 140, y, { size: 11, font: bold }); pg.drawLine({ start:{x:lx+140,y:y-4}, end:{x:lx+340,y:y-4}, thickness:0.5, color: rule }); y -= 24; }
+    if (sigImg) { const d = sigImg.scaleToFit(160, 46); text(pg, "Holder's signature", lx, y - 20, { size: 10, color: grey }); pg.drawImage(sigImg, { x: lx + 140, y: y - 30, width: d.width, height: d.height }); }
+    text(pg, "Generated " + fmtDate(todayISO()) + " with CrewBase Log - crewbaselog.com", M, M, { size: 7, color: grey });
+  }
+
+  // ---- table geometry ----
+  const tw = W - 2*M, totalW = cols.reduce((s,c) => s + c.w, 0);
+  let x = M; cols.forEach(c => { c.x = x; c.cw = c.w / totalW * tw; x += c.cw; });
+  const topY = H - M - 26, hdrH = 34, footH = 58, totRows = 3, totH = 12;
+  const rh = Math.min(18, (topY - hdrH - totRows*totH - footH - M) / rows);
+  const pages = Math.ceil(F.length / rows);
+  const prev = cols.map(c => c.n ? 0 : null);
+  const bfIdx = cols.findIndex(c => /TOTAL\n(TIME OF\nFLIGHT|DURATION)/.test(c.h));
+  if (bf && bfIdx >= 0) prev[bfIdx] = bf;
+
+  for (let p = 0; p < pages; p++) {
+    const pg = doc.addPage([W,H]), chunk = F.slice(p*rows, (p+1)*rows);
+    logo(pg, M, H - M - 14, 14);
+    text(pg, title, M + 20, H - M - 10, { size: 9, font: bold });
+    const hdrRight = `${P.name || ""}${P.lic ? "  |  " + P.lic : ""}   Page ${p+1} of ${pages}`;
+    text(pg, hdrRight, W - M - font.widthOfTextAtSize(pdfSafe(hdrRight), 8), H - M - 10, { size: 8, color: grey });
+    // header
+    const hy = topY - hdrH;
+    pg.drawRectangle({ x: M, y: hy, width: tw, height: hdrH, color: band });
+    let i = 0;
+    while (i < cols.length) {
+      const c = cols[i];
+      if (c.g) {
+        let j = i; while (j + 1 < cols.length && cols[j+1].g === c.g) j++;
+        const gx = c.x, gw = cols[j].x + cols[j].cw - gx;
+        const gl = c.g.split("\n"); gl.forEach((l, k) => { const t = fit(l, bold, 5.6, gw - 2); text(pg, t, gx + gw/2 - bold.widthOfTextAtSize(t, 5.6)/2, topY - 7 - k*6.5, { size: 5.6, font: bold }); });
+        pg.drawLine({ start:{x:gx, y:topY - 15}, end:{x:gx+gw, y:topY - 15}, thickness:0.4, color: rule });
+        for (let k = i; k <= j; k++) { const cc = cols[k], ls = cc.h.split("\n"); ls.forEach((l, n) => { const t = fit(l, bold, 5.2, cc.cw - 2); text(pg, t, cc.x + cc.cw/2 - bold.widthOfTextAtSize(t, 5.2)/2, topY - 22 - n*5.8, { size: 5.2, font: bold }); }); }
+        i = j + 1;
+      } else {
+        const ls = c.h.split("\n"), y0 = topY - hdrH/2 + (ls.length-1)*3.2 - 2;
+        ls.forEach((l, n) => { const t = fit(l, bold, 5.4, c.cw - 2); text(pg, t, c.x + c.cw/2 - bold.widthOfTextAtSize(t, 5.4)/2, y0 - n*6.4, { size: 5.4, font: bold }); });
+        i++;
+      }
+    }
+    // rows
+    const pageSum = cols.map(c => c.n ? 0 : null);
+    for (let r = 0; r < rows; r++) {
+      const y = hy - (r+1)*rh, f = chunk[r];
+      if (r % 2) pg.drawRectangle({ x: M, y, width: tw, height: rh, color: rgb(0.975,0.98,0.985) });
+      pg.drawLine({ start:{x:M,y}, end:{x:M+tw,y}, thickness:0.3, color: rule });
+      if (!f) continue;
+      cols.forEach((c, k) => {
+        let s;
+        if (c.n) { const m = c.n(f) || 0; pageSum[k] += m; s = fmtV(c, m); } else s = c.v(f);
+        const size = 6.6, t = fit(s, font, size, c.cw - 3);
+        const tx = c.n ? c.x + c.cw - 2 - font.widthOfTextAtSize(t, size) : c.x + 2;
+        text(pg, t, c.n && c.t === "c" ? c.x + c.cw/2 - font.widthOfTextAtSize(t,size)/2 : tx, y + rh/2 - 2.3, { size });
+      });
+    }
+    // totals
+    const ty0 = hy - rows*rh;
+    const labels = ["TOTAL THIS PAGE", "TOTAL FROM PREVIOUS PAGES", "TOTAL TIME"];
+    const firstNum = cols.findIndex(c => c.n);
+    const sets = [pageSum, prev.slice(), pageSum.map((v,k) => v === null ? null : v + prev[k])];
+    sets.forEach((set, r) => {
+      const y = ty0 - (r+1)*totH;
+      pg.drawRectangle({ x: M, y, width: tw, height: totH, color: r === 2 ? band : rgb(1,1,1), borderColor: rule, borderWidth: 0.4 });
+      text(pg, fit(labels[r], bold, 6, cols[firstNum].x - M - 4), M + 3, y + 3.6, { size: 6, font: bold });
+      cols.forEach((c, k) => { if (set[k] === null || (r < 2 && !set[k] && c.t !== "c")) return; if (!c.n || (!set[k] && c.t === "c")) return;
+        const t = fit(fmtV(c, set[k]), bold, 6.4, c.cw - 2); text(pg, t, c.x + c.cw - 2 - bold.widthOfTextAtSize(t, 6.4), y + 3.4, { size: 6.4, font: bold }); });
+    });
+    // vertical rules
+    cols.forEach(c => pg.drawLine({ start:{x:c.x, y:topY}, end:{x:c.x, y:ty0 - totRows*totH}, thickness:0.3, color: rule }));
+    pg.drawLine({ start:{x:M+tw, y:topY}, end:{x:M+tw, y:ty0 - totRows*totH}, thickness:0.3, color: rule });
+    pg.drawRectangle({ x: M, y: ty0 - totRows*totH, width: tw, height: topY - (ty0 - totRows*totH), borderColor: grey, borderWidth: 0.6 });
+    // carry forward
+    sets[2].forEach((v,k) => prev[k] = v);
+    // certification + signature
+    const fy = ty0 - totRows*totH - 16;
+    text(pg, "I certify that the entries in this log are true.", M, fy, { size: 7.5 });
+    text(pg, "Pilot's signature", W - M - 230, fy, { size: 7, color: grey });
+    pg.drawLine({ start:{x:W-M-160, y:fy - 2}, end:{x:W-M, y:fy - 2}, thickness:0.5, color: grey });
+    if (sigImg) { const d = sigImg.scaleToFit(140, 30); pg.drawImage(sigImg, { x: W - M - 150, y: fy - 1, width: d.width, height: d.height }); }
+    text(pg, `${P.name || ""}`, W - M - 160, fy - 11, { size: 6.5, color: grey });
+    text(pg, "CrewBase Log - crewbaselog.com", M, M - 10, { size: 6, color: grey });
+  }
+  return doc.save();
+}
+$("#btnMakePdf").addEventListener("click", async () => {
+  const btn = $("#btnMakePdf"); btn.disabled = true; $("#prMsg").textContent = "Building PDF…"; $("#prMsg").style.color = "";
+  try {
+    const bytes = await makePdf();
+    if (pdfUrl) URL.revokeObjectURL(pdfUrl);
+    pdfUrl = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+    $("#pdfFrame").src = pdfUrl; $("#pdfCard").classList.remove("hidden");
+    const a = $("#pdfDl"); a.href = pdfUrl; a.download = `logbook-${prFmt.toLowerCase()}-${todayISO()}.pdf`; a.classList.remove("hidden");
+    $("#prMsg").textContent = `Done: ${Math.round(bytes.length/1024)} KB.`;
+  } catch (x) { console.error(x); $("#prMsg").textContent = x.message || "Couldn't build the PDF."; $("#prMsg").style.color = "var(--bad)"; }
+  btn.disabled = false;
+});
 
 /* ---------- jobs (placeholder listings) ---------- */
 const JOBS = [
