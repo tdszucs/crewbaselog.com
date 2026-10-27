@@ -480,7 +480,7 @@ td.r,th.r{text-align:right}
       <div class="card" id="cbGridCard">
         <div class="calhead">
           <div class="monthnav"><button class="btn ghost small" id="cbPrev" type="button" aria-label="Previous month">←</button><b id="cbMonth"></b><button class="btn ghost small" id="cbNext" type="button" aria-label="Next month">→</button></div>
-          <div class="legend"><span><i class="sw free"></i>free all day</span><span><i class="sw part"></i>free part of the day</span><span><i class="sw duty"></i>on duty</span><span><i class="sw away"></i>down route</span><span><i class="sw some"></i>only some free</span><span><i class="sw none"></i>no roster</span></div>
+          <div class="legend"><span><i class="sw free"></i>free all day</span><span><i class="sw part"></i>free part of the day</span><span><i class="sw duty"></i>on duty or away from base</span><span><i class="sw some"></i>only some free</span><span><i class="sw none"></i>no roster</span></div>
         </div>
         <div class="calwrap"><div class="cal" id="cbCal"></div></div>
         <div id="cbEmpty" class="hint"></div>
@@ -499,8 +499,8 @@ td.r,th.r{text-align:right}
           <div class="field"><label for="cbName">Name shown to friends</label><input id="cbName" placeholder="e.g. Tamas"></div>
           <div class="field"><label for="cbBase">Home base (IATA or ICAO)</label><input id="cbBase" class="mono" maxlength="4" placeholder="e.g. MXP" style="text-transform:uppercase"></div>
         </div>
-        <div class="drop" id="cbDrop"><b>Drop your roster file here</b> or click to choose one<div class="hint">CSV or text with a date column and a duty column. Times are used when present; without them a duty blocks the whole day.</div></div>
-        <input type="file" id="cbFile" accept=".csv,.txt,.json" class="hidden">
+        <div class="drop" id="cbDrop"><b>Drop your roster file here</b> or click to choose one<div class="hint">Your AIMS / eCrew Pilot Logbook report for the month (CSV or Excel): flight and simulator days show as duty, the other days as off. Or any CSV or text with a date column and a duty column.</div></div>
+        <input type="file" id="cbFile" accept=".csv,.txt,.json,.xlsx,.xls" class="hidden">
         <div class="field" style="margin-top:14px"><label for="cbText">Or type it, one day per line</label>
           <textarea id="cbText" rows="4" class="mono" placeholder="03/11/26 OFF&#10;04/11/26 MXP-LHR 06:15-09:40&#10;05/11/26 LHR-MXP 10:30-13:50&#10;06/11/26 SBY 05:00-17:00"></textarea>
           <div class="hint">OFF, LVE, ALV, REST and similar count as free; anything else counts as duty. A route ending away from your base means you are down route that night.</div></div>
@@ -1439,8 +1439,37 @@ function cbParseLine(line){
   return day;
 }
 function cbParseText(text){ const days = {}; for (const l of String(text).split(/\r?\n/)) { const d = cbParseLine(l); if (d) days[d.date] = d; } return days; }
-function cbParseCSV(text){
-  const rows = parseCSV(text); if (rows.length < 2) return null;
+const cbNextDay = iso => new Date(Date.parse(iso + "T00:00:00Z") + 864e5).toISOString().slice(0, 10);
+/* eCrew / AIMS "Pilot Logbook" report: flights only (Date | DEPARTURE Airport, Time | ARRIVAL Airport, Time | ... | Flt time | ... | SYNTH. DEVICES).
+   Flight and simulator days are duty, an overnight flight also blocks the next day until it lands, and the
+   other days of the report's period are off. The crew line "19016 NAME (AUH-789-CP)" gives name and base. */
+function cbParseLogbook(rows){
+  const hi = rows.slice(0, 15).findIndex(r => { const h = r.map(norm); return h.includes("date") && h.filter(x => x === "airport").length >= 2; });
+  if (hi < 0) return null;
+  const h = rows[hi].map(norm), ap = h.reduce((a, x, i) => x === "airport" ? a.concat(i) : a, []), after = (w, i0) => h.findIndex((x, i) => i > i0 && x === w);
+  const cD = h.indexOf("date"), cF = ap[0], cS = after("time", ap[0]), cT = ap[1], cE = after("time", ap[1]), cFl = h.indexOf("flt time");
+  const g = (r, i) => i >= 0 ? String(r[i] ?? "").trim() : "";
+  const days = {}, meta = {};
+  const add = d => { const p = days[d.date]; if (!p) days[d.date] = d; else { p.duties.push(...d.duties); p.code += " · " + d.code; if (d.lands) p.lands = d.lands; } };
+  for (const r of rows.slice(0, hi)) for (const c of r) {
+    const per = String(c).match(/(\d{1,2}\/\d{1,2}\/\d{2,4})\s*-\s*(\d{1,2}\/\d{1,2}\/\d{2,4})/);
+    if (per) { meta.from = parseDate(per[1], "DMY"); meta.to = parseDate(per[2], "DMY"); }
+  }
+  for (const r of rows.slice(hi + 1)) {
+    const date = parseDate(g(r, cD), "DMY");
+    if (!date) { const crew = r.map(c => String(c).trim()).filter(Boolean).join(" ").match(/^\d+\s+(.+?)\s*\(([A-Z]{3,4})-/); if (crew) { meta.name ||= crew[1]; meta.base ||= crew[2]; } continue; }
+    const from = g(r, cF).toUpperCase(), to = g(r, cT).toUpperCase(); if (!from && !to) continue;
+    const a = parseTime(g(r, cS)), b = parseTime(g(r, cE)), s = a ? cbMin(a) : 0, e = b ? cbMin(b) : CB_DAY, over = !!(a && b && e <= s);
+    const code = cFl >= 0 && !g(r, cFl) ? `SIM ${from}` : `${from}-${to}`;
+    add({ date, code, free: false, duties: [[s, over ? CB_DAY : e]], lands: to || null });
+    if (over) add({ date: cbNextDay(date), code: `${code} (lands ${b})`, free: false, duties: [[0, e]], lands: to || null });
+  }
+  const ds = Object.keys(days).sort(); if (!ds.length) return null;
+  for (let d = meta.from || ds[0], end = meta.to || ds[ds.length - 1]; d <= end; d = cbNextDay(d)) days[d] ||= { date: d, code: "OFF", free: true, duties: [], lands: null };
+  return { days, meta };
+}
+function cbParseRows(rows){
+  if (rows.length < 2) return null;
   const hi = rows.slice(0, 15).findIndex(r => r.some(c => ["date","day","duty date","roster date"].includes(norm(c))));
   if (hi < 0) return null;
   const H = rows[hi].map(norm), col = al => H.findIndex(h => al.includes(h));
@@ -1465,12 +1494,17 @@ function cbParseCSV(text){
 }
 function cbReadFile(f, done){
   if (!f) return;
-  f.text().then(text => {
+  (async () => {
     let days = null, meta = {};
+    const text = await f.text();
     if (/^\s*[{[]/.test(text)) { try { const j = JSON.parse(text); days = j.days || null; meta = j; } catch (e) {} }
-    if (!days) days = cbParseCSV(text) || cbParseText(text);
+    if (!days) {
+      let rows = null; try { rows = await readFile(f); } catch (e) {}   // CSV, or Excel even when named .csv
+      const lb = rows && cbParseLogbook(rows);
+      if (lb) { days = lb.days; meta = lb.meta; } else days = (rows && cbParseRows(rows)) || cbParseText(text);
+    }
     done(days || {}, meta);
-  });
+  })();
 }
 
 // free windows for one pilot on one day (away from base = not free)
@@ -1495,11 +1529,11 @@ function cbWindows(r, iso, carryAway){
 }
 const cbIntersect = (a, b) => { const o = []; for (const x of a) for (const y of b) { const s = Math.max(x[0], y[0]), e = Math.min(x[1], y[1]); if (e > s) o.push([s, e]); } return o; };
 const cbPart = (s, e) => e - s >= 600 ? "most of the day" : (s + e)/2 < 720 ? "morning" : (s + e)/2 < 1020 ? "afternoon" : "evening";
-// one pilot's own row: any duty is red; a day off is green at base, grey down route
+// one pilot's own row: green only for a day off at base; duty and days down route are red
 function cbState(f, day){
   if (!day) return "none";
   if (!day.free) return "duty";
-  return f.away || !f.windows.length ? "away" : "free";
+  return f.away || !f.windows.length ? "duty" : "free";
 }
 function cbRosters(){
   const C = cb(), list = [];
@@ -1581,7 +1615,8 @@ const cbDrop = $("#cbDrop");
 cbDrop.addEventListener("click", () => $("#cbFile").click());
 ["dragenter","dragover"].forEach(ev => cbDrop.addEventListener(ev, e => { e.preventDefault(); cbDrop.classList.add("over"); }));
 ["dragleave","drop"].forEach(ev => cbDrop.addEventListener(ev, e => { e.preventDefault(); cbDrop.classList.remove("over"); }));
-const cbTakeMine = f => cbReadFile(f, days => { const n = Object.keys(days).length; if (!n) return cbMsg("#cbMsg", "No dated days found in that file.", true); cbKeepMe(); Object.assign(cb().me.days, days); if (save()) { cbMsg("#cbMsg", `Read ${n} days from ${f.name}.`); renderCrewBase(); } });
+const cbTakeMine = f => cbReadFile(f, (days, meta) => { const n = Object.keys(days).length; if (!n) return cbMsg("#cbMsg", "No dated days found in that file.", true); cbKeepMe();
+  const C = cb(); if (!C.me.base && meta.base) C.me.base = String(meta.base).toUpperCase(); Object.assign(C.me.days, days); if (save()) { cbMsg("#cbMsg", `Read ${n} days from ${f.name}.`); renderCrewBase(); } });
 cbDrop.addEventListener("drop", e => cbTakeMine(e.dataTransfer.files[0]));
 $("#cbFile").addEventListener("change", e => { cbTakeMine(e.target.files[0]); e.target.value = ""; });
 $("#cbShare").addEventListener("click", () => {
