@@ -298,16 +298,23 @@ td.r,th.r{text-align:right}
     <div data-p="import" class="hidden">
       <h2>Import flights</h2>
       <p class="lead">Files are read inside your browser. Nothing is uploaded to our servers.</p>
+      <div class="notice"><b>Each time you update your logbook:</b> drop your saved <b>CrewBase Log CSV</b> from last time together with your <b>new export</b> (e.g. from eCrew). They are merged and duplicates are skipped. Then download your new full logbook CSV and PDF.</div>
       <div class="grid3" style="margin-bottom:18px">
         <div class="opt"><span class="tag">Supported</span><h4>eCrew / AIMS export</h4><p>The Pilot LogBook report from your airline's crew system, saved as CSV or Excel. Columns are recognised automatically. <a href="#ecrewHelp">How to get it</a></p></div>
         <div class="opt"><span class="tag">Supported</span><h4>Another logbook or spreadsheet</h4><p>CSV or Excel exported from another app or your own sheet. Match the columns once and we remember them.</p></div>
         <div class="opt"><span class="tag" style="color:var(--muted)">Coming later</span><h4>Paper or PDF logbook</h4><p>Enter your brought-forward totals for now. Scanning old pages is on the roadmap.</p></div>
       </div>
       <div class="card">
-        <div class="drop" id="drop"><b>Drop a CSV or Excel file here</b><br><span class="hint">or click to choose a file · .csv, .txt, .xlsx</span>
-          <input type="file" id="impFile" accept=".csv,.txt,.tsv,.xlsx,.xls" class="hidden"></div>
+        <div class="drop" id="drop"><b>Drop one or more CSV or Excel files here</b><br><span class="hint">or click to choose files · .csv, .txt, .xlsx</span>
+          <input type="file" id="impFile" accept=".csv,.txt,.tsv,.xlsx,.xls" multiple class="hidden"></div>
         <div class="row-actions" style="margin-top:12px;justify-content:center"><a href="#" id="dlSample" class="hint">Download a sample CSV to try</a></div>
         <p class="err" id="impErr"></p>
+      </div>
+      <div class="card hidden" id="impDone">
+        <h3>Your logbook is up to date</h3>
+        <div id="impDoneLog" class="hint" style="font-size:14px;margin:0 0 14px"></div>
+        <div class="row-actions" style="margin:0"><button class="btn" type="button" data-csv>Download full logbook (CSV)</button><button class="btn ghost" type="button" data-go="print">Make the PDF logbook</button></div>
+        <p class="hint" style="margin:12px 0 0">Keep the CSV somewhere safe (email, cloud drive). Your flights live only in this browser, so next time import that CSV together with your new file.</p>
       </div>
       <details class="card" id="ecrewHelp">
         <summary style="cursor:pointer;font-weight:600;font-size:16px">How to get your file from eCrew</summary>
@@ -339,11 +346,13 @@ td.r,th.r{text-align:right}
     <!-- logbook -->
     <div data-p="logbook" class="hidden">
       <h2>Logbook</h2>
-      <p class="lead">Your flights on this device. Make a backup now and then: if you clear your browser data, it's gone.</p>
+      <p class="lead">Your flights are kept only in this browser. Download your full logbook CSV after each import and keep it safe: if you clear your browser data or change device, import it again.</p>
       <div class="stats" id="lbStats"></div>
       <div class="card">
         <div class="row-actions" style="margin:0 0 14px">
-          <button class="btn ghost small" id="btnBackup" type="button">Download backup</button>
+          <button class="btn small" type="button" data-csv>Download full logbook (CSV)</button>
+          <button class="btn ghost small" type="button" data-go="print">Make the PDF logbook</button>
+          <button class="btn ghost small" id="btnBackup" type="button" title="Includes profile, expiries, signature and rosters">Download full backup</button>
           <label class="btn ghost small" style="margin:0">Restore backup<input type="file" id="restoreFile" accept=".json" class="hidden"></label>
           <button class="btn danger small" id="btnClearFlights" type="button">Delete all flights</button>
         </div>
@@ -890,7 +899,7 @@ function iso(y,m,d){ if (y < 100) y += y > 70 ? 1900 : 2000; if (m<1||m>12||d<1|
 function parseTime(s){ s = String(s||"").trim(); const m = s.match(/(\d{1,2}):?(\d{2})(?!\d)/); if (!m) return ""; const h=+m[1], mi=+m[2]; return h<24&&mi<60 ? String(h).padStart(2,"0")+":"+m[2] : ""; }
 function parseDur(s){
   s = String(s||"").trim(); if (!s) return 0;
-  let m = s.match(/^(\d{1,4}):(\d{2})$/); if (m) return +m[1]*60 + +m[2];
+  let m = s.match(/^(\d{1,4}):(\d{2})(?::\d{2})?$/); if (m) return +m[1]*60 + +m[2];
   m = s.match(/^(\d{1,4})\.(\d+)$/); if (m) return Math.round(parseFloat(s)*60);
   m = s.match(/^\d{3,4}$/); if (m) return Math.floor(+s/100)*60 + (+s%100);
   if (/^\d{1,2}$/.test(s)) return +s*60;
@@ -919,15 +928,36 @@ function rowToFlight(r, map, fmt){
 const valid = f => f.date && (f.from || f.to || f.total);
 const dupKey = f => [f.date, f.from, f.to, f.out || f.flightNo].join("|");
 
+/* several files in one go (e.g. last time's CrewBase Log CSV + a new eCrew export):
+   our own CSV imports straight away, other files go through the column check one by one */
+let impQueue = [], impLog = [], impErrs = 0;
+function handleFiles(list){
+  const files = [...(list || [])]; if (!files.length) return;
+  // our own CSV first, so a new export's duplicates are counted against it
+  impQueue = files.sort((a, b) => (/crewbaselog/i.test(b.name) ? 1 : 0) - (/crewbaselog/i.test(a.name) ? 1 : 0));
+  impLog = []; impErrs = 0; $("#impErr").textContent = ""; $("#impDone").classList.add("hidden"); nextFile();
+}
+async function nextFile(){
+  while (impQueue.length) {
+    const f = impQueue.shift(), err = await handleFile(f);
+    if (err) { impLog.push(`<b>${esc(f.name)}</b>: <span style="color:var(--bad)">${esc(err)}</span>`); impErrs++; continue; }
+    if (imp?.own) { doImport(); imp = null; continue; }
+    if (imp) return; // waiting for the column check
+  }
+  if (!impLog.length) return;
+  if (impErrs === impLog.length) return $("#impErr").innerHTML = impLog.join("<br>");
+  $("#impDoneLog").innerHTML = impLog.join("<br>") + `<br>Your logbook now has <b>${data.flights.length.toLocaleString()} flights</b>.`;
+  $("#impDone").classList.remove("hidden"); $("#impDone").scrollIntoView({ behavior: "smooth", block: "start" });
+}
 async function handleFile(f){
-  $("#impErr").textContent = ""; $("#impResult").textContent = "";
-  if (!f) return;
-  if (f.size > 20e6) return $("#impErr").textContent = "That file is over 20 MB. Try exporting a smaller date range.";
+  $("#impResult").textContent = "";
+  if (f.size > 20e6) return "That file is over 20 MB. Try exporting a smaller date range.";
   let rows;
-  try { rows = await readFile(f); } catch (x) { return $("#impErr").textContent = "Couldn't read that file. Is it a CSV or Excel export?"; }
-  if (rows.length < 2) return $("#impErr").textContent = "The file looks empty.";
+  try { rows = await readFile(f); } catch (x) { return "Couldn't read that file. Is it a CSV or Excel export?"; }
+  if (rows.length < 2) return "The file looks empty.";
   const h = findHeader(rows), headers = rows[h].map(c => String(c).trim()), body = rows.slice(h+1);
   const sig = headers.map(norm).join("|");
+  if (sig === LOG_COLS.map(c => norm(c[1])).join("|")) { imp = { headers, rows: body, map: Object.fromEntries(LOG_COLS.map((c, i) => [c[0], i])), sig, name: f.name, own: true }; return; }
   const fmt = $("#mDateFmt").value;
   const works = m => m && body.some(r => valid(rowToFlight(r, m, fmt)));
   // a saved matching only wins if it actually produces flights (an earlier failed import may have saved a bad one)
@@ -954,10 +984,9 @@ function renderPreview(){
 }
 $("#mapGrid").addEventListener("change", e => { const k = e.target.dataset.k; imp.map[k] = e.target.value === "" ? undefined : +e.target.value; renderPreview(); });
 $("#mDateFmt").addEventListener("change", renderPreview);
-$("#btnCancelImp").addEventListener("click", () => { imp = null; $("#mapCard").classList.add("hidden"); });
-$("#btnImport").addEventListener("click", () => {
-  if (imp.map.date === undefined) return $("#impResult").innerHTML = '<span style="color:var(--bad)">Choose which column holds the date.</span>';
-  const fmt = $("#mDateFmt").value, existing = new Set(data.flights.map(dupKey));
+$("#btnCancelImp").addEventListener("click", () => { impLog.push(`<b>${esc(imp.name)}</b>: skipped`); imp = null; $("#mapCard").classList.add("hidden"); nextFile(); });
+function doImport(){
+  const fmt = imp.own ? "YMD" : $("#mDateFmt").value, existing = new Set(data.flights.map(dupKey));
   let added = 0, dup = 0, bad = 0;
   for (const r of imp.rows) {
     const f = rowToFlight(r, imp.map, fmt);
@@ -966,18 +995,39 @@ $("#btnImport").addEventListener("click", () => {
     existing.add(k); data.flights.push(f); added++;
   }
   data.flights.sort((a,b) => (a.date+a.out).localeCompare(b.date+b.out));
-  if (added || dup) data.templates[imp.sig] = Object.fromEntries(Object.entries(imp.map).filter(([,v]) => v !== undefined));
-  if (save()) $("#impResult").textContent = `Imported ${added} flight${added===1?"":"s"}` + (dup ? `, skipped ${dup} already in your logbook` : "") + (bad ? `, ignored ${bad} rows without a date/route` : "") + ".";
+  if (!imp.own && (added || dup)) data.templates[imp.sig] = Object.fromEntries(Object.entries(imp.map).filter(([,v]) => v !== undefined));
+  if (!save()) return false;
+  impLog.push(`<b>${esc(imp.name)}</b>: ${added} new flight${added===1?"":"s"}` + (dup ? `, ${dup} already in your logbook` : "") + (bad ? `, ${bad} rows without a date/route ignored` : ""));
+  return true;
+}
+$("#btnImport").addEventListener("click", () => {
+  if (imp.map.date === undefined) return $("#impResult").innerHTML = '<span style="color:var(--bad)">Choose which column holds the date.</span>';
+  if (doImport()) { imp = null; $("#mapCard").classList.add("hidden"); nextFile(); }
 });
 const drop = $("#drop");
 drop.addEventListener("click", () => $("#impFile").click());
-$("#impFile").addEventListener("change", e => { handleFile(e.target.files[0]); e.target.value = ""; });
+$("#impFile").addEventListener("change", e => { handleFiles(e.target.files); e.target.value = ""; });
 ["dragenter","dragover"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add("over"); }));
 ["dragleave","drop"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove("over"); }));
-drop.addEventListener("drop", e => handleFile(e.dataTransfer.files[0]));
+drop.addEventListener("drop", e => handleFiles(e.dataTransfer.files));
 $("#dlSample").addEventListener("click", e => {
   e.preventDefault();
   download("crewbaselog-sample.csv", "text/csv", SAMPLE_CSV);
+});
+/* the full-logbook CSV: fixed columns, ISO dates, H:MM durations, so it imports straight back */
+const LOG_COLS = [["date","Date"],["flightNo","Flight no"],["from","From"],["to","To"],["out","Off-block"],["off","Take-off"],["on","Landing"],["in","On-block"],
+  ["acType","Aircraft type"],["reg","Registration"],["picName","PIC name"],["total","Total time"],["pic","PIC time"],["copilot","Co-pilot time"],["dual","Dual time"],
+  ["instructor","Instructor time"],["night","Night time"],["ifr","IFR time"],["ldgDay","Landings day"],["ldgNight","Landings night"],["remarks","Remarks"]];
+const LOG_DUR = new Set(["total","pic","copilot","dual","instructor","night","ifr"]);
+function logbookCSV(){
+  const cell = v => /[",\r\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+  const val = (f, k) => LOG_DUR.has(k) ? (f[k] ? fmtMin(f[k]) : "") : k.startsWith("ldg") ? (f[k] ? String(f[k]) : "") : String(f[k] ?? "");
+  return [LOG_COLS.map(c => c[1]), ...data.flights.map(f => LOG_COLS.map(([k]) => val(f, k)))].map(r => r.map(cell).join(",")).join("\r\n") + "\r\n";
+}
+document.addEventListener("click", e => {
+  if (!e.target.closest("[data-csv]")) return;
+  if (!data.flights.length) return alert("There are no flights to export yet.");
+  download(`crewbaselog-logbook-${todayISO()}.csv`, "text/csv", "\ufeff" + logbookCSV());
 });
 function download(name, type, text){ const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); }
 
