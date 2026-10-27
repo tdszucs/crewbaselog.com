@@ -499,12 +499,9 @@ td.r,th.r{text-align:right}
           <div class="field"><label for="cbName">Name shown to friends</label><input id="cbName" placeholder="e.g. Tamas"></div>
           <div class="field"><label for="cbBase">Home base (IATA or ICAO)</label><input id="cbBase" class="mono" maxlength="4" placeholder="e.g. MXP" style="text-transform:uppercase"></div>
         </div>
-        <div class="drop" id="cbDrop"><b>Drop your roster file here</b> or click to choose one<div class="hint">Best: your <b>Personal Crew Schedule Report</b> PDF from AIMS: every day with its duty, OFF, standby and available days. Also works: the Pilot Logbook report (CSV or Excel, flights only) or any CSV or text with a date and a duty column.</div></div>
-        <input type="file" id="cbFile" accept=".pdf,.csv,.txt,.json,.xlsx,.xls" class="hidden">
-        <div class="field" style="margin-top:14px"><label for="cbText">Or type it, one day per line</label>
-          <textarea id="cbText" rows="4" class="mono" placeholder="03/11/26 OFF&#10;04/11/26 MXP-LHR 06:15-09:40&#10;05/11/26 LHR-MXP 10:30-13:50&#10;06/11/26 SBY 05:00-17:00"></textarea>
-          <div class="hint">OFF, LVE, ALV, REST and similar count as free; anything else counts as duty. A route ending away from your base means you are down route that night.</div></div>
-        <div class="row-actions"><button class="btn" id="cbSave" type="button">Save my roster</button><button class="btn ghost" id="cbShare" type="button">Export to send to a friend</button><button class="btn danger small" id="cbClearMe" type="button">Clear my roster</button><span id="cbMsg" class="hint"></span></div>
+        <div class="drop" id="cbDrop"><b>Drop your Personal Crew Schedule Report (PDF from AIMS)</b> or click to choose it<div class="hint">In AIMS, open the Personal Crew Schedule Report for the month and save it as PDF. Every day is read from it: duty and layovers, days off, standby and available.</div></div>
+        <input type="file" id="cbFile" accept=".pdf,application/pdf" class="hidden">
+        <div class="row-actions" style="margin-top:14px"><button class="btn" id="cbSave" type="button">Save name and base</button><button class="btn ghost" id="cbShare" type="button">Export to send to a friend</button><button class="btn danger small" id="cbClearMe" type="button">Clear my roster</button><span id="cbMsg" class="hint"></span></div>
       </div>
 
       <div class="card">
@@ -514,8 +511,8 @@ td.r,th.r{text-align:right}
           <div class="field"><label for="cbFName">Name to show</label><input id="cbFName" placeholder="e.g. Marco"></div>
         </div>
         <div class="row-actions"><button class="btn ghost" id="cbFAdd" type="button">Add friend</button>
-          <button class="btn ghost" id="cbFLoadBtn" type="button">Load a roster a friend sent me</button><input type="file" id="cbFLoad" accept=".json,.pdf,.csv,.txt,.xlsx,.xls" class="hidden"><span id="cbFMsg" class="hint"></span></div>
-        <div class="hint" style="margin-bottom:12px">For now rosters are shared as a file: your friend exports theirs here and sends it to you. Automatic sharing by email comes with accounts on the server.</div>
+          <button class="btn ghost" id="cbFLoadBtn" type="button">Load a roster a friend sent me</button><input type="file" id="cbFLoad" accept=".pdf,application/pdf,.json" class="hidden"><span id="cbFMsg" class="hint"></span></div>
+        <div class="hint" style="margin-bottom:12px">For now rosters are shared as a file: your friend sends you their Personal Crew Schedule Report PDF, or the roster file exported here. Automatic sharing by email comes with accounts on the server.</div>
         <div class="tablewrap"><table><thead><tr><th>Show</th><th>Name</th><th>Email</th><th>Base</th><th>Roster</th><th></th></tr></thead><tbody id="cbFRows"></tbody></table></div>
       </div>
 
@@ -1429,74 +1426,6 @@ const cbDur = m => `${Math.floor(m/60)}h${m%60 ? String(m%60).padStart(2,"0") : 
 const cbMsg = (id, s, bad) => { const e = $(id); e.textContent = s; e.style.color = bad ? "var(--bad)" : "var(--ok)"; };
 let cbMonth = null, cbSel = null;
 
-// "04/11/26 MXP-LHR 06:15-09:40" -> one day record
-function cbParseLine(line){
-  const raw = String(line).trim(); if (!raw) return null;
-  const m = raw.match(/^(\S+)[\s,;]+(.*)$/); if (!m) return null;
-  const date = parseDate(m[1], "auto"); if (!date) return null;
-  const rest = m[2].trim(); const day = { date, code: rest || "OFF", free: false, duties: [], lands: null };
-  if (!rest || CB_FREE.test(rest)) { day.free = true; return day; }
-  if (CB_SBY.test(rest)) day.standby = true;
-  const route = rest.match(/\b[A-Z]{3,4}(?:\s*[-\/>]\s*[A-Z]{3,4})+\b/); if (route) day.lands = route[0].match(/[A-Z]{3,4}$/)[0];
-  const times = [...rest.matchAll(/(\d{1,2}[:.]?\d{2})\s*[-–]\s*(\d{1,2}[:.]?\d{2})/g)];
-  for (const x of times) { const a = parseTime(x[1].replace(".",":")), b = parseTime(x[2].replace(".",":")); if (!a || !b) continue; let s = cbMin(a), e = cbMin(b); if (e <= s) e = CB_DAY; day.duties.push([s, e]); }
-  if (!day.duties.length) day.duties.push([0, CB_DAY]);
-  return day;
-}
-function cbParseText(text){ const days = {}; for (const l of String(text).split(/\r?\n/)) { const d = cbParseLine(l); if (d) days[d.date] = d; } return days; }
-const cbNextDay = iso => new Date(Date.parse(iso + "T00:00:00Z") + 864e5).toISOString().slice(0, 10);
-/* eCrew / AIMS "Pilot Logbook" report: flights only (Date | DEPARTURE Airport, Time | ARRIVAL Airport, Time | ... | Flt time | ... | SYNTH. DEVICES).
-   Flight and simulator days are duty, an overnight flight also blocks the next day until it lands, and the
-   other days of the report's period are off. The crew line "19016 NAME (AUH-789-CP)" gives name and base. */
-function cbParseLogbook(rows){
-  const hi = rows.slice(0, 15).findIndex(r => { const h = r.map(norm); return h.includes("date") && h.filter(x => x === "airport").length >= 2; });
-  if (hi < 0) return null;
-  const h = rows[hi].map(norm), ap = h.reduce((a, x, i) => x === "airport" ? a.concat(i) : a, []), after = (w, i0) => h.findIndex((x, i) => i > i0 && x === w);
-  const cD = h.indexOf("date"), cF = ap[0], cS = after("time", ap[0]), cT = ap[1], cE = after("time", ap[1]), cFl = h.indexOf("flt time");
-  const g = (r, i) => i >= 0 ? String(r[i] ?? "").trim() : "";
-  const days = {}, meta = {};
-  const add = d => { const p = days[d.date]; if (!p) days[d.date] = d; else { p.duties.push(...d.duties); p.code += " · " + d.code; if (d.lands) p.lands = d.lands; } };
-  for (const r of rows.slice(0, hi)) for (const c of r) {
-    const per = String(c).match(/(\d{1,2}\/\d{1,2}\/\d{2,4})\s*-\s*(\d{1,2}\/\d{1,2}\/\d{2,4})/);
-    if (per) { meta.from = parseDate(per[1], "DMY"); meta.to = parseDate(per[2], "DMY"); }
-  }
-  for (const r of rows.slice(hi + 1)) {
-    const date = parseDate(g(r, cD), "DMY");
-    if (!date) { const crew = r.map(c => String(c).trim()).filter(Boolean).join(" ").match(/^\d+\s+(.+?)\s*\(([A-Z]{3,4})-/); if (crew) { meta.name ||= crew[1]; meta.base ||= crew[2]; } continue; }
-    const from = g(r, cF).toUpperCase(), to = g(r, cT).toUpperCase(); if (!from && !to) continue;
-    const a = parseTime(g(r, cS)), b = parseTime(g(r, cE)), s = a ? cbMin(a) : 0, e = b ? cbMin(b) : CB_DAY, over = !!(a && b && e <= s);
-    const code = cFl >= 0 && !g(r, cFl) ? `SIM ${from}` : `${from}-${to}`;
-    add({ date, code, free: false, duties: [[s, over ? CB_DAY : e]], lands: to || null });
-    if (over) add({ date: cbNextDay(date), code: `${code} (lands ${b})`, free: false, duties: [[0, e]], lands: to || null });
-  }
-  const ds = Object.keys(days).sort(); if (!ds.length) return null;
-  for (let d = meta.from || ds[0], end = meta.to || ds[ds.length - 1]; d <= end; d = cbNextDay(d)) days[d] ||= { date: d, code: "OFF", free: true, duties: [], lands: null };
-  return { days, meta };
-}
-function cbParseRows(rows){
-  if (rows.length < 2) return null;
-  const hi = rows.slice(0, 15).findIndex(r => r.some(c => ["date","day","duty date","roster date"].includes(norm(c))));
-  if (hi < 0) return null;
-  const H = rows[hi].map(norm), col = al => H.findIndex(h => al.includes(h));
-  const cD = col(["date","day","duty date","roster date"]), cC = col(["duty","activity","code","duty code","flight","description","trip","flight no"]),
-        cF = col(["from","dep","departure","origin"]), cT = col(["to","arr","arrival","destination"]),
-        cS = col(["std","off","dep time","start","report","block off","check in","reporting"]), cE = col(["sta","on","arr time","end","block on","check out","release"]);
-  const g = (r, i) => i >= 0 ? String(r[i] ?? "").trim() : "";
-  const days = {};
-  for (const r of rows.slice(hi + 1)) {
-    const date = parseDate(g(r, cD), "auto"); if (!date) continue;
-    const code = g(r, cC), from = g(r, cF).toUpperCase(), to = g(r, cT).toUpperCase();
-    const a = parseTime(g(r, cS)), b = parseTime(g(r, cE));
-    const free = !code && !from || CB_FREE.test(code), standby = !free && CB_SBY.test(code);
-    let duties = [];
-    if (!free) { if (a && b) { let s = cbMin(a), e = cbMin(b); if (e <= s) e = CB_DAY; duties = [[s, e]]; } else duties = [[0, CB_DAY]]; }
-    const label = free ? (code || "OFF") : (from && to ? `${from}-${to}` : code || "DUTY");
-    const prev = days[date];
-    if (prev && !prev.free) { prev.duties.push(...duties); prev.code += " " + label; if (to) prev.lands = to; }
-    else days[date] = { date, code: label, free, duties, lands: to || null, ...(standby ? { standby } : {}) };
-  }
-  return Object.keys(days).length ? days : null;
-}
 /* AIMS "Personal Crew Schedule Report" PDF (e.g. Etihad): one column per date, each holding that day's
    report time, flight number, airports, times and release time, or a code (OFF, >OFF, SBY 02:00 10:00, AVLB, SSI).
    "↓" at the top of a column means the duty carries on from the day before. Read in the browser with PDF.js. */
@@ -1533,7 +1462,9 @@ async function cbParseRosterPDF(buf){
   }
   cols.forEach(c => c.sort((a, b) => b.y - a.y || a.x - b.x));
   const days = {}, meta = {};
-  const crew = text.match(/\b([A-Z]{3})-(CP|FO|SFO|CPT|CA|SO|FE)\b/); if (crew) meta.base = crew[1];
+  // crew line "19016 SZUCS Tamas David AUH-CP-789": name and base
+  const crew = text.match(/\b\d{3,7}\s+([A-Za-z][A-Za-z' .-]*?)\s+([A-Z]{3})-(CP|FO|SFO|CPT|CA|SO|FE)\b/);
+  if (crew) { meta.name = crew[1].trim(); meta.base = crew[2]; }
   cols.forEach((c, k) => {
     const t = c.map(w => w.s); if (!t.length) return;
     const date = dates[k], cont = t[0] === "↓", contNext = cols[k + 1]?.[0]?.s === "↓";
@@ -1562,15 +1493,10 @@ function cbReadFile(f, done){
     const head = new Uint8Array(await f.slice(0, 5).arrayBuffer());
     if (String.fromCharCode(...head) === "%PDF-") {
       let r = null; try { r = await cbParseRosterPDF(await f.arrayBuffer()); } catch (e) { console.error(e); }
-      return done(r ? r.days : {}, r ? r.meta : {});
+      return done(r ? r.days : {}, r ? r.meta : { noGrid: true });
     }
-    const text = await f.text();
-    if (/^\s*[{[]/.test(text)) { try { const j = JSON.parse(text); days = j.days || null; meta = j; } catch (e) {} }
-    if (!days) {
-      let rows = null; try { rows = await readFile(f); } catch (e) {}   // CSV, or Excel even when named .csv
-      const lb = rows && cbParseLogbook(rows);
-      if (lb) { days = lb.days; meta = lb.meta; } else days = (rows && cbParseRows(rows)) || cbParseText(text);
-    }
+    // otherwise only a roster file exported from Crew Base (JSON)
+    try { const j = JSON.parse(await f.text()); days = j.days || null; meta = j; } catch (e) { meta = { notPdf: true }; }
     done(days || {}, meta);
   })();
 }
@@ -1675,17 +1601,19 @@ $("#cbFRows").addEventListener("change", e => { const i = e.target.dataset.sh; i
 $("#cbFRows").addEventListener("click", e => { const b = e.target.closest("[data-del]"); if (!b) return; if (b.textContent !== "Sure?") { b.textContent = "Sure?"; return; } cb().friends.splice(+b.dataset.del, 1); save(); renderCrewBase(); });
 const cbKeepMe = () => { const C = cb(); C.me.name = $("#cbName").value.trim(); C.me.base = $("#cbBase").value.trim().toUpperCase(); };
 $("#cbSave").addEventListener("click", () => {
-  cbKeepMe(); const C = cb(), txt = $("#cbText").value.trim();
-  if (txt) { const d = cbParseText(txt); if (!Object.keys(d).length) return cbMsg("#cbMsg", "Couldn't read any days. Start each line with a date, e.g. 03/11/26 OFF", true); Object.assign(C.me.days, d); $("#cbText").value = ""; }
-  if (save()) { const n = Object.keys(C.me.days).length; cbMsg("#cbMsg", n ? `Saved: ${n} days in your roster.` : "Saved your name and base. Add some roster days next.", !n); renderCrewBase(); }
+  cbKeepMe(); const C = cb();
+  if (save()) { const n = Object.keys(C.me.days).length; cbMsg("#cbMsg", n ? `Saved. Your roster has ${n} days.` : "Saved your name and base. Drop your roster PDF next.", !n); renderCrewBase(); }
 });
+// why a dropped file gave no days
+const cbWhy = meta => meta.notPdf ? "That isn't a PDF. Drop the Personal Crew Schedule Report PDF from AIMS." : meta.noGrid ? "Couldn't find the roster in that PDF. Is it the Personal Crew Schedule Report from AIMS?" : "No days found in that file.";
 $("#cbClearMe").addEventListener("click", e => { if (e.target.textContent !== "Sure?") { e.target.textContent = "Sure?"; return; } cb().me.days = {}; save(); e.target.textContent = "Clear my roster"; cbMsg("#cbMsg", "Your roster was cleared."); renderCrewBase(); });
 const cbDrop = $("#cbDrop");
 cbDrop.addEventListener("click", () => $("#cbFile").click());
 ["dragenter","dragover"].forEach(ev => cbDrop.addEventListener(ev, e => { e.preventDefault(); cbDrop.classList.add("over"); }));
 ["dragleave","drop"].forEach(ev => cbDrop.addEventListener(ev, e => { e.preventDefault(); cbDrop.classList.remove("over"); }));
-const cbTakeMine = f => cbReadFile(f, (days, meta) => { const n = Object.keys(days).length; if (!n) return cbMsg("#cbMsg", "No dated days found in that file.", true); cbKeepMe();
-  const C = cb(); if (!C.me.base && meta.base) C.me.base = String(meta.base).toUpperCase(); Object.assign(C.me.days, days); if (save()) { cbMsg("#cbMsg", `Read ${n} days from ${f.name}.`); renderCrewBase(); } });
+const cbTakeMine = f => cbReadFile(f, (days, meta) => { const n = Object.keys(days).length; if (!n) return cbMsg("#cbMsg", cbWhy(meta), true); cbKeepMe();
+  // the base printed on the roster (e.g. AUH-CP-789) is the one that counts
+  const C = cb(); if (meta.base) { C.me.base = String(meta.base).toUpperCase(); $("#cbBase").value = C.me.base; } Object.assign(C.me.days, days); if (save()) { cbMsg("#cbMsg", `Read ${n} days from ${f.name}.`); renderCrewBase(); } });
 cbDrop.addEventListener("drop", e => cbTakeMine(e.dataTransfer.files[0]));
 $("#cbFile").addEventListener("change", e => { cbTakeMine(e.target.files[0]); e.target.value = ""; });
 $("#cbShare").addEventListener("click", () => {
@@ -1704,7 +1632,7 @@ $("#cbFLoadBtn").addEventListener("click", () => $("#cbFLoad").click());
 $("#cbFLoad").addEventListener("change", e => {
   const file = e.target.files[0]; e.target.value = "";
   cbReadFile(file, (days, meta) => {
-    const n = Object.keys(days).length; if (!n) return cbMsg("#cbFMsg", "No dated days found in that file.", true);
+    const n = Object.keys(days).length; if (!n) return cbMsg("#cbFMsg", cbWhy(meta), true);
     const F = cb().friends, em = String(meta.email || "").toLowerCase(), nm = String(meta.name || "");
     let f = F.find(x => em && x.email === em) || F.find(x => nm && (x.name || "").toLowerCase() === nm.toLowerCase());
     if (!f) { f = { email: em, name: nm || file.name.replace(/\.\w+$/, ""), base: "", days: {}, show: true }; F.push(f); }
