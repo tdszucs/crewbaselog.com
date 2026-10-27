@@ -224,6 +224,12 @@ td.r,th.r{text-align:right}
           <div class="field"><label for="pBase">Home base (ICAO, optional)</label><input id="pBase" class="mono" maxlength="4" placeholder="e.g. LIPZ"></div>
           <div class="field"><label for="pDate">Date format</label>
             <select id="pDate"><option value="DMY">DD/MM/YYYY</option><option value="MDY">MM/DD/YYYY</option><option value="YMD">YYYY-MM-DD</option></select></div>
+          <div class="field"><label for="pPhone">Phone (optional)</label><input id="pPhone" type="tel" placeholder="e.g. +39 333 123 4567"></div>
+          <div class="field"><label for="pEmployer">Airline / employer (optional)</label><input id="pEmployer" placeholder="e.g. Example Airways"></div>
+          <div class="field"><label for="pLocation">City, country (optional)</label><input id="pLocation" placeholder="e.g. Milan, IT"><div class="hint">Printed on the logbook cover.</div></div>
+          <div class="field"><label for="pLic2">Second licence number (optional)</label><input id="pLic2" class="mono" placeholder="e.g. a licence from another authority"></div>
+          <div class="field"><label for="pAuth2">Second licence authority</label><select id="pAuth2"><option value="">Select…</option><option>EASA member state</option><option>UK CAA</option><option>FAA (USA)</option><option>GCAA (UAE)</option><option>Transport Canada</option><option>CASA (Australia)</option><option>Other</option></select></div>
+          <div class="field"><label for="pType2">Second licence type</label><select id="pType2"><option value="">Select…</option><option>ATPL(A)</option><option>CPL(A)</option><option>MPL(A)</option><option>PPL(A)</option><option>ATPL(H)</option><option>CPL(H)</option><option>Other</option></select></div>
         </div>
         <div class="row-actions"><button class="btn" type="submit">Save profile</button><span id="profSaved" class="ok-msg"></span></div>
       </form>
@@ -585,12 +591,12 @@ function renderOverview(){
 document.addEventListener("click", e => { const g = e.target.closest("[data-go]"); if (g) { e.preventDefault(); tab(g.dataset.go); } });
 
 /* ---------- profile ---------- */
-const PF = { pName: "name", pEmail: "email", pLic: "lic", pAuth: "auth", pType: "type", pFormat: "format", pBase: "base", pDate: "dateFmt" };
+const PF = { pName: "name", pEmail: "email", pLic: "lic", pAuth: "auth", pType: "type", pFormat: "format", pBase: "base", pDate: "dateFmt", pPhone: "phone", pEmployer: "employer", pLocation: "location", pLic2: "lic2", pAuth2: "auth2", pType2: "type2" };
 function renderProfile(){ for (const [id,k] of Object.entries(PF)) $("#"+id).value = data.profile[k] || ""; $("#profSaved").textContent = ""; }
 $("#profForm").addEventListener("submit", e => {
   e.preventDefault();
   for (const [id,k] of Object.entries(PF)) if (k !== "email") data.profile[k] = $("#"+id).value.trim();
-  data.profile.base = data.profile.base.toUpperCase(); data.profile.lic = data.profile.lic.toUpperCase();
+  data.profile.base = data.profile.base.toUpperCase(); data.profile.lic = data.profile.lic.toUpperCase(); data.profile.lic2 = data.profile.lic2.toUpperCase(); data.profile.employer = data.profile.employer.toUpperCase();
   if (save()) { $("#profSaved").textContent = "Saved on this device."; renderProfile(); $("#profSaved").textContent = "Saved on this device."; }
 });
 
@@ -789,6 +795,11 @@ function parseDur(s){
   if (/^\d{1,2}$/.test(s)) return +s*60;
   return 0;
 }
+// IATA aircraft codes used by crew systems (e.g. eCrew "781") -> readable make/model/variant
+const IATA_AC = {"781":"B787-10","788":"B787-8","789":"B787-9","77W":"B777-300ER","773":"B777-300","772":"B777-200","77L":"B777-200LR","779":"B777-9",
+  "744":"B747-400","74N":"B747-8F","359":"A350-900","351":"A350-1000","332":"A330-200","333":"A330-300","339":"A330-900","338":"A330-800",
+  "319":"A319","320":"A320","321":"A321","32N":"A320neo","32Q":"A321neo","388":"A380-800","380":"A380"};
+const acTypeName = s => { s = String(s||"").trim().toUpperCase(); return IATA_AC[s] || s; };
 const tdiff = (a,b) => { if (!a||!b) return 0; const [h1,m1]=a.split(":").map(Number),[h2,m2]=b.split(":").map(Number); let d=(h2*60+m2)-(h1*60+m1); if (d<0) d+=1440; return d; };
 function rowToFlight(r, map, fmt){
   const g = k => map[k] !== undefined && map[k] !== "" ? String(r[map[k]] ?? "").trim() : "";
@@ -796,7 +807,7 @@ function rowToFlight(r, map, fmt){
     date: parseDate(g("date"), fmt), flightNo: g("flightNo").toUpperCase(),
     from: g("from").toUpperCase(), to: g("to").toUpperCase(),
     out: parseTime(g("out")), off: parseTime(g("off")), on: parseTime(g("on")), in: parseTime(g("in")),
-    acType: g("acType").toUpperCase(), reg: g("reg").toUpperCase(), picName: g("picName"),
+    acType: acTypeName(g("acType")), reg: g("reg").toUpperCase(), picName: g("picName"),
     total: parseDur(g("total")), pic: parseDur(g("pic")), copilot: parseDur(g("copilot")), dual: parseDur(g("dual")),
     instructor: parseDur(g("instructor")), night: parseDur(g("night")), ifr: parseDur(g("ifr")),
     ldgDay: parseInt(g("ldgDay")) || 0, ldgNight: parseInt(g("ldgNight")) || 0, remarks: g("remarks")
@@ -816,7 +827,10 @@ async function handleFile(f){
   if (rows.length < 2) return $("#impErr").textContent = "The file looks empty.";
   const h = findHeader(rows), headers = rows[h].map(c => String(c).trim()), body = rows.slice(h+1);
   const sig = headers.map(norm).join("|");
-  const saved = data.templates[sig];
+  const fmt = $("#mDateFmt").value;
+  const works = m => m && body.some(r => valid(rowToFlight(r, m, fmt)));
+  // a saved matching only wins if it actually produces flights (an earlier failed import may have saved a bad one)
+  const saved = works(data.templates[sig]) ? data.templates[sig] : null;
   const ec = saved ? null : ecrewMap(headers);
   imp = { headers, rows: body, map: saved ? { ...saved } : (ec || guessMap(headers)), sig, name: f.name, fromTemplate: !!saved, ecrew: !!ec };
   renderMapping();
@@ -851,7 +865,7 @@ $("#btnImport").addEventListener("click", () => {
     existing.add(k); data.flights.push(f); added++;
   }
   data.flights.sort((a,b) => (a.date+a.out).localeCompare(b.date+b.out));
-  data.templates[imp.sig] = Object.fromEntries(Object.entries(imp.map).filter(([,v]) => v !== undefined));
+  if (added || dup) data.templates[imp.sig] = Object.fromEntries(Object.entries(imp.map).filter(([,v]) => v !== undefined));
   if (save()) $("#impResult").textContent = `Imported ${added} flight${added===1?"":"s"}` + (dup ? `, skipped ${dup} already in your logbook` : "") + (bad ? `, ignored ${bad} rows without a date/route` : "") + ".";
 });
 const drop = $("#drop");
@@ -944,6 +958,190 @@ function faaColumns(crew){
 const pdfSafe = s => String(s ?? "").replace(/[–—]/g,"-").replace(/[‘’]/g,"'").replace(/[“”]/g,'"').replace(/[^\x20-\x7E\xA0-\xFF]/g,"?");
 function parseHM(s){ s = String(s||"").trim(); if (!s) return 0; const m = s.match(/^(\d+)(?::(\d{1,2}))?$/); return m ? +m[1]*60 + (+(m[2]||0)) : NaN; }
 
+/* ---------- EASA / UK logbook PDF: classic A4 landscape layout, 18 lines per page ---------- */
+const FONT_URLS = {
+  fontkit: "https://cdn.jsdelivr.net/npm/@pdf-lib/fontkit@1.1.1/dist/fontkit.umd.min.js",
+  regular: "https://cdn.jsdelivr.net/gh/notofonts/notofonts.github.io@main/fonts/NotoSans/hinted/ttf/NotoSans-Regular.ttf",
+  bold: "https://cdn.jsdelivr.net/gh/notofonts/notofonts.github.io@main/fonts/NotoSans/hinted/ttf/NotoSans-Bold.ttf"
+};
+async function fetchCached(url){
+  try {
+    if (window.caches) {
+      const c = await caches.open("cbl-fonts-v1"); let r = await c.match(url);
+      if (!r) { r = await fetch(url); if (!r.ok) throw new Error(r.status); await c.put(url, r.clone()); }
+      return await r.arrayBuffer();
+    }
+  } catch (e) {}
+  try { const r = await fetch(url); return r.ok ? await r.arrayBuffer() : null; } catch (e) { return null; }
+}
+// Noto Sans (falls back to Helvetica when offline)
+async function logbookFonts(doc){
+  const { StandardFonts } = PDFLib;
+  try {
+    if (!window.fontkit) await loadScript(FONT_URLS.fontkit);
+    const [r, b] = await Promise.all([fetchCached(FONT_URLS.regular), fetchCached(FONT_URLS.bold)]);
+    if (!r || !b) throw new Error("font download failed");
+    doc.registerFontkit(window.fontkit);
+    return { font: await doc.embedFont(r, { subset: true }), bold: await doc.embedFont(b, { subset: true }), uni: true };
+  } catch (e) {
+    console.warn("Noto Sans unavailable, using Helvetica", e);
+    return { font: await doc.embedFont(StandardFonts.Helvetica), bold: await doc.embedFont(StandardFonts.HelveticaBold), uni: false };
+  }
+}
+const AUTH_SHORT = { "EASA member state": "EASA", "UK CAA": "UK CAA", "FAA (USA)": "FAA", "GCAA (UAE)": "GCAA", "Transport Canada": "TCCA", "CASA (Australia)": "CASA" };
+const licType = t => String(t || "").replace(/\((\w)\)/, " $1").trim().toUpperCase();
+// 1234:05 -> "1,234:05"; 0 -> ""
+const lbTime = m => { m = Math.round(m || 0); if (!m) return ""; const h = Math.floor(m/60); return h.toLocaleString("en-US") + ":" + String(m % 60).padStart(2, "0"); };
+
+async function makeEasaPdf(F, bf, rowsPerPage, crew){
+  const { PDFDocument, rgb } = PDFLib;
+  const W = 841.8898, H = 595.2756;
+  const doc = await PDFDocument.create();
+  doc.setTitle("Pilot logbook - " + pdfSafe(data.profile.name)); doc.setCreator("CrewBase Log"); doc.setProducer("CrewBase Log");
+  const { font, bold, uni } = await logbookFonts(doc);
+  const clean = s => uni ? String(s ?? "") : pdfSafe(s);
+  const black = rgb(0,0,0), shade = rgb(0.87843,0.87843,0.87843), white = rgb(1,1,1);
+  const P = data.profile;
+  let sigImg = null;
+  if ($("#prSig").checked && data.signature) {
+    try { sigImg = data.signature.startsWith("data:image/png") ? await doc.embedPng(data.signature) : await doc.embedJpg(data.signature); } catch (e) { sigImg = null; }
+  }
+  // top-down helpers (layout measured in points from the top-left corner)
+  const Y = t => H - t;
+  const width = (t, f, s) => f.widthOfTextAtSize(clean(t), s);
+  const put = (pg, t, x, base, s, f = font) => { t = clean(t); if (t) pg.drawText(t, { x, y: Y(base), size: s, font: f, color: black }); };
+  const center = (pg, t, x0, x1, base, s, f = font) => put(pg, t, (x0 + x1)/2 - width(t, f, s)/2, base, s, f);
+  const hline = (pg, t, x0, x1, th = 1) => pg.drawLine({ start: { x: x0, y: Y(t) }, end: { x: x1, y: Y(t) }, thickness: th, color: black });
+  const vline = (pg, x, t0, t1, th = 0.5) => pg.drawLine({ start: { x, y: Y(t0) }, end: { x, y: Y(t1) }, thickness: th, color: black });
+  // break text into lines that fit width w (max n lines, last one trimmed)
+  const wrap = (t, f, s, w, n) => {
+    const words = clean(t).trim().split(/\s+/).filter(Boolean), out = [];
+    let cur = "";
+    for (const wd of words) {
+      const next = cur ? cur + " " + wd : wd;
+      if (width(next, f, s) <= w || !cur) cur = next; else { out.push(cur); cur = wd; }
+    }
+    if (cur) out.push(cur);
+    const lines = out.slice(0, n);
+    return lines.map(l => { while (l && width(l, f, s) > w) l = l.slice(0, -1); return l; });
+  };
+  // centred block of lines inside a cell (rows top..bottom), 6pt lines 5.6pt apart
+  const cellText = (pg, t, x0, x1, top, bot, s = 6, f = font, gap = s * 0.9333, maxLines = 3) => {
+    const lines = wrap(t, f, s, x1 - x0 - 3, maxLines); if (!lines.length) return;
+    const mid = (top + bot)/2 + 0.3883 * s;
+    lines.forEach((l, i) => center(pg, l, x0, x1, mid + (i - (lines.length - 1)/2) * gap, s, f));
+  };
+
+  // ---- cover + licences ----
+  const pre = [];
+  if ($("#prCover").checked) {
+    const cv = doc.addPage([W, H]); pre.push(cv);
+    // CrewBase Log mark: rounded navy square with yellow paper aeroplane, 80pt, centred where the cover logo sits
+    const s = 80, lx = W/2 - s/2, ltop = 144.5;
+    cv.drawSvgPath("M14 0H50A14 14 0 0 1 64 14V50A14 14 0 0 1 50 64H14A14 14 0 0 1 0 50V14A14 14 0 0 1 14 0Z", { x: lx, y: Y(ltop), scale: s/64, color: rgb(0.043,0.239,0.361) });
+    cv.drawSvgPath("M12 38l40-14-10 22-8-6-6 8v-10z", { x: lx, y: Y(ltop), scale: s/64, color: rgb(0.949,0.71,0.267) });
+    const cw = (t, f, sz, base) => center(cv, t, 0, W, base, sz, f);
+    cw("PILOT LOGBOOK", bold, 40, H - 317.98);
+    cw(P.name || "", bold, 20, H - 254.88);
+    cw(P.lic || "", font, 20, H - 227.64);
+    const contact = [P.email && "email: " + P.email, P.phone && "phone: " + P.phone].filter(Boolean).join(" | ");
+    cw(contact, font, 10, H - 161.09);
+    cw([P.employer, P.location].filter(Boolean).join(", "), font, 10, H - 147.47);
+
+    const lp = doc.addPage([W, H]); pre.push(lp);
+    put(lp, "Licences", 40, H - 533.9, 20, bold);
+    const cx = [40, 121.6, 257.7, 339.3, 475.4, 557.0];
+    [["Authority",0],["Type",1],["ID",3],["Expiration",4],["Remarks",5]].forEach(([t,i]) => put(lp, t, cx[i], H - 507.35, 10, bold));
+    hline(lp, 95.1, 40, 801.9, 0.5);
+    const lic = [[P.auth, P.type, P.lic], [P.auth2, P.type2, P.lic2]].filter(l => l[2]);
+    lic.forEach(([a, t, id], i) => {
+      const base = H - 485.73 + i * 21.62;
+      [AUTH_SHORT[a] || a || "", id ? "FLIGHT CREW LICENCE" : "", licType(t), id].forEach((v, k) => put(lp, v, cx[k], base, 10));
+      hline(lp, 116.7 + i * 21.65, 40, 801.9, 0.5);
+    });
+  }
+
+  // ---- logbook pages ----
+  // column edges (23 columns)
+  const X = [20, 50.32, 77.28, 104.23, 131.19, 158.14, 191.83, 225.53, 252.48, 279.43, 319.87, 353.56, 393.99, 417.58, 441.16, 471.48, 501.81, 532.13, 562.45, 592.78, 623.1, 668.03, 690.49, 821.89];
+  const R = X[23];
+  const isSelf = n => !n || /^self$/i.test(String(n).trim());
+  const se = f => crew === "SPSE" ? f.total : 0, me = f => crew === "SPME" ? f.total : 0, mp = f => crew === "MP" ? f.total : 0;
+  // numeric columns: [colIndex, value(f), kind] kind t=time c=count
+  const NUM = [[7, se, "t"], [8, me, "t"], [9, mp, "t"], [10, f => f.total, "t"], [12, f => f.ldgDay, "c"], [13, f => f.ldgNight, "c"],
+    [14, f => f.night, "t"], [15, f => f.ifr, "t"], [16, f => f.pic, "t"], [17, f => f.copilot, "t"], [18, f => f.dual, "t"], [19, f => f.instructor, "t"], [21, f => f.fstdTime || 0, "t"]];
+  const fmtN = (kind, v) => kind === "c" ? (v ? String(v) : "") : lbTime(v);
+  const TOP = 78, BOT = 438, rh = (BOT - TOP) / rowsPerPage;
+  const pages = Math.max(1, Math.ceil(F.length / rowsPerPage));
+  const totalPages = pre.length + pages;
+  const prev = NUM.map(() => 0); prev[3] = bf || 0;
+  const tick = (pg, x0, x1, top, bot) => { const cx = (x0 + x1)/2, cy = Y((top + bot)/2); pg.drawSvgPath("M0 2.2 L1.8 4.2 L5 -0.6", { x: cx - 2.5, y: cy + 1.8, borderColor: black, borderWidth: 0.6 }); };
+
+  for (let p = 0; p < pages; p++) {
+    const pg = doc.addPage([W, H]), chunk = F.slice(p * rowsPerPage, (p + 1) * rowsPerPage);
+    // row backgrounds (every third row shaded)
+    for (let r = 0; r < rowsPerPage; r++) pg.drawRectangle({ x: X[0], y: Y(TOP + (r + 1) * rh), width: R - X[0], height: rh, color: r % 3 === 2 ? shade : white });
+
+    // header row 1: column group numbers
+    [[0,1],[1,3],[3,5],[5,7],[7,10],[10,11],[11,12],[12,14],[14,16],[16,20],[20,22],[22,23]].forEach(([a,b], i) => center(pg, String(i + 1), X[a], X[b], 31.33, 6));
+    // header row 2: groups
+    const B5 = (a, b, t) => center(pg, t, X[a], X[b], 48 + 1.94, 5, bold);
+    B5(1,3,"DEPARTURE"); B5(3,5,"ARRIVAL"); B5(5,7,"AIRCRAFT"); B5(7,9,"SINGLE PILOT TIME"); B5(12,14,"LANDINGS"); B5(14,16,"OP. COND. TIME"); B5(16,20,"PILOT FUNCTION TIME"); B5(20,22,"FSTD SESSION");
+    // tall header cells (rows 2-3)
+    const tall = (a, b, lines) => lines.forEach((t, i) => center(pg, t, X[a], X[b], 58 + 1.94 + (i - (lines.length - 1)/2) * 4.8, 5, bold));
+    tall(0,1,["DATE","dd/mm/yy"]); tall(9,10,["MULTI PILOT","TIME"]); tall(10,11,["TOTAL TIME"]); tall(11,12,["PIC NAME"]); tall(22,23,["REMARKS AND ENDORSEMENTS"]);
+    // header row 3: sub columns
+    [[1,"PLACE"],[2,"TIME"],[3,"PLACE"],[4,"TIME"],[5,"TYPE"],[6,"REG"],[7,"SE"],[8,"ME"],[12,"DAY"],[13,"NIGHT"],[14,"NIGHT"],[15,"IFR"],[16,"PIC"],[17,"COP"],[18,"DUAL"],[19,"INSTR"],[20,"TYPE"],[21,"TIME"]]
+      .forEach(([i,t]) => center(pg, t, X[i], X[i+1], 68 + 1.94, 5, bold));
+
+    // rows
+    const sum = NUM.map(() => 0);
+    chunk.forEach((f, r) => {
+      const top = TOP + r * rh, bot = top + rh, cell = (i, t) => cellText(pg, t, X[i], X[i+1], top, bot);
+      cell(0, ddmmyy(f.date)); cell(1, f.from); cell(2, f.out); cell(3, f.to); cell(4, f.in); cell(5, f.acType); cell(6, f.reg);
+      cell(11, isSelf(f.picName) ? (f.from || f.to || f.total ? "SELF" : "") : f.picName);
+      cell(20, f.fstdType || "");
+      NUM.forEach(([i, fn, kind], k) => {
+        const v = +fn(f) || 0; sum[k] += v;
+        if ((i === 7 || i === 8) && v) tick(pg, X[i], X[i+1], top, bot);
+        else cell(i, fmtN(kind, v));
+      });
+      const rem = wrap(f.remarks || "", font, 6, X[23] - X[22] - 8, 3);
+      const mid = (top + bot)/2 + 2.33;
+      rem.forEach((l, i) => center(pg, l, X[22], X[23], mid + (i - (rem.length - 1)/2) * 5.6, 6));
+    });
+
+    // grid: horizontal rules
+    [20, 38].forEach(t => hline(pg, t, X[0], R));
+    hline(pg, 58, X[1], X[9]); hline(pg, 58, X[12], X[22]);
+    for (let r = 0; r <= rowsPerPage; r++) hline(pg, TOP + r * rh, X[0], R);
+    hline(pg, 458, X[0], X[22]); hline(pg, 478, X[0], X[22]); hline(pg, 498, X[0], R); hline(pg, 488.17, X[22], R);
+    // grid: vertical rules [x index, top, bottom]
+    const V = [[0,20,498],[1,20,438],[2,58,438],[3,20,438],[4,58,438],[5,20,438],[6,58,438],[7,20,498],[8,58,498],[9,38,498],[10,20,498],[11,20,498],[12,20,498],
+      [13,58,498],[14,20,498],[15,58,498],[16,20,498],[17,58,498],[18,58,498],[19,58,498],[20,20,498],[21,58,498],[22,20,498],[23,20,498]];
+    V.forEach(([i, a, b]) => vline(pg, X[i], a, b));
+
+    // totals
+    const tot = sum.map((v, k) => v + prev[k]);
+    const rowsT = [["TOTAL THIS PAGE", sum, 448], ["TOTAL FROM PREVIOUS PAGES", prev, 468], ["TOTAL TIME", tot, 488]];
+    rowsT.forEach(([label, set, mid], r) => {
+      const base = mid + 2.33;
+      put(pg, label, 221.5 - width(label, bold, 6), base, 6, bold);
+      NUM.forEach(([i, , kind], k) => center(pg, fmtN(kind, set[k]), X[i], X[i+1], base, 6, r === 2 && i === 10 ? bold : font));
+    });
+    // certification + signature
+    put(pg, "I certify that the entries in this log are true.", 695.76, 444.42, 6);
+    if (sigImg) { const d = sigImg.scaleToFit(126.4, 27.7); pg.drawImage(sigImg, { x: 693.5 + (126.4 - d.width)/2, y: Y(481.5) + (27.7 - d.height)/2, width: d.width, height: d.height }); }
+    center(pg, P.name || "", X[22], R, 494.59, 6, bold);
+    // footer
+    put(pg, "CrewBase Log - For pilots", 20, H - 21.76, 6);
+    const pn = `Page ${pre.length + p + 1} of ${totalPages}`;
+    put(pg, pn, R - width(pn, font, 6), H - 21.76, 6);
+    tot.forEach((v, k) => prev[k] = v);
+  }
+  return doc.save();
+}
+
 async function makePdf(){
   const crew = $("#prCrew").value, rows = +$("#prRows").value, from = $("#prFrom").value || "0000", to = $("#prTo").value || "9999";
   const F = data.flights.filter(f => f.date >= from && f.date <= to);
@@ -952,6 +1150,7 @@ async function makePdf(){
   if (!window.PDFLib) await loadScript("https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js");
   const { PDFDocument, StandardFonts, rgb } = PDFLib;
   const isFAA = prFmt === "FAA";
+  if (!isFAA) return makeEasaPdf(F, bf, rows, crew);
   const cols = isFAA ? faaColumns(crew) : easaColumns(crew);
   const paper = $("#prPaper").value === "auto" ? (isFAA ? "LETTER" : "A4") : $("#prPaper").value;
   const [W,H] = paper === "A4" ? [841.89, 595.28] : [792, 612];
