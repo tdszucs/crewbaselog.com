@@ -499,7 +499,12 @@ td.r,th.r{text-align:right}
           <div class="field"><label for="cbName">Name shown to friends</label><input id="cbName" placeholder="e.g. Tamas"></div>
           <div class="field"><label for="cbBase">Home base (IATA or ICAO)</label><input id="cbBase" class="mono" maxlength="4" placeholder="e.g. MXP" style="text-transform:uppercase"></div>
         </div>
-        <div class="drop" id="cbDrop"><b>Drop your Personal Crew Schedule Report (PDF from AIMS)</b> or click to choose it<div class="hint">In AIMS, open the Personal Crew Schedule Report for the month and save it as PDF. Every day is read from it: duty and layovers, days off, standby and available. Times are kept in UTC; a roster printed in local time is converted to UTC.</div></div>
+        <div class="drop" id="cbDrop"><b>Drop your Personal Crew Schedule Report (PDF from AIMS)</b> or click to choose it<div class="hint">Every day is read from it: duty and layovers, days off, standby and available. Times are kept in UTC; a roster printed in local base time is converted to UTC.</div></div>
+        <details style="margin:10px 0 0"><summary style="cursor:pointer;font-size:14px;font-weight:600">How to get the PDF</summary>
+          <div style="margin-top:10px;font-size:14px;line-height:1.7">
+            <b>eCrew app (phone):</b> More → Personal Crew Schedule → Create → choose the dates → Go. The PDF is in UTC.<br>
+            <b>eCrew website (computer):</b> Crew Schedule → My Schedule → choose the period → Times in: <b>UTC</b> or Local Base → Print. A Local Base PDF is converted to UTC here; you confirm the time difference.
+          </div></details>
         <div class="notice hidden" id="cbTzBox" style="margin:14px 0 0">
           <b id="cbTzTitle"></b>
           <div class="hint" style="margin:6px 0 10px">Crew Base keeps every roster in UTC so they compare on the same clock. Choose this roster's offset from UTC and its times are converted.</div>
@@ -1418,7 +1423,7 @@ $("#btnClearFlights").addEventListener("click", () => { if (data.flights.length 
 
 /* ================= CREW BASE (shared rosters) ================= */
 const CB_DAY = 1440;
-const CB_FREE = /^>?(off|o|do|day ?off|rest|rst|lve|alv|al|leave|ann|annual|vac|holiday|free|x|ph|rdo)$/i;
+const CB_FREE = /^>?(off|o|do|day ?off|rest|rst|lve|alv|elv|al|leave|ann|annual|vac|holiday|free|x|xx|ph|rdo)$/i;
 // standby / available: might be called out, so neither free nor on duty
 const CB_SBY = /^(sby|hsby|asby|stby|sb|avlb|avl|avail|rsv|res)\b/i;
 // roster duty codes that are also airport codes (SSI = Brunswick GA, ...): never read them as airports
@@ -1439,6 +1444,13 @@ async function cbParseRosterPDF(buf){
   if (!window.pdfjsLib) { await loadScript(PDFJS + "pdf.min.js"); pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS + "pdf.worker.min.js"; }
   await loadAirports();
   const doc = await pdfjsLib.getDocument({ data: new Uint8Array(buf) }).promise, page = await doc.getPage(1), tc = await page.getTextContent();
+  // the roster's own code list ("OFF - Day off", "XX - Rest Day", "SBY - Home StandBy" ...) decides what each code means
+  let all = "";
+  for (let i = 1; i <= doc.numPages; i++) all += " " + (await (await doc.getPage(i)).getTextContent()).items.map(it => it.str.replace(/\u200b/g, "")).join(" ");
+  const kind = {};
+  const list = all.slice(all.search(/Duty Codes/i) + 1 || 0);
+  for (const m of list.matchAll(/(?:^|\s)(>?[A-Z][A-Z0-9]{1,5})\s+-\s+(.+?)(?=\s+>?[A-Z][A-Z0-9]{1,5}\s+-\s|\s+[A-Z]\s+-\s|\s+Indicators\b|\s+Generated on|$)/g))
+    kind[m[1]] = /stand ?-?by|available|reserve|on call/i.test(m[2]) ? "sby" : /\bday off\b|\boff day\b|leave|rest day|holiday|vacation|annual/i.test(m[2]) ? "free" : "duty";
   // one entry per word, with its centre x and baseline y
   const W = [];
   for (const it of tc.items) {
@@ -1473,49 +1485,70 @@ async function cbParseRosterPDF(buf){
   // crew line "19016 SZUCS Tamas David AUH-CP-789": name and base
   const crew = text.match(/\b\d{3,7}\s+([A-Za-z][A-Za-z' .-]*?)\s+([A-Z]{3})-(CP|FO|SFO|CPT|CA|SO|FE)\b/);
   if (crew) { meta.name = crew[1].trim(); meta.base = crew[2]; }
+  // Each column is read top to bottom as segments: duty (flights, sims, training), standby/available, off/rest.
+  // "↓" at the top continues the segment still running at midnight; "→" at the end runs it to midnight.
+  // e.g. 24/10 "↓ AUH A00:41 [789] 01:11 SBY 19:00 →" = a landing, then standby from 19:00 into the next day.
+  const isFree = x => kind[x] ? kind[x] === "free" : CB_FREE.test(x), isSby = x => kind[x] ? kind[x] === "sby" : CB_SBY.test(x);
+  const isApt = x => /^[A-Z]{3}$/.test(x) && !!AIRPORTS?.[x] && !kind[x] && !CB_CODE.test(x) && !CB_FREE.test(x) && !CB_SBY.test(x);
+  let carry = null;
   cols.forEach((c, k) => {
-    const t = c.map(w => w.s); if (!t.length) return;
-    const date = dates[k], cont = t[0] === "↓", contNext = cols[k + 1]?.[0]?.s === "↓";
-    const times = t.filter(x => /^\d{1,2}:\d{2}$/.test(x)).map(x => cbMin(parseTime(x)));
-    const apts = t.filter(x => /^[A-Z]{3}$/.test(x) && AIRPORTS?.[x] && !CB_CODE.test(x) && !CB_FREE.test(x) && !CB_SBY.test(x));
-    const codes = t.filter(x => /^>?[A-Z]{2,6}$/.test(x) && !apts.includes(x));
-    const flights = t.filter(x => /^\d{1,4}[A-Z]?$/.test(x));
-    const free = codes.find(x => CB_FREE.test(x)), sby = codes.find(x => CB_SBY.test(x));
-    if (free && !times.length && !cont) { days[date] = { date, code: free, free: true, duties: [], lands: null }; return; }
-    if (sby) {
-      const w = times.length >= 2 ? [times[0], times[1] > times[0] ? times[1] : CB_DAY] : [0, CB_DAY];
-      days[date] = { date, code: `${sby}${times.length >= 2 ? ` ${cbClock(times[0])}–${cbClock(times[1])}` : ""}`, free: false, standby: true, duties: [w], lands: null };
-      return;
+    // skip "Delay 00:45" (a duration, not a clock time); actual times "A07:10" count like planned ones
+    const t = c.map(w => w.s).filter((x, i, a) => a[i - 1] !== "Delay" && x !== "Delay").map(x => x.replace(/^A(\d{1,2}:\d{2})$/, "$1"));
+    if (!t.length) { carry = null; return; }
+    const segs = []; let cur = null;
+    const open = (kind, label) => (cur = { kind, t: [], label: label ? [label] : [], apts: [], cont: false, open: false }, segs.push(cur), cur);
+    for (const x of t) {
+      if (x === "↓") { open(carry || "duty").cont = true; continue; }
+      if (x === "→") { if (cur) cur.open = true; continue; }
+      if (/^\d{1,2}:\d{2}$/.test(x)) { if (!cur || cur.kind === "free") open("duty"); cur.t.push(cbMin(parseTime(x))); continue; }
+      if (isApt(x)) { if (!cur || cur.kind !== "duty") open("duty"); cur.apts.push(x); continue; }
+      if (/^\d{1,4}[A-Z]?$/.test(x)) { if (!cur || cur.kind !== "duty") open("duty"); cur.label.push("flight " + x); continue; }
+      if (/^>?[A-Z][A-Z0-9]{1,5}$/.test(x)) { const kd = isFree(x) ? "free" : isSby(x) ? "sby" : "duty"; if (kd === "duty" && cur?.kind === "duty") cur.label.push(x); else open(kd, x); }
     }
-    if (!times.length && !cont) return;
-    const s0 = cont || !times.length ? 0 : times[0], e0 = contNext || !times.length ? CB_DAY : times[times.length - 1];
-    const label = [codes.filter(x => !/^[A-Z]$/.test(x)).join(" "), flights.length ? "flight " + flights.join("/") : "", apts.join("-")].filter(Boolean).join(" · ") || "duty";
-    days[date] = { date, code: label, free: false, duties: [[s0, e0 > s0 ? e0 : CB_DAY]], lands: contNext ? null : apts[apts.length - 1] || null };
+    const last = segs[segs.length - 1]; carry = last && last.open ? last.kind : null;
+    const day = { date: dates[k], code: "", free: false, duties: [], sby: [], lands: null }, labels = [];
+    for (const g of segs) {
+      if (g.kind === "free") { labels.push(g.label.join(" ")); continue; }
+      const s0 = g.cont ? 0 : g.t[0] ?? 0;
+      let e0 = g.open ? CB_DAY : g.t.length ? g.t[g.t.length - 1] : segs.length === 1 ? CB_DAY : s0;
+      if (e0 <= s0 && !(g.cont && !g.t.length)) e0 = CB_DAY;
+      if (e0 > s0) (g.kind === "sby" ? day.sby : day.duties).push([s0, e0]);
+      const hh = m => cbClock(m);
+      if (g.kind === "duty") {
+        day.lands = g.open ? null : g.apts[g.apts.length - 1] || day.lands;
+        labels.push(g.cont && !g.label.length ? (g.apts.length ? "arrives " + g.apts.join("-") : "") : [...g.label, g.apts.join("-")].filter(Boolean).join(" · ") || "duty");
+      } else labels.push(g.cont ? `standby until ${hh(e0)}` : `${g.label.join(" ") || "standby"}${g.open ? ` from ${hh(s0)}` : g.t.length ? ` ${hh(s0)}–${hh(e0)}` : ""}`);
+    }
+    if (!day.duties.length && !day.sby.length) { if (!segs.some(g => g.kind === "free")) return; day.free = true; }
+    else if (!day.duties.length) day.standby = true;
+    if (!day.free && segs.some(g => g.kind === "free")) day.rest = true;   // e.g. lands at 01:45, then a rest day
+    day.code = labels.filter(Boolean).join(" · ") || "duty";
+    days[dates[k]] = day;
   });
   return Object.keys(days).length ? { days, meta } : null;
 }
-// move a roster from local time (UTC + off minutes) to UTC: duties may cross into the previous or next UTC date
+// move a roster from local time (UTC + off minutes) to UTC: duty and standby windows may cross into the previous or next UTC date
 function cbToUTC(days, off){
   if (!off) return days;
   const out = {}, start = d => Date.parse(d + "T00:00:00Z") / 6e4, isoOf = m => new Date(m * 6e4).toISOString().slice(0, 10);
   const relabel = c => c.replace(/\b(\d{2}):(\d{2})\b/g, (_, h, m) => cbClock(((+h * 60 + +m - off) % CB_DAY + CB_DAY) % CB_DAY));
-  days = Object.fromEntries(Object.entries(days).map(([k, d]) => [k, { ...d, code: relabel(d.code) }]));
-  for (const d of Object.values(days)) if (d.free) out[d.date] = { ...d, duties: [] };
-  for (const d of Object.values(days).sort((a, b) => a.date.localeCompare(b.date))) {
+  const get = (iso, src) => { let t = out[iso]; if (!t || t.free) t = out[iso] = { date: iso, code: src.code, free: false, duties: [], sby: [], lands: null }; else if (!t.code.includes(src.code)) t.code += " · " + src.code; return t; };
+  const list = Object.values(days).map(d => ({ ...d, code: relabel(d.code) })).sort((a, b) => a.date.localeCompare(b.date));
+  for (const d of list) if (d.free) out[d.date] = { ...d, duties: [], sby: [] };
+  for (const d of list) {
     if (d.free) continue;
+    const old = d.standby && !d.sby;   // saved before standby had its own windows
     let lastEnd = null;
-    for (const [s0, e0] of d.duties) {
-      for (let a = start(d.date) + s0 - off, b = start(d.date) + e0 - off; a < b; ) {
-        const day0 = Math.floor(a / CB_DAY) * CB_DAY, iso = isoOf(day0), cut = Math.min(b, day0 + CB_DAY);
-        let t = out[iso];
-        if (!t || t.free) t = out[iso] = { date: iso, code: d.code, free: false, duties: [], lands: null, ...(d.standby ? { standby: true } : {}) };
-        else if (!t.code.includes(d.code)) t.code += " · " + d.code;
-        if (!d.standby) delete t.standby;
-        t.duties.push([a - day0, cut - day0]); lastEnd = iso; a = cut;
-      }
-    }
+    for (const [key, wins] of [["duties", old ? [] : d.duties], ["sby", old ? d.duties : d.sby || []]])
+      for (const [s0, e0] of wins)
+        for (let a = start(d.date) + s0 - off, b = start(d.date) + e0 - off; a < b; ) {
+          const day0 = Math.floor(a / CB_DAY) * CB_DAY, iso = isoOf(day0), cut = Math.min(b, day0 + CB_DAY);
+          get(iso, d)[key].push([a - day0, cut - day0]); if (key === "duties") lastEnd = iso; a = cut;
+        }
     if (lastEnd && d.lands) out[lastEnd].lands = d.lands;
+    if (d.rest && !out[d.date]) out[d.date] = { date: d.date, code: d.code, free: true, duties: [], sby: [], lands: null };
   }
+  for (const t of Object.values(out)) if (!t.free) { if (t.duties.length) delete t.standby; else t.standby = true; }
   return out;
 }
 // a roster in local time: ask for its UTC offset (guessed from the base's longitude), then convert
@@ -1550,7 +1583,7 @@ function cbReadFile(f, done){
 function cbWindows(r, iso, carryAway){
   const d = r.days[iso], base = (r.base || "").toUpperCase();
   if (!d) return { windows: carryAway ? [] : [[0, CB_DAY]], away: carryAway, known: false };
-  const blocked = d.duties.map(x => x.slice()); let away = carryAway;
+  const blocked = [...d.duties, ...(d.sby || [])].map(x => x.slice()); let away = carryAway;
   if (carryAway) {
     const home = d.lands && base && d.lands === base;
     if (home && d.duties.length) blocked.push([0, Math.max(...d.duties.map(x => x[1]))]);
