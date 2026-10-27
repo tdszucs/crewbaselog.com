@@ -993,7 +993,7 @@ function cbParseLine(line){
   const date = parseDate(m[1], "auto"); if (!date) return null;
   const rest = m[2].trim(); const day = { date, code: rest || "OFF", free: false, duties: [], lands: null };
   if (!rest || CB_FREE.test(rest)) { day.free = true; return day; }
-  const route = rest.match(/\b([A-Z]{3,4})\s*[-\/>]\s*([A-Z]{3,4})\b/); if (route) day.lands = route[2];
+  const route = rest.match(/\b[A-Z]{3,4}(?:\s*[-\/>]\s*[A-Z]{3,4})+\b/); if (route) day.lands = route[0].match(/[A-Z]{3,4}$/)[0];
   const times = [...rest.matchAll(/(\d{1,2}[:.]?\d{2})\s*[-–]\s*(\d{1,2}[:.]?\d{2})/g)];
   for (const x of times) { const a = parseTime(x[1].replace(".",":")), b = parseTime(x[2].replace(".",":")); if (!a || !b) continue; let s = cbMin(a), e = cbMin(b); if (e <= s) e = CB_DAY; day.duties.push([s, e]); }
   if (!day.duties.length) day.duties.push([0, CB_DAY]);
@@ -1056,10 +1056,11 @@ function cbWindows(r, iso, carryAway){
 }
 const cbIntersect = (a, b) => { const o = []; for (const x of a) for (const y of b) { const s = Math.max(x[0], y[0]), e = Math.min(x[1], y[1]); if (e > s) o.push([s, e]); } return o; };
 const cbPart = (s, e) => e - s >= 600 ? "most of the day" : (s + e)/2 < 720 ? "morning" : (s + e)/2 < 1020 ? "afternoon" : "evening";
+// one pilot's own row: any duty is red; a day off is green at base, grey down route
 function cbState(f, day){
   if (!day) return "none";
-  const free = f.windows.reduce((s, w) => s + w[1] - w[0], 0);
-  return free >= CB_DAY - 1 ? "free" : free > 0 ? "part" : f.away ? "away" : "duty";
+  if (!day.free) return "duty";
+  return f.away || !f.windows.length ? "away" : "free";
 }
 function cbRosters(){
   const C = cb(), list = [];
