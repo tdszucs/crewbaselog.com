@@ -259,7 +259,7 @@ td.r,th.r{text-align:right}
     <!-- expiries -->
     <div data-p="expiries" class="hidden">
       <h2>Expiry dates</h2>
-      <p class="lead">Track your licence, medical, checks and documents. Amber means due within 60 days.</p>
+      <p class="lead">Your licence, medical and OPC. Use <b>+ Add item</b> for anything else you want to track. Amber means due within 60 days.</p>
       <div class="card" id="recencyCard"></div>
       <div class="card">
         <div class="exp exp-head" style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;padding-top:0"><div>Item</div><div>Expires</div><div>Note</div><div>Status</div><div></div></div>
@@ -527,16 +527,22 @@ const Auth = (() => {
 })();
 
 /* ================= DATA (per user, on device) ================= */
-const DEFAULT_EXPIRIES = [
-  "Medical certificate (Class 1)", "Type rating / LPC", "Instrument rating (IR)", "Operator proficiency check (OPC)",
-  "Line check", "Emergency & safety equipment (SEP)", "CRM training", "Dangerous goods",
-  "Language proficiency (ELP)", "Passport", "Crew ID / airport pass"
-].map((name, i) => ({ id: "e" + i, name, date: "", note: "" }));
+const DEFAULT_EXPIRIES = [["lic", "Licence"], ["med", "Medical"], ["opc", "OPC"]].map(([id, name]) => ({ id, name, date: "", note: "" }));
+// the old default list; untouched (no date, no note) rows from it are dropped on load
+const OLD_DEFAULT_EXPIRIES = ["Medical certificate (Class 1)", "Type rating / LPC", "Instrument rating (IR)", "Operator proficiency check (OPC)",
+  "Line check", "Emergency & safety equipment (SEP)", "CRM training", "Dangerous goods", "Language proficiency (ELP)", "Passport", "Crew ID / airport pass"];
 
 let user = null, data = null;
 const key = () => "cbl_data_" + user.id;
-function blank(){ return { profile: { name: "", email: user.email, lic: "", type: "", format: "EASA", base: "", dateFmt: "DMY" }, signature: "", expiries: structuredClone(DEFAULT_EXPIRIES), flights: [], templates: {} }; }
-function load(){ data = store.get(key(), null) || blank(); data.profile.email = user.email; }
+function blank(){ return { profile: { name: "", email: user.email, lic: "", type: "", format: "EASA", base: "", dateFmt: "DMY" }, signature: "", expiries: structuredClone(DEFAULT_EXPIRIES), expV: 2, flights: [], templates: {} }; }
+function load(){ data = store.get(key(), null) || blank(); data.profile.email = user.email; migrateExpiries(); }
+function migrateExpiries(){
+  if (data.expV >= 2) return;
+  const kept = data.expiries.filter(e => e.date || e.note || !OLD_DEFAULT_EXPIRIES.includes(e.name));
+  const has = re => kept.some(e => re.test(e.name));
+  const core = [[/licen[cs]e/i, 0], [/medical/i, 1], [/\bOPC\b|operator proficiency/i, 2]].filter(([re]) => !has(re)).map(([, i]) => ({ ...DEFAULT_EXPIRIES[i] }));
+  data.expiries = [...core, ...kept]; data.expV = 2; save();
+}
 function save(){ return store.set(key(), data); }
 
 /* ================= VIEWS ================= */
@@ -968,7 +974,7 @@ $("#restoreFile").addEventListener("change", async e => {
   const f = e.target.files[0]; e.target.value = ""; if (!f) return;
   try { const j = JSON.parse(await f.text()); if (!j.data?.flights) throw 0;
     if (!confirm(`Replace everything on this device with the backup from ${j.exported?.slice(0,10) || "file"} (${j.data.flights.length} flights)?`)) return;
-    data = j.data; data.profile.email = user.email; save(); renderLogbook();
+    data = j.data; data.profile.email = user.email; migrateExpiries(); save(); renderLogbook();
   } catch { alert("That isn't a CrewBase Log backup file."); }
 });
 $("#btnClearFlights").addEventListener("click", () => { if (data.flights.length && confirm(`Delete all ${data.flights.length} flights from this device? Download a backup first if unsure.`)) { data.flights = []; save(); renderLogbook(); } });
@@ -1592,13 +1598,11 @@ function openSample(){
   const sd = {
     profile: { name: "Alex Morgan", email: u.email, lic: "IE.FCL.10482", type: "ATPL(A)", format: "EASA", base: "LIRF", dateFmt: "DMY" },
     signature: sampleSignature(),
-    expiries: DEFAULT_EXPIRIES.map(e => ({ ...e })),
+    expiries: DEFAULT_EXPIRIES.map(e => ({ ...e })), expV: 2,
     flights: [], templates: {}
   };
-  const dates = { "Medical certificate (Class 1)": 41, "Type rating / LPC": 152, "Instrument rating (IR)": 152, "Operator proficiency check (OPC)": 74,
-    "Line check": 290, "Emergency & safety equipment (SEP)": -6, "CRM training": 200, "Dangerous goods": 330, "Language proficiency (ELP)": 1400, "Passport": 2100, "Crew ID / airport pass": 510 };
+  const dates = { Licence: 1400, Medical: 41, OPC: 74 };
   sd.expiries.forEach(e => e.date = addDays(dates[e.name] ?? 300));
-  sd.expiries.find(e => e.name.startsWith("Language")).note = "Level 6";
   // build ~60 sample sectors over recent months
   const legs = [["LIRF","EGLL",165],["LIRF","LPPT",190],["LIRF","EDDM",108],["LIRF","LEMD",155],["LIRF","LFPG",125],["LIRF","EHAM",145]];
   const regs = ["EI-ABC","EI-ABD","EI-ABE","EI-ABF"];
