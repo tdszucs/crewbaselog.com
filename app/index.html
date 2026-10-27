@@ -248,21 +248,9 @@ td.r,th.r{text-align:right}
           <div class="field"><label for="pName">Full name (as on licence)</label><input id="pName" required></div>
           <div class="field"><label for="pEmail">Email</label><input id="pEmail" type="email" readonly><div class="hint">Your login email.</div></div>
           <div class="field"><label for="pLic">Licence number</label><input id="pLic" class="mono" placeholder="e.g. IT.FCL.12345"></div>
-          <div class="field"><label for="pAuth">Issuing authority</label>
-            <select id="pAuth"><option value="">Select…</option><option>EASA member state</option><option>UK CAA</option><option>FAA (USA)</option><option>GCAA (UAE)</option><option>Transport Canada</option><option>CASA (Australia)</option><option>Other</option></select></div>
           <div class="field"><label for="pType">Licence type</label>
             <select id="pType"><option value="">Select…</option><option>ATPL(A)</option><option>CPL(A)</option><option>MPL(A)</option><option>PPL(A)</option><option>ATPL(H)</option><option>CPL(H)</option><option>Other</option></select></div>
-          <div class="field"><label for="pFormat">Preferred logbook format</label>
-            <select id="pFormat"><option>EASA</option><option>FAA</option><option>UK CAA</option></select><div class="hint">You can print in any format later.</div></div>
-          <div class="field"><label for="pBase">Home base (ICAO, optional)</label><input id="pBase" class="mono" maxlength="4" placeholder="e.g. LIPZ"></div>
-          <div class="field"><label for="pDate">Date format</label>
-            <select id="pDate"><option value="DMY">DD/MM/YYYY</option><option value="MDY">MM/DD/YYYY</option><option value="YMD">YYYY-MM-DD</option></select></div>
-          <div class="field"><label for="pPhone">Phone (optional)</label><input id="pPhone" type="tel" placeholder="e.g. +39 333 123 4567"></div>
-          <div class="field"><label for="pEmployer">Airline / employer (optional)</label><input id="pEmployer" placeholder="e.g. Example Airways"></div>
-          <div class="field"><label for="pLocation">City, country (optional)</label><input id="pLocation" placeholder="e.g. Milan, IT"><div class="hint">Printed on the logbook cover.</div></div>
-          <div class="field"><label for="pLic2">Second licence number (optional)</label><input id="pLic2" class="mono" placeholder="e.g. a licence from another authority"></div>
-          <div class="field"><label for="pAuth2">Second licence authority</label><select id="pAuth2"><option value="">Select…</option><option>EASA member state</option><option>UK CAA</option><option>FAA (USA)</option><option>GCAA (UAE)</option><option>Transport Canada</option><option>CASA (Australia)</option><option>Other</option></select></div>
-          <div class="field"><label for="pType2">Second licence type</label><select id="pType2"><option value="">Select…</option><option>ATPL(A)</option><option>CPL(A)</option><option>MPL(A)</option><option>PPL(A)</option><option>ATPL(H)</option><option>CPL(H)</option><option>Other</option></select></div>
+          <div class="field"><label for="pBase">Home base (ICAO)</label><input id="pBase" class="mono" maxlength="4" placeholder="e.g. LIPZ"></div>
         </div>
         <div class="row-actions"><button class="btn" type="submit">Save profile</button><span id="profSaved" class="ok-msg"></span></div>
       </form>
@@ -547,7 +535,7 @@ const DEFAULT_EXPIRIES = [
 
 let user = null, data = null;
 const key = () => "cbl_data_" + user.id;
-function blank(){ return { profile: { name: "", email: user.email, lic: "", auth: "", type: "", format: "EASA", base: "", dateFmt: "DMY" }, signature: "", expiries: structuredClone(DEFAULT_EXPIRIES), flights: [], templates: {} }; }
+function blank(){ return { profile: { name: "", email: user.email, lic: "", type: "", format: "EASA", base: "", dateFmt: "DMY" }, signature: "", expiries: structuredClone(DEFAULT_EXPIRIES), flights: [], templates: {} }; }
 function load(){ data = store.get(key(), null) || blank(); data.profile.email = user.email; }
 function save(){ return store.set(key(), data); }
 
@@ -673,12 +661,14 @@ function renderOverview(){
 document.addEventListener("click", e => { const g = e.target.closest("[data-go]"); if (g) { e.preventDefault(); tab(g.dataset.go); } });
 
 /* ---------- profile ---------- */
-const PF = { pName: "name", pEmail: "email", pLic: "lic", pAuth: "auth", pType: "type", pFormat: "format", pBase: "base", pDate: "dateFmt", pPhone: "phone", pEmployer: "employer", pLocation: "location", pLic2: "lic2", pAuth2: "auth2", pType2: "type2" };
+const PF = { pName: "name", pEmail: "email", pLic: "lic", pType: "type", pBase: "base" };
+const PF_DROPPED = ["auth", "phone", "employer", "location", "lic2", "auth2", "type2"];
 function renderProfile(){ for (const [id,k] of Object.entries(PF)) $("#"+id).value = data.profile[k] || ""; $("#profSaved").textContent = ""; }
 $("#profForm").addEventListener("submit", e => {
   e.preventDefault();
   for (const [id,k] of Object.entries(PF)) if (k !== "email") data.profile[k] = $("#"+id).value.trim();
-  data.profile.base = data.profile.base.toUpperCase(); data.profile.lic = data.profile.lic.toUpperCase(); data.profile.lic2 = data.profile.lic2.toUpperCase(); data.profile.employer = data.profile.employer.toUpperCase();
+  for (const k of PF_DROPPED) delete data.profile[k];
+  data.profile.base = data.profile.base.toUpperCase(); data.profile.lic = data.profile.lic.toUpperCase();
   if (save()) { $("#profSaved").textContent = "Saved on this device."; renderProfile(); $("#profSaved").textContent = "Saved on this device."; }
 });
 
@@ -1459,7 +1449,7 @@ async function makePdf(){
     text(pg, isFAA ? "PILOT LOGBOOK" : "PILOT LOGBOOK", W/2 - bold.widthOfTextAtSize("PILOT LOGBOOK", 30)/2, H/2 + 70, { size: 30, font: bold, color: navy });
     const sub = isFAA ? "Format: FAA (14 CFR 61.51)" : prFmt === "UK" ? "Format: UK Part-FCL (UK FCL.050)" : "Format: EASA Part-FCL (FCL.050)";
     text(pg, sub, W/2 - font.widthOfTextAtSize(sub, 11)/2, H/2 + 46, { size: 11, color: grey });
-    const info = [["Holder's name", P.name], ["Licence number", P.lic], ["Issuing authority", P.auth], ["Licence type", P.type], ["Period", `${fmtDate(F[0].date)} - ${fmtDate(F[F.length-1].date)}`], ["Flights in this volume", String(F.length)]];
+    const info = [["Holder's name", P.name], ["Licence number", P.lic], ["Licence type", P.type], ["Period", `${fmtDate(F[0].date)} - ${fmtDate(F[F.length-1].date)}`], ["Flights in this volume", String(F.length)]];
     let y = H/2 - 4; const lx = W/2 - 170;
     for (const [k,v] of info) { text(pg, k, lx, y, { size: 10, color: grey }); text(pg, v || "-", lx + 140, y, { size: 11, font: bold }); pg.drawLine({ start:{x:lx+140,y:y-4}, end:{x:lx+340,y:y-4}, thickness:0.5, color: rule }); y -= 24; }
     if (sigImg) { const d = sigImg.scaleToFit(160, 46); text(pg, "Holder's signature", lx, y - 20, { size: 10, color: grey }); pg.drawImage(sigImg, { x: lx + 140, y: y - 30, width: d.width, height: d.height }); }
@@ -1600,7 +1590,7 @@ const addDays = n => new Date(Date.now() + n*864e5).toISOString().slice(0,10);
 function openSample(){
   const u = { id: "sample", email: "alex.morgan@example.com" };
   const sd = {
-    profile: { name: "Alex Morgan", email: u.email, lic: "IE.FCL.10482", auth: "EASA member state", type: "ATPL(A)", format: "EASA", base: "LIRF", dateFmt: "DMY" },
+    profile: { name: "Alex Morgan", email: u.email, lic: "IE.FCL.10482", type: "ATPL(A)", format: "EASA", base: "LIRF", dateFmt: "DMY" },
     signature: sampleSignature(),
     expiries: DEFAULT_EXPIRIES.map(e => ({ ...e })),
     flights: [], templates: {}
