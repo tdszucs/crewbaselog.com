@@ -351,7 +351,7 @@ td.r,th.r{text-align:right}
             <li>Set the <b>Period</b> (for example 01/09/2026 – 30/09/2026, or a whole year) and press <b>Go</b>.</li>
             <li>Click the <b>Export</b> button in the report toolbar (the save icon with a small ▾ arrow, next to the print icons).</li>
             <li>Choose <b>CSV</b> or <b>Excel (XLSX)</b>; both work. On iPhone, save the file to Files.</li>
-            <li>Drop the file below, or tap the box and pick it from Files. It is read automatically.</li>
+            <li>Drop the file below, or tap the box and pick it from Files. It is read automatically. eCrew times are in UTC and are imported as UTC.</li>
           </ol>
           <div class="drop" id="dropAims"><b>Drop your Etihad eCrew file here</b><br><span class="hint">or click to choose files · .csv, .xlsx</span>
             <input type="file" id="aimsFile" accept=".csv,.txt,.tsv,.xlsx,.xls" multiple class="hidden"></div>
@@ -475,7 +475,7 @@ td.r,th.r{text-align:right}
     <!-- crew base -->
     <div data-p="crewbase" class="hidden">
       <h2>Crew Base</h2>
-      <p class="lead">Put your future roster next to your friends' rosters and see at a glance when you are all free at base.</p>
+      <p class="lead">Put your future roster next to your friends' rosters and see at a glance when you are all free at base. <b>All times are UTC</b>, like your AIMS roster, so rosters compare on the same clock.</p>
 
       <div class="card" id="cbGridCard">
         <div class="calhead">
@@ -499,7 +499,12 @@ td.r,th.r{text-align:right}
           <div class="field"><label for="cbName">Name shown to friends</label><input id="cbName" placeholder="e.g. Tamas"></div>
           <div class="field"><label for="cbBase">Home base (IATA or ICAO)</label><input id="cbBase" class="mono" maxlength="4" placeholder="e.g. MXP" style="text-transform:uppercase"></div>
         </div>
-        <div class="drop" id="cbDrop"><b>Drop your Personal Crew Schedule Report (PDF from AIMS)</b> or click to choose it<div class="hint">In AIMS, open the Personal Crew Schedule Report for the month and save it as PDF. Every day is read from it: duty and layovers, days off, standby and available.</div></div>
+        <div class="drop" id="cbDrop"><b>Drop your Personal Crew Schedule Report (PDF from AIMS)</b> or click to choose it<div class="hint">In AIMS, open the Personal Crew Schedule Report for the month and save it as PDF. Every day is read from it: duty and layovers, days off, standby and available. Times are kept in UTC; a roster printed in local time is converted to UTC.</div></div>
+        <div class="notice hidden" id="cbTzBox" style="margin:14px 0 0">
+          <b id="cbTzTitle"></b>
+          <div class="hint" style="margin:6px 0 10px">Crew Base keeps every roster in UTC so they compare on the same clock. Choose this roster's offset from UTC and its times are converted.</div>
+          <div class="row-actions" style="margin:0"><select id="cbTzOff" style="width:auto"></select><button class="btn small" type="button" id="cbTzOk">Convert to UTC and import</button><button class="btn ghost small" type="button" id="cbTzNo">Cancel</button></div>
+        </div>
         <input type="file" id="cbFile" accept=".pdf,application/pdf" class="hidden">
         <div class="row-actions" style="margin-top:14px"><button class="btn" id="cbSave" type="button">Save name and base</button><button class="btn ghost" id="cbShare" type="button">Export to send to a friend</button><button class="btn danger small" id="cbClearMe" type="button">Clear my roster</button><span id="cbMsg" class="hint"></span></div>
       </div>
@@ -1462,6 +1467,9 @@ async function cbParseRosterPDF(buf){
   }
   cols.forEach(c => c.sort((a, b) => b.y - a.y || a.x - b.x));
   const days = {}, meta = {};
+  // "(All times in UTC)", or a local-time roster that has to be converted
+  const tz = text.match(/all times in ([^)]{1,40})\)/i);
+  meta.tzLabel = tz ? tz[1].trim() : "UTC"; meta.utc = !tz || /\b(UTC|GMT|Z|Zulu)\b/i.test(tz[1]);
   // crew line "19016 SZUCS Tamas David AUH-CP-789": name and base
   const crew = text.match(/\b\d{3,7}\s+([A-Za-z][A-Za-z' .-]*?)\s+([A-Z]{3})-(CP|FO|SFO|CPT|CA|SO|FE)\b/);
   if (crew) { meta.name = crew[1].trim(); meta.base = crew[2]; }
@@ -1486,6 +1494,43 @@ async function cbParseRosterPDF(buf){
   });
   return Object.keys(days).length ? { days, meta } : null;
 }
+// move a roster from local time (UTC + off minutes) to UTC: duties may cross into the previous or next UTC date
+function cbToUTC(days, off){
+  if (!off) return days;
+  const out = {}, start = d => Date.parse(d + "T00:00:00Z") / 6e4, isoOf = m => new Date(m * 6e4).toISOString().slice(0, 10);
+  const relabel = c => c.replace(/\b(\d{2}):(\d{2})\b/g, (_, h, m) => cbClock(((+h * 60 + +m - off) % CB_DAY + CB_DAY) % CB_DAY));
+  days = Object.fromEntries(Object.entries(days).map(([k, d]) => [k, { ...d, code: relabel(d.code) }]));
+  for (const d of Object.values(days)) if (d.free) out[d.date] = { ...d, duties: [] };
+  for (const d of Object.values(days).sort((a, b) => a.date.localeCompare(b.date))) {
+    if (d.free) continue;
+    let lastEnd = null;
+    for (const [s0, e0] of d.duties) {
+      for (let a = start(d.date) + s0 - off, b = start(d.date) + e0 - off; a < b; ) {
+        const day0 = Math.floor(a / CB_DAY) * CB_DAY, iso = isoOf(day0), cut = Math.min(b, day0 + CB_DAY);
+        let t = out[iso];
+        if (!t || t.free) t = out[iso] = { date: iso, code: d.code, free: false, duties: [], lands: null, ...(d.standby ? { standby: true } : {}) };
+        else if (!t.code.includes(d.code)) t.code += " · " + d.code;
+        if (!d.standby) delete t.standby;
+        t.duties.push([a - day0, cut - day0]); lastEnd = iso; a = cut;
+      }
+    }
+    if (lastEnd && d.lands) out[lastEnd].lands = d.lands;
+  }
+  return out;
+}
+// a roster in local time: ask for its UTC offset (guessed from the base's longitude), then convert
+let cbTzPending = null;
+function cbAskTz(days, meta, then){
+  if (meta.utc !== false) return then(days);
+  const lon = AIRPORTS?.[meta.base]?.[1], guess = lon == null ? 0 : Math.round(lon / 15);
+  const opts = []; for (let h = -12; h <= 14; h += 0.5) opts.push(h);
+  $("#cbTzOff").innerHTML = opts.map(h => `<option value="${h * 60}"${h === guess ? " selected" : ""}>UTC${h < 0 ? "−" : "+"}${Math.floor(Math.abs(h))}${h % 1 ? ":30" : ""}</option>`).join("");
+  $("#cbTzTitle").textContent = `This roster is in ${meta.tzLabel || "local time"}, not UTC.`;
+  $("#cbTzBox").classList.remove("hidden"); $("#cbTzBox").scrollIntoView({ behavior: "smooth", block: "center" });
+  cbTzPending = () => then(cbToUTC(days, +$("#cbTzOff").value));
+}
+$("#cbTzOk").addEventListener("click", () => { const go = cbTzPending; cbTzPending = null; $("#cbTzBox").classList.add("hidden"); go?.(); });
+$("#cbTzNo").addEventListener("click", () => { cbTzPending = null; $("#cbTzBox").classList.add("hidden"); });
 function cbReadFile(f, done){
   if (!f) return;
   (async () => {
@@ -1559,7 +1604,7 @@ function renderCrewBase(){
   if (rosters.length < 2) { $("#cbMatchCard").classList.add("hidden"); return; }
   const today = todayISO(), hits = Object.values(perDay).filter(d => d.common.length && d.iso >= today);
   $("#cbMatch").innerHTML = hits.length
-    ? `<div class="wins">${hits.slice(0, 40).map(d => d.common.map(w => `<div class="win"><b>${cbNice(d.iso)} · ${cbPart(w[0], w[1])}</b><span>${cbClock(w[0])} – ${cbClock(w[1])} · ${cbDur(w[1]-w[0])} · ${rosters.map(r => esc(r.name)).join(", ")} all at base</span></div>`).join("")).join("")}</div>`
+    ? `<div class="wins">${hits.slice(0, 40).map(d => d.common.map(w => `<div class="win"><b>${cbNice(d.iso)} · ${cbPart(w[0], w[1])}</b><span>${cbClock(w[0])} – ${cbClock(w[1])} UTC · ${cbDur(w[1]-w[0])} · ${rosters.map(r => esc(r.name)).join(", ")} all at base</span></div>`).join("")).join("")}</div>`
     : '<div class="hint">No gap that long when everyone is free and at base. Try a shorter gap, or check that the rosters cover the same dates.</div>';
   $("#cbMatchCard").classList.remove("hidden");
 }
@@ -1576,7 +1621,7 @@ function cbCalendar(rosters, perDay, dates){
   if (rosters.length > 1) {
     h += `<div class="calrow together" style="--days:${nd}"><div class="callabel"><div class="nm">Together</div><div class="em">${rosters.length} pilots</div></div>` +
       days.map(d => { const p = perDay[iso(d)]; let st = "none", tip = "no roster";
-        if (p) { if (p.common.length) { st = p.common.reduce((s, w) => s + w[1] - w[0], 0) >= CB_DAY - 1 ? "free" : "part"; tip = p.common.map(w => `${cbClock(w[0])}–${cbClock(w[1])}`).join(", "); }
+        if (p) { if (p.common.length) { st = p.common.reduce((s, w) => s + w[1] - w[0], 0) >= CB_DAY - 1 ? "free" : "part"; tip = p.common.map(w => `${cbClock(w[0])}–${cbClock(w[1])}`).join(", ") + " UTC"; }
                  else { const any = p.row.some(f => f.windows.length); st = any ? "some" : "duty"; tip = any ? "only some of you are free" : "nobody free"; } }
         return `<button class="d ${st}" data-iso="${iso(d)}" title="${d} — ${esc(tip)}"></button>`; }).join("") + "</div>";
   }
@@ -1588,8 +1633,8 @@ function cbShowDay(rosters, d, iso){
   $$("#cbCal .d").forEach(x => x.classList.toggle("sel", x.dataset.iso === iso));
   const box = $("#cbDay"); box.classList.remove("hidden");
   if (!d) { box.innerHTML = `<b>${cbNice(iso)}</b><div class="hint">No roster covers this day.</div>`; return; }
-  const lines = rosters.map((r, i) => { const f = d.row[i]; return `<div class="pr"><b>${esc(r.name)}</b><span>${esc(r.days[iso] ? r.days[iso].code : "no roster")}</span><span>${r.days[iso]?.standby ? "standby / available" + (f.windows.length ? ", otherwise free " : "") : f.windows.length ? "free " : f.away ? "down route" : "not free"}${f.windows.map(w => `${cbClock(w[0])}–${cbClock(w[1])}`).join(", ")}</span></div>`; }).join("");
-  const tog = rosters.length < 2 ? "" : d.common.length ? `<div class="win"><b>Together: ${d.common.map(w => `${cbClock(w[0])} – ${cbClock(w[1])}`).join(" · ")}</b><span>everyone free and at base</span></div>` : '<div class="hint">No shared gap long enough on this day.</div>';
+  const lines = rosters.map((r, i) => { const f = d.row[i]; return `<div class="pr"><b>${esc(r.name)}</b><span>${esc(r.days[iso] ? r.days[iso].code : "no roster")}</span><span>${r.days[iso]?.standby ? "standby / available" + (f.windows.length ? ", otherwise free " : "") : f.windows.length ? "free " : f.away ? "down route" : "not free"}${f.windows.map(w => `${cbClock(w[0])}–${cbClock(w[1])}`).join(", ")}${f.windows.length ? " UTC" : ""}</span></div>`; }).join("");
+  const tog = rosters.length < 2 ? "" : d.common.length ? `<div class="win"><b>Together: ${d.common.map(w => `${cbClock(w[0])} – ${cbClock(w[1])}`).join(" · ")} UTC</b><span>everyone free and at base</span></div>` : '<div class="hint">No shared gap long enough on this day.</div>';
   box.innerHTML = `<div class="ddet"><b>${cbNice(iso)}</b>${lines}${tog}</div>`;
 }
 function cbRenderFriends(){
@@ -1611,9 +1656,9 @@ const cbDrop = $("#cbDrop");
 cbDrop.addEventListener("click", () => $("#cbFile").click());
 ["dragenter","dragover"].forEach(ev => cbDrop.addEventListener(ev, e => { e.preventDefault(); cbDrop.classList.add("over"); }));
 ["dragleave","drop"].forEach(ev => cbDrop.addEventListener(ev, e => { e.preventDefault(); cbDrop.classList.remove("over"); }));
-const cbTakeMine = f => cbReadFile(f, (days, meta) => { const n = Object.keys(days).length; if (!n) return cbMsg("#cbMsg", cbWhy(meta), true); cbKeepMe();
+const cbTakeMine = f => cbReadFile(f, (days0, meta) => { if (!Object.keys(days0).length) return cbMsg("#cbMsg", cbWhy(meta), true); cbAskTz(days0, meta, days => { const n = Object.keys(days).length; cbKeepMe();
   // the base printed on the roster (e.g. AUH-CP-789) is the one that counts
-  const C = cb(); if (meta.base) { C.me.base = String(meta.base).toUpperCase(); $("#cbBase").value = C.me.base; } Object.assign(C.me.days, days); if (save()) { cbMsg("#cbMsg", `Read ${n} days from ${f.name}.`); renderCrewBase(); } });
+  const C = cb(); if (meta.base) { C.me.base = String(meta.base).toUpperCase(); $("#cbBase").value = C.me.base; } Object.assign(C.me.days, days); if (save()) { cbMsg("#cbMsg", `Read ${n} days from ${f.name}${meta.utc === false ? ", converted to UTC" : ""}.`); renderCrewBase(); } }); });
 cbDrop.addEventListener("drop", e => cbTakeMine(e.dataTransfer.files[0]));
 $("#cbFile").addEventListener("change", e => { cbTakeMine(e.target.files[0]); e.target.value = ""; });
 $("#cbShare").addEventListener("click", () => {
@@ -1631,14 +1676,14 @@ $("#cbFAdd").addEventListener("click", () => {
 $("#cbFLoadBtn").addEventListener("click", () => $("#cbFLoad").click());
 $("#cbFLoad").addEventListener("change", e => {
   const file = e.target.files[0]; e.target.value = "";
-  cbReadFile(file, (days, meta) => {
-    const n = Object.keys(days).length; if (!n) return cbMsg("#cbFMsg", cbWhy(meta), true);
+  cbReadFile(file, (days0, meta) => { if (!Object.keys(days0).length) return cbMsg("#cbFMsg", cbWhy(meta), true); cbAskTz(days0, meta, days => {
+    const n = Object.keys(days).length;
     const F = cb().friends, em = String(meta.email || "").toLowerCase(), nm = String(meta.name || "");
     let f = F.find(x => em && x.email === em) || F.find(x => nm && (x.name || "").toLowerCase() === nm.toLowerCase());
     if (!f) { f = { email: em, name: nm || file.name.replace(/\.\w+$/, ""), base: "", days: {}, show: true }; F.push(f); }
     f.days = Object.assign({}, f.days, days); if (meta.base) f.base = String(meta.base).toUpperCase(); if (!f.name && nm) f.name = nm;
-    if (save()) { cbMsg("#cbFMsg", `Loaded ${n} days for ${f.name || f.email}.`); renderCrewBase(); }
-  });
+    if (save()) { cbMsg("#cbFMsg", `Loaded ${n} days for ${f.name || f.email}${meta.utc === false ? ", converted to UTC" : ""}.`); renderCrewBase(); }
+  }); });
 });
 const cbShift = n => { let [y, m] = cbMonth.split("-").map(Number); m += n; if (m < 1) { m = 12; y--; } if (m > 12) { m = 1; y++; } cbMonth = `${y}-${String(m).padStart(2,"0")}`; renderCrewBase(); };
 $("#cbPrev").addEventListener("click", () => cbShift(-1));
