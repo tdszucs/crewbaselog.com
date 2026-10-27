@@ -150,6 +150,7 @@ td.r,th.r{text-align:right}
     </form>
     <p class="switch" id="switchLine">New here? <a id="toSignup">Create an account</a></p>
     <div class="sample" id="sampleBox">Just looking? <a href="#" id="btnSample"><b>Open the sample profile</b></a> to click around.</div>
+    <p class="hint" style="text-align:center;margin-top:14px"><a href="/privacy.html">Privacy policy</a></p>
   </div>
 </section>
 
@@ -350,7 +351,7 @@ td.r,th.r{text-align:right}
 const CONFIG = {
   SUPABASE_URL: "https://pwpkecvqljxpprricfho.supabase.co",
   SUPABASE_ANON_KEY: "sb_publishable_he0QsgUmKOiGydtLGkDo6g_FEdDRjhu",
-  GOOGLE_ENABLED: false   // set to true once Google is set up in Supabase
+  GOOGLE_ENABLED: true
 };
 const LIVE = !!(CONFIG.SUPABASE_URL && CONFIG.SUPABASE_ANON_KEY);
 const REDIRECT = location.origin + location.pathname;
