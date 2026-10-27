@@ -58,3 +58,6 @@ create policy "own friends" on public.crew_friends
   for all to authenticated
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
+
+-- Make the new tables visible to the app right away
+notify pgrst, 'reload schema';
