@@ -1687,7 +1687,14 @@ function cbPush(){ if (!cbOnline()) return; clearTimeout(cbPushT); cbPushT = set
 async function cbSync(pull = true){
   if (!cbOnline()) return;
   const db = Auth.db(), C = cb(), me = user.email.toLowerCase(), F = C.friends;
-  const fail = e => { console.warn(e); cbSyncMsg = /relation|schema cache|does not exist|42P01|PGRST20/i.test(`${e?.code} ${e?.message}`) ? "Sharing isn't set up on the server yet: run supabase/crew_base_sharing.sql in Supabase." : "Couldn't reach the server; showing what is saved on this device."; cbRenderFriends(); };
+  const fail = e => {
+    console.warn("Crew Base sharing:", e); const why = `${e?.code || ""} ${e?.message || e || ""}`.trim();
+    cbSyncMsg = /relation|schema cache|does not exist|42P01|PGRST20/i.test(why) ? "Sharing isn't set up on the server yet: run supabase/crew_base_sharing.sql in Supabase."
+      : /permission denied|42501|row-level security/i.test(why) ? `The server refused access (${why}). Run the latest supabase/crew_base_sharing.sql in Supabase again.`
+      : /failed to fetch|network|load failed/i.test(why) ? "Couldn't reach the server; showing what is saved on this device."
+      : `Sharing failed: ${why}. Showing what is saved on this device.`;
+    cbRenderFriends();
+  };
   try {
     let r;
     if (pull) {

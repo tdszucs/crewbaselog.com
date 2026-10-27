@@ -22,6 +22,10 @@ create table if not exists public.crew_friends (
   primary key (user_id, friend_email)
 );
 
+-- logged-in users may use the tables; the row-level rules below decide which rows
+grant select, insert, update, delete on public.crew_rosters to authenticated;
+grant select, insert, update, delete on public.crew_friends to authenticated;
+
 alter table public.crew_rosters enable row level security;
 alter table public.crew_friends enable row level security;
 
