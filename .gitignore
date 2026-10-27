@@ -1,0 +1,10 @@
+# never commit the NAS logbook kit or anything personal in it
+logbook/
+logbook-kit*.zip
+**/signature.png
+**/logbook.json
+data/
+*.pem
+*.key
+.env
+.DS_Store
