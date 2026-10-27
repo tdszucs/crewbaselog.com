@@ -927,7 +927,7 @@ async function makePdf(){
   const tw = W - 2*M, totalW = cols.reduce((s,c) => s + c.w, 0);
   let x = M; cols.forEach(c => { c.x = x; c.cw = c.w / totalW * tw; x += c.cw; });
   const topY = H - M - 26, hdrH = 34, footH = 58, totRows = 3, totH = 12;
-  const rh = Math.min(24, (topY - hdrH - totRows*totH - footH - M) / rows);
+  const rh = Math.min(24, (topY - hdrH - totRows*totH - footH - 14) / rows);
   const pages = Math.ceil(F.length / rows);
   const prev = cols.map(c => c.n ? 0 : null);
   const bfIdx = cols.findIndex(c => /TOTAL\n(TIME OF\nFLIGHT|DURATION)/.test(c.h));
@@ -997,11 +997,11 @@ async function makePdf(){
     // carry forward
     sets[2].forEach((v,k) => prev[k] = v);
     // certification + signature
-    const fy = ty0 - totRows*totH - 16;
+    const fy = ty0 - totRows*totH - 28;
     text(pg, "I certify that the entries in this log are true.", M, fy, { size: 7.5 });
     text(pg, "Pilot's signature", W - M - 230, fy, { size: 7, color: grey });
     pg.drawLine({ start:{x:W-M-160, y:fy - 2}, end:{x:W-M, y:fy - 2}, thickness:0.5, color: grey });
-    if (sigImg) { const d = sigImg.scaleToFit(140, 30); pg.drawImage(sigImg, { x: W - M - 150, y: fy - 1, width: d.width, height: d.height }); }
+    if (sigImg) { const d = sigImg.scaleToFit(140, 22); pg.drawImage(sigImg, { x: W - M - 150, y: fy - 1, width: d.width, height: d.height }); }
     text(pg, `${P.name || ""}`, W - M - 160, fy - 11, { size: 6.5, color: grey });
     text(pg, "CrewBase Log - crewbaselog.com", M, M - 10, { size: 6, color: grey });
   }
