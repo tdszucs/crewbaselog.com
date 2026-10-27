@@ -1046,7 +1046,9 @@ function initGoogle() {
   if (!(window.google && google.accounts && google.accounts.id)) return;
   try {
     google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: onCredential, auto_select: true });
-    google.accounts.id.renderButton($('gbtn'), { theme:'outline', size:'medium', text:'signin_with' });
+    // locale pinned to English so the button matches the rest of the page;
+    // drop it to let Google follow the viewer's browser language instead.
+    google.accounts.id.renderButton($('gbtn'), { theme:'outline', size:'medium', text:'signin_with', locale:'en' });
   } catch (e) {
     note.hidden = false;
     note.textContent = 'Google refused this address. Add it to the authorised origins for your client ID.';
