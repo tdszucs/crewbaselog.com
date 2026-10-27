@@ -855,7 +855,7 @@ function easaColumns(crew){
     { g:"OPERATIONAL\nCONDITION TIME", h:"NIGHT", w:22, n:f => f.night, t:"t" }, { g:"OPERATIONAL\nCONDITION TIME", h:"IFR", w:22, n:f => f.ifr, t:"t" },
     { g:"PILOT FUNCTION TIME", h:"PILOT-IN-\nCOMMAND", w:24, n:f => f.pic, t:"t" }, { g:"PILOT FUNCTION TIME", h:"CO-\nPILOT", w:22, n:f => f.copilot, t:"t" },
     { g:"PILOT FUNCTION TIME", h:"DUAL", w:22, n:f => f.dual, t:"t" }, { g:"PILOT FUNCTION TIME", h:"INSTRUC-\nTOR", w:22, n:f => f.instructor, t:"t" },
-    { g:"FSTD SESSION", h:"DATE", w:24, v:() => "" }, { g:"FSTD SESSION", h:"TYPE", w:22, v:() => "" }, { g:"FSTD SESSION", h:"TOTAL TIME\nOF SESSION", w:24, v:() => "", t:"t", n:() => 0 },
+    { g:"FSTD SESSION", h:"DATE", w:24, v:() => "" }, { g:"FSTD SESSION", h:"TYPE", w:22, v:() => "" }, { g:"FSTD SESSION", h:"TOTAL\nOF SESSION", w:26, v:() => "", t:"t", n:() => 0 },
     { g:"", h:"REMARKS AND\nENDORSEMENTS", w:62, v:f => f.remarks }
   ];
 }
@@ -927,7 +927,7 @@ async function makePdf(){
   const tw = W - 2*M, totalW = cols.reduce((s,c) => s + c.w, 0);
   let x = M; cols.forEach(c => { c.x = x; c.cw = c.w / totalW * tw; x += c.cw; });
   const topY = H - M - 26, hdrH = 34, footH = 58, totRows = 3, totH = 12;
-  const rh = Math.min(18, (topY - hdrH - totRows*totH - footH - M) / rows);
+  const rh = Math.min(24, (topY - hdrH - totRows*totH - footH - M) / rows);
   const pages = Math.ceil(F.length / rows);
   const prev = cols.map(c => c.n ? 0 : null);
   const bfIdx = cols.findIndex(c => /TOTAL\n(TIME OF\nFLIGHT|DURATION)/.test(c.h));
@@ -986,7 +986,12 @@ async function makePdf(){
         const t = fit(fmtV(c, set[k]), bold, 6.4, c.cw - 2); text(pg, t, c.x + c.cw - 2 - bold.widthOfTextAtSize(t, 6.4), y + 3.4, { size: 6.4, font: bold }); });
     });
     // vertical rules
-    cols.forEach(c => pg.drawLine({ start:{x:c.x, y:topY}, end:{x:c.x, y:ty0 - totRows*totH}, thickness:0.3, color: rule }));
+    cols.forEach((c, k) => {
+      if (!k) return;
+      const y1 = c.g && cols[k-1].g === c.g ? topY - 15 : topY;
+      const y2 = k <= firstNum - 0 && k < firstNum ? ty0 : ty0 - totRows*totH;
+      pg.drawLine({ start:{x:c.x, y:y1}, end:{x:c.x, y:y2}, thickness:0.3, color: rule });
+    });
     pg.drawLine({ start:{x:M+tw, y:topY}, end:{x:M+tw, y:ty0 - totRows*totH}, thickness:0.3, color: rule });
     pg.drawRectangle({ x: M, y: ty0 - totRows*totH, width: tw, height: topY - (ty0 - totRows*totH), borderColor: grey, borderWidth: 0.6 });
     // carry forward
