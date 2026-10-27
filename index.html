@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>CrewBase Log — Offline pilot logbook</title>
-<meta name="description" content="An offline-first pilot logbook. Your flights, on your device, with print-ready logbook PDFs in the format you need.">
+<title>CrewBase Log — The pilot logbook you control</title>
+<meta name="description" content="A free pilot logbook you control 100%. Your flights stay on your device, with a print-ready logbook PDF and CSV whenever you need them.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230b3d5c'/%3E%3Cpath d='M12 38l40-14-10 22-8-6-6 8v-10z' fill='%23f2b544'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -32,10 +32,9 @@ header{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--bg) 85
 .btn:hover{transform:translateY(-1px)}
 .btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
 .hero{padding-block:88px 64px;display:grid;grid-template-columns:1.1fr .9fr;gap:56px;align-items:center}
-.eyebrow{font:500 12px/1 "JetBrains Mono",monospace;letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+.eyebrow{font:500 12px/1.6 "JetBrains Mono",monospace;letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
 h1{font-size:clamp(36px,5.2vw,58px);line-height:1.05;letter-spacing:-.03em;margin:16px 0 20px}
 .lede{font-size:19px;color:var(--muted);max-width:34em;margin:0 0 32px}
-.cta{display:flex;gap:12px;flex-wrap:wrap}
 /* logbook card */
 .card{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:22px;box-shadow:0 20px 50px -24px rgba(11,61,92,.35)}
 .card-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px}
@@ -61,8 +60,6 @@ h2{font-size:clamp(26px,3.4vw,36px);letter-spacing:-.02em;margin:0 0 12px}
 .step:before{content:counter(s,decimal-leading-zero);font:500 13px "JetBrains Mono",monospace;color:var(--accent);display:block;margin-bottom:8px}
 .step h3{margin:0 0 6px;font-size:17px}
 .step p{margin:0;color:var(--muted);font-size:15px}
-.final{text-align:center}
-.final .sub{margin:0 auto 28px}
 footer{border-top:1px solid var(--line);padding:28px 0;color:var(--muted);font-size:14px}
 footer .wrap{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
 @media (max-width:860px){
@@ -70,8 +67,7 @@ footer .wrap{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
   .grid,.steps{grid-template-columns:1fr}
   section{padding:48px 0}
 }
-@media (max-width:560px){ .nav-cta{display:none} }
-@media (max-width:420px){ .wrap{padding:0 16px} td:nth-child(3),th:nth-child(3){display:none} }
+@media (max-width:420px){ .wrap{padding-inline:16px} td:nth-child(3),th:nth-child(3){display:none} }
 </style>
 </head>
 <body>
@@ -81,20 +77,16 @@ footer .wrap{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
       <svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="#0b3d5c"/><path d="M12 38l40-14-10 22-8-6-6 8v-10z" fill="#f2b544"/></svg>
       CrewBase Log
     </a>
-    <div style="display:flex;gap:8px"><a class="btn ghost" href="/app/">Log in</a><a class="btn nav-cta" href="#access">Get early access</a></div>
+    <div style="display:flex;gap:8px"><a class="btn ghost" href="/app/">Log in</a></div>
   </div>
 </header>
 
 <main>
   <div class="wrap hero">
     <div>
-      <div class="eyebrow">Offline-first pilot logbook</div>
+      <div class="eyebrow">In command of your aircraft. In control of your data.</div>
       <h1>The pilot logbook that lives on your device.</h1>
-      <p class="lede">Log flights in seconds, keep years of history, and print a regulation-format logbook whenever you need it. No subscription lock-in, no signal required.</p>
-      <div class="cta">
-        <a class="btn" href="#access">Get early access</a>
-        <a class="btn ghost" href="#features">See features</a>
-      </div>
+      <p class="lede">Log flights in seconds, keep years of history, and print a regulation-format logbook whenever you need it. No subscription, no lock-in.</p>
     </div>
     <div class="card" aria-label="Example logbook entries">
       <div class="card-head"><b>Recent flights</b><span>UTC</span></div>
@@ -135,13 +127,6 @@ footer .wrap{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
     </div>
   </section>
 
-  <section id="access" class="final">
-    <div class="wrap">
-      <h2>Be first on board</h2>
-      <p class="sub">CrewBase Log is in private testing. Drop us a line and we'll let you know when it opens up.</p>
-      <a class="btn" href="mailto:hello@crewbaselog.com?subject=CrewBase%20Log%20early%20access">Request early access</a>
-    </div>
-  </section>
 </main>
 
 <footer>
