@@ -135,13 +135,13 @@ td.r,th.r{text-align:right}
 .tag{font:500 11px "JetBrains Mono",monospace;color:var(--accent);text-transform:uppercase;letter-spacing:.08em}
 
 /* crew base (shared rosters) */
-:root{--free:#1f8a4c;--part:#8fd0a9;--duty:#c0362c;--away:#8794a5;--none:#e3e8ed}
-@media (prefers-color-scheme: dark){:root{--free:#3fb877;--part:#2b6447;--duty:#b0443a;--away:#55606e;--none:#1c2a36}}
+:root{--free:#1f8a4c;--part:#8fd0a9;--duty:#c0362c;--sby:#e2a21b;--away:#8794a5;--none:#e3e8ed}
+@media (prefers-color-scheme: dark){:root{--free:#3fb877;--part:#2b6447;--duty:#b0443a;--sby:#c98d1c;--away:#55606e;--none:#1c2a36}}
 .legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12.5px;color:var(--muted)}
 .legend span{display:flex;align-items:center;gap:6px}
 .sw{width:13px;height:13px;border-radius:3px;display:inline-block;flex:none}
 .sw.free,.d.free{background:var(--free)}.sw.part,.d.part{background:var(--part)}.sw.duty,.d.duty{background:var(--duty)}
-.sw.away,.d.away{background:var(--away)}.sw.none{background:var(--none)}
+.sw.away,.d.away{background:var(--away)}.sw.sby,.d.sby{background:var(--sby)}.sw.none{background:var(--none)}
 .sw.some,.d.some{background:repeating-linear-gradient(45deg,var(--part) 0 4px,var(--none) 4px 8px)}
 .calhead{display:flex;flex-wrap:wrap;gap:12px 20px;align-items:center;justify-content:space-between;margin-bottom:14px}
 .monthnav{display:flex;align-items:center;gap:10px}
@@ -480,7 +480,7 @@ td.r,th.r{text-align:right}
       <div class="card" id="cbGridCard">
         <div class="calhead">
           <div class="monthnav"><button class="btn ghost small" id="cbPrev" type="button" aria-label="Previous month">←</button><b id="cbMonth"></b><button class="btn ghost small" id="cbNext" type="button" aria-label="Next month">→</button></div>
-          <div class="legend"><span><i class="sw free"></i>free all day</span><span><i class="sw part"></i>free part of the day</span><span><i class="sw duty"></i>on duty or away from base</span><span><i class="sw some"></i>only some free</span><span><i class="sw none"></i>no roster</span></div>
+          <div class="legend"><span><i class="sw free"></i>free all day</span><span><i class="sw part"></i>free part of the day</span><span><i class="sw duty"></i>on duty or away from base</span><span><i class="sw sby"></i>standby / available</span><span><i class="sw some"></i>only some free</span><span><i class="sw none"></i>no roster</span></div>
         </div>
         <div class="calwrap"><div class="cal" id="cbCal"></div></div>
         <div id="cbEmpty" class="hint"></div>
@@ -499,8 +499,8 @@ td.r,th.r{text-align:right}
           <div class="field"><label for="cbName">Name shown to friends</label><input id="cbName" placeholder="e.g. Tamas"></div>
           <div class="field"><label for="cbBase">Home base (IATA or ICAO)</label><input id="cbBase" class="mono" maxlength="4" placeholder="e.g. MXP" style="text-transform:uppercase"></div>
         </div>
-        <div class="drop" id="cbDrop"><b>Drop your roster file here</b> or click to choose one<div class="hint">Your AIMS / eCrew Pilot Logbook report for the month (CSV or Excel): flight and simulator days show as duty, the other days as off. Or any CSV or text with a date column and a duty column.</div></div>
-        <input type="file" id="cbFile" accept=".csv,.txt,.json,.xlsx,.xls" class="hidden">
+        <div class="drop" id="cbDrop"><b>Drop your roster file here</b> or click to choose one<div class="hint">Best: your <b>Personal Crew Schedule Report</b> PDF from AIMS: every day with its duty, OFF, standby and available days. Also works: the Pilot Logbook report (CSV or Excel, flights only) or any CSV or text with a date and a duty column.</div></div>
+        <input type="file" id="cbFile" accept=".pdf,.csv,.txt,.json,.xlsx,.xls" class="hidden">
         <div class="field" style="margin-top:14px"><label for="cbText">Or type it, one day per line</label>
           <textarea id="cbText" rows="4" class="mono" placeholder="03/11/26 OFF&#10;04/11/26 MXP-LHR 06:15-09:40&#10;05/11/26 LHR-MXP 10:30-13:50&#10;06/11/26 SBY 05:00-17:00"></textarea>
           <div class="hint">OFF, LVE, ALV, REST and similar count as free; anything else counts as duty. A route ending away from your base means you are down route that night.</div></div>
@@ -514,7 +514,7 @@ td.r,th.r{text-align:right}
           <div class="field"><label for="cbFName">Name to show</label><input id="cbFName" placeholder="e.g. Marco"></div>
         </div>
         <div class="row-actions"><button class="btn ghost" id="cbFAdd" type="button">Add friend</button>
-          <button class="btn ghost" id="cbFLoadBtn" type="button">Load a roster a friend sent me</button><input type="file" id="cbFLoad" accept=".json,.csv,.txt" class="hidden"><span id="cbFMsg" class="hint"></span></div>
+          <button class="btn ghost" id="cbFLoadBtn" type="button">Load a roster a friend sent me</button><input type="file" id="cbFLoad" accept=".json,.pdf,.csv,.txt,.xlsx,.xls" class="hidden"><span id="cbFMsg" class="hint"></span></div>
         <div class="hint" style="margin-bottom:12px">For now rosters are shared as a file: your friend exports theirs here and sends it to you. Automatic sharing by email comes with accounts on the server.</div>
         <div class="tablewrap"><table><thead><tr><th>Show</th><th>Name</th><th>Email</th><th>Base</th><th>Roster</th><th></th></tr></thead><tbody id="cbFRows"></tbody></table></div>
       </div>
@@ -1416,7 +1416,11 @@ $("#btnClearFlights").addEventListener("click", () => { if (data.flights.length 
 
 /* ================= CREW BASE (shared rosters) ================= */
 const CB_DAY = 1440;
-const CB_FREE = /^(off|o|do|day ?off|rest|rst|lve|alv|al|leave|ann|annual|vac|holiday|free|x|ph|rdo)$/i;
+const CB_FREE = /^>?(off|o|do|day ?off|rest|rst|lve|alv|al|leave|ann|annual|vac|holiday|free|x|ph|rdo)$/i;
+// standby / available: might be called out, so neither free nor on duty
+const CB_SBY = /^(sby|hsby|asby|stby|sb|avlb|avl|avail|rsv|res)\b/i;
+// roster duty codes that are also airport codes (SSI = Brunswick GA, ...): never read them as airports
+const CB_CODE = /^(SSI|SIM|FFS|LST|LOE|OPC|LPC|TRG|GRD|CRM|SEP|MED|ULR|DHD|POS|OFF|SBY|AVL|RSV)$/;
 const cb = () => (data.crew ||= { me: { name: "", base: "", days: {} }, friends: [] });
 const cbMin = t => { const [h, m] = t.split(":").map(Number); return h*60 + m; };
 const cbClock = m => String(Math.floor(m/60)).padStart(2,"0") + ":" + String(Math.round(m%60)).padStart(2,"0");
@@ -1432,6 +1436,7 @@ function cbParseLine(line){
   const date = parseDate(m[1], "auto"); if (!date) return null;
   const rest = m[2].trim(); const day = { date, code: rest || "OFF", free: false, duties: [], lands: null };
   if (!rest || CB_FREE.test(rest)) { day.free = true; return day; }
+  if (CB_SBY.test(rest)) day.standby = true;
   const route = rest.match(/\b[A-Z]{3,4}(?:\s*[-\/>]\s*[A-Z]{3,4})+\b/); if (route) day.lands = route[0].match(/[A-Z]{3,4}$/)[0];
   const times = [...rest.matchAll(/(\d{1,2}[:.]?\d{2})\s*[-–]\s*(\d{1,2}[:.]?\d{2})/g)];
   for (const x of times) { const a = parseTime(x[1].replace(".",":")), b = parseTime(x[2].replace(".",":")); if (!a || !b) continue; let s = cbMin(a), e = cbMin(b); if (e <= s) e = CB_DAY; day.duties.push([s, e]); }
@@ -1482,20 +1487,83 @@ function cbParseRows(rows){
     const date = parseDate(g(r, cD), "auto"); if (!date) continue;
     const code = g(r, cC), from = g(r, cF).toUpperCase(), to = g(r, cT).toUpperCase();
     const a = parseTime(g(r, cS)), b = parseTime(g(r, cE));
-    const free = !code && !from || CB_FREE.test(code);
+    const free = !code && !from || CB_FREE.test(code), standby = !free && CB_SBY.test(code);
     let duties = [];
     if (!free) { if (a && b) { let s = cbMin(a), e = cbMin(b); if (e <= s) e = CB_DAY; duties = [[s, e]]; } else duties = [[0, CB_DAY]]; }
     const label = free ? (code || "OFF") : (from && to ? `${from}-${to}` : code || "DUTY");
     const prev = days[date];
     if (prev && !prev.free) { prev.duties.push(...duties); prev.code += " " + label; if (to) prev.lands = to; }
-    else days[date] = { date, code: label, free, duties, lands: to || null };
+    else days[date] = { date, code: label, free, duties, lands: to || null, ...(standby ? { standby } : {}) };
   }
   return Object.keys(days).length ? days : null;
+}
+/* AIMS "Personal Crew Schedule Report" PDF (e.g. Etihad): one column per date, each holding that day's
+   report time, flight number, airports, times and release time, or a code (OFF, >OFF, SBY 02:00 10:00, AVLB, SSI).
+   "↓" at the top of a column means the duty carries on from the day before. Read in the browser with PDF.js. */
+const PDFJS = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/";
+async function cbParseRosterPDF(buf){
+  if (!window.pdfjsLib) { await loadScript(PDFJS + "pdf.min.js"); pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS + "pdf.worker.min.js"; }
+  await loadAirports();
+  const doc = await pdfjsLib.getDocument({ data: new Uint8Array(buf) }).promise, page = await doc.getPage(1), tc = await page.getTextContent();
+  // one entry per word, with its centre x and baseline y
+  const W = [];
+  for (const it of tc.items) {
+    const str = it.str.replace(/\u200b/g, ""); if (!str.trim()) continue;
+    const re = /\S+/g; let m;
+    while ((m = re.exec(str))) W.push({ s: m[0], x: it.transform[4] + it.width * (m.index + m[0].length / 2) / str.length, y: it.transform[5] });
+  }
+  const text = W.map(w => w.s).join(" ");
+  // header: the row with the most dd/mm dates
+  const rows = {}; W.filter(w => /^\d{2}\/\d{2}$/.test(w.s)).forEach(w => (rows[Math.round(w.y)] ||= []).push(w));
+  const hdr = (Object.values(rows).sort((a, b) => b.length - a.length)[0] || []).sort((a, b) => a.x - b.x);
+  if (hdr.length < 5) return null;
+  const step = (hdr[hdr.length - 1].x - hdr[0].x) / (hdr.length - 1), top = hdr[0].y;
+  // dates with years, from the period line "31/10/2026 - 30/11/2026"
+  const per = text.match(/(\d{2})\/(\d{2})\/(\d{4})\s*-\s*(\d{2})\/(\d{2})\/(\d{4})/);
+  let year = per ? +per[3] : new Date().getFullYear(), prevM = 0;
+  const dates = hdr.map(h => { const [d, m] = h.s.split("/").map(Number); if (prevM && m < prevM) year++; prevM = m; return iso(year, m, d); });
+  // the grid ends at the F (flight time) / D (duty time) rows, or "Total Hours"
+  const stops = W.filter(w => (/^[FD]$/.test(w.s) && w.x < hdr[0].x - step / 2) || w.s === "Total").map(w => w.y).filter(y => y < top);
+  const bottom = stops.length ? Math.max(...stops) + 1 : -Infinity;
+  const cols = hdr.map(() => []);
+  for (const w of W) {
+    if (w.y >= top - 1 || w.y <= bottom || /^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)$/.test(w.s)) continue;
+    const k = Math.round((w.x - hdr[0].x) / step);
+    if (k >= 0 && k < hdr.length && Math.abs(w.x - hdr[k].x) < step * 0.55) cols[k].push(w);
+  }
+  cols.forEach(c => c.sort((a, b) => b.y - a.y || a.x - b.x));
+  const days = {}, meta = {};
+  const crew = text.match(/\b([A-Z]{3})-(CP|FO|SFO|CPT|CA|SO|FE)\b/); if (crew) meta.base = crew[1];
+  cols.forEach((c, k) => {
+    const t = c.map(w => w.s); if (!t.length) return;
+    const date = dates[k], cont = t[0] === "↓", contNext = cols[k + 1]?.[0]?.s === "↓";
+    const times = t.filter(x => /^\d{1,2}:\d{2}$/.test(x)).map(x => cbMin(parseTime(x)));
+    const apts = t.filter(x => /^[A-Z]{3}$/.test(x) && AIRPORTS?.[x] && !CB_CODE.test(x) && !CB_FREE.test(x) && !CB_SBY.test(x));
+    const codes = t.filter(x => /^>?[A-Z]{2,6}$/.test(x) && !apts.includes(x));
+    const flights = t.filter(x => /^\d{1,4}[A-Z]?$/.test(x));
+    const free = codes.find(x => CB_FREE.test(x)), sby = codes.find(x => CB_SBY.test(x));
+    if (free && !times.length && !cont) { days[date] = { date, code: free, free: true, duties: [], lands: null }; return; }
+    if (sby) {
+      const w = times.length >= 2 ? [times[0], times[1] > times[0] ? times[1] : CB_DAY] : [0, CB_DAY];
+      days[date] = { date, code: `${sby}${times.length >= 2 ? ` ${cbClock(times[0])}–${cbClock(times[1])}` : ""}`, free: false, standby: true, duties: [w], lands: null };
+      return;
+    }
+    if (!times.length && !cont) return;
+    const s0 = cont || !times.length ? 0 : times[0], e0 = contNext || !times.length ? CB_DAY : times[times.length - 1];
+    const label = [codes.filter(x => !/^[A-Z]$/.test(x)).join(" "), flights.length ? "flight " + flights.join("/") : "", apts.join("-")].filter(Boolean).join(" · ") || "duty";
+    days[date] = { date, code: label, free: false, duties: [[s0, e0 > s0 ? e0 : CB_DAY]], lands: contNext ? null : apts[apts.length - 1] || null };
+  });
+  return Object.keys(days).length ? { days, meta } : null;
 }
 function cbReadFile(f, done){
   if (!f) return;
   (async () => {
     let days = null, meta = {};
+    const head = new Uint8Array(await f.slice(0, 5).arrayBuffer());
+    if (String.fromCharCode(...head) === "%PDF-") {
+      let r = null; try { r = await cbParseRosterPDF(await f.arrayBuffer()); } catch (e) { console.error(e); }
+      return done(r ? r.days : {}, r ? r.meta : {});
+    }
     const text = await f.text();
     if (/^\s*[{[]/.test(text)) { try { const j = JSON.parse(text); days = j.days || null; meta = j; } catch (e) {} }
     if (!days) {
@@ -1532,6 +1600,7 @@ const cbPart = (s, e) => e - s >= 600 ? "most of the day" : (s + e)/2 < 720 ? "m
 // one pilot's own row: green only for a day off at base; duty and days down route are red
 function cbState(f, day){
   if (!day) return "none";
+  if (day.standby) return "sby";
   if (!day.free) return "duty";
   return f.away || !f.windows.length ? "duty" : "free";
 }
@@ -1593,7 +1662,7 @@ function cbShowDay(rosters, d, iso){
   $$("#cbCal .d").forEach(x => x.classList.toggle("sel", x.dataset.iso === iso));
   const box = $("#cbDay"); box.classList.remove("hidden");
   if (!d) { box.innerHTML = `<b>${cbNice(iso)}</b><div class="hint">No roster covers this day.</div>`; return; }
-  const lines = rosters.map((r, i) => { const f = d.row[i]; return `<div class="pr"><b>${esc(r.name)}</b><span>${esc(r.days[iso] ? r.days[iso].code : "no roster")}</span><span>${f.windows.length ? "free " + f.windows.map(w => `${cbClock(w[0])}–${cbClock(w[1])}`).join(", ") : f.away ? "down route" : "not free"}</span></div>`; }).join("");
+  const lines = rosters.map((r, i) => { const f = d.row[i]; return `<div class="pr"><b>${esc(r.name)}</b><span>${esc(r.days[iso] ? r.days[iso].code : "no roster")}</span><span>${r.days[iso]?.standby ? "standby / available" + (f.windows.length ? ", otherwise free " : "") : f.windows.length ? "free " : f.away ? "down route" : "not free"}${f.windows.map(w => `${cbClock(w[0])}–${cbClock(w[1])}`).join(", ")}</span></div>`; }).join("");
   const tog = rosters.length < 2 ? "" : d.common.length ? `<div class="win"><b>Together: ${d.common.map(w => `${cbClock(w[0])} – ${cbClock(w[1])}`).join(" · ")}</b><span>everyone free and at base</span></div>` : '<div class="hint">No shared gap long enough on this day.</div>';
   box.innerHTML = `<div class="ddet"><b>${cbNice(iso)}</b>${lines}${tog}</div>`;
 }
