@@ -80,6 +80,9 @@ h2{font-size:24px;letter-spacing:-.02em;margin:0 0 6px}
 .lbline td{font-family:"JetBrains Mono",monospace;height:24px}
 .lbgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:0 12px}
 .lbgrid .field{margin-bottom:10px}.lbgrid .wide{grid-column:1/-1}
+.times{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;max-width:560px}
+.times label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.times input{min-width:0;padding-left:8px;padding-right:8px;text-align:center}
 .rowbtn{background:none;border:0;padding:2px 6px;cursor:pointer;color:var(--muted);font:inherit;font-size:13px}
 .rowbtn:hover{color:var(--ink);text-decoration:underline}.rowbtn.del:hover{color:var(--bad)}
 .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px}
@@ -1172,8 +1175,11 @@ const flightLabel = f => `${fmtDate(f.date)} ${f.flightNo || ""} ${f.from || "?"
 // the flight form (edit on the Logbook tab, add on Your data); ids are prefix + field key
 function flightFieldsHTML(pre, f = {}){
   const v = k => LB_DUR.includes(k) ? (f[k] ? fmtMin(f[k]) : "") : k.startsWith("ldg") ? (f[k] || "") : f[k] ?? "";
-  return FIELDS.map(([k, label]) => `<div class="field${k === "remarks" ? " wide" : ""}"><label for="${pre}${k}">${label}</label><input id="${pre}${k}" data-k="${k}" value="${esc(String(v(k)))}"` +
-    (k === "date" ? ' type="date" required' : LB_TIME.includes(k) ? ' class="mono" placeholder="HH:MM"' : LB_DUR.includes(k) ? ' class="mono" placeholder="H:MM"' : k.startsWith("ldg") ? ' type="number" min="0" step="1"' : "") + "></div>").join("");
+  const input = k => `<input id="${pre}${k}" data-k="${k}" value="${esc(String(v(k)))}"` +
+    (k === "date" ? ' type="date" required' : LB_TIME.includes(k) ? ' class="mono" placeholder="HH:MM" inputmode="numeric"' : LB_DUR.includes(k) ? ' class="mono" placeholder="H:MM"' : k.startsWith("ldg") ? ' type="number" min="0" step="1"' : "") + ">";
+  // off-block, take-off, landing, on-block always side by side in one row, on any screen
+  const times = `<div class="field wide"><div class="times">${LB_TIME.map(k => `<div><label for="${pre}${k}">${{ out: "Off-block", off: "Take-off", on: "Landing", in: "On-block" }[k]}</label>${input(k)}</div>`).join("")}</div></div>`;
+  return FIELDS.filter(([k]) => !LB_TIME.includes(k)).map(([k, label]) => `<div class="field${k === "remarks" ? " wide" : ""}"><label for="${pre}${k}">${label}</label>${input(k)}</div>` + (k === "to" ? times : "")).join("");
 }
 // -> { f, err } ; f is base plus the form's values
 function readFlightForm(pre, base = {}){
