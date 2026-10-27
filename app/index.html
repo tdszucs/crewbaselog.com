@@ -242,7 +242,7 @@ td.r,th.r{text-align:right}
     <!-- overview -->
     <div data-p="overview">
       <h2 id="hello">Welcome</h2>
-      <p class="lead">Everything below is stored in this browser on this device. Nothing about your flying is uploaded.</p>
+      <p class="lead">Your logbook is stored in this browser on this device; nothing about your flying is uploaded. Only a Crew Base roster you add is saved to your account, for the friends you choose.</p>
       <div id="setupNotice" class="notice hidden"></div>
       <div class="stats">
         <div class="stat"><div class="k">Flights</div><div class="v" id="sFlights">0</div></div>
@@ -522,7 +522,8 @@ td.r,th.r{text-align:right}
         </div>
         <div class="row-actions"><button class="btn ghost" id="cbFAdd" type="button">Add friend</button>
           <button class="btn ghost" id="cbFLoadBtn" type="button">Load a roster a friend sent me</button><input type="file" id="cbFLoad" accept=".pdf,application/pdf,.json" class="hidden"><span id="cbFMsg" class="hint"></span></div>
-        <div class="hint" style="margin-bottom:12px">For now rosters are shared as a file: your friend sends you their Personal Crew Schedule Report PDF, or the roster file exported here. Automatic sharing by email comes with accounts on the server.</div>
+        <div class="hint" style="margin-bottom:12px">Add each other by the email you log in with: once you have both added each other, your rosters appear here side by side and stay up to date. Your roster is saved to your account only for this; your logbook stays on this device. A friend without an account can still send you their roster PDF to load.</div>
+        <p class="err hidden" id="cbSyncMsg" style="margin:0 0 10px"></p>
         <div class="tablewrap"><table><thead><tr><th>Show</th><th>Name</th><th>Email</th><th>Base</th><th>Roster</th><th></th></tr></thead><tbody id="cbFRows"></tbody></table></div>
       </div>
 
@@ -625,7 +626,8 @@ const Auth = (() => {
     signUp: (e,p) => impl.signUp(e,p), signIn: (e,p) => impl.signIn(e,p), google: () => impl.google(), googleIdToken: (t,n) => L.googleIdToken(t,n),
     resend: e => impl.resend(e), signOut: () => impl.signOut(), current: () => impl.current(),
     demoVerify: e => D.verify(e.toLowerCase()),
-    demoSession: u => { store.set("cbl_demo_session", u); emit(u); }
+    demoSession: u => { store.set("cbl_demo_session", u); emit(u); },
+    db: () => sb
   };
 })();
 
@@ -1616,6 +1618,7 @@ function cbRosters(){
 }
 
 function renderCrewBase(){
+  if (cbPulledFor !== user.id && cbOnline()) { cbPulledFor = user.id; cbSync(); }
   const C = cb();
   if (document.activeElement !== $("#cbName")) $("#cbName").value = C.me.name || data.profile.name || "";
   if (document.activeElement !== $("#cbBase")) $("#cbBase").value = C.me.base || data.profile.base || "";
@@ -1672,26 +1675,66 @@ function cbShowDay(rosters, d, iso){
 }
 function cbRenderFriends(){
   const F = cb().friends;
-  $("#cbFRows").innerHTML = F.length ? F.map((f, i) => { const n = Object.keys(f.days || {}).length; return `<tr><td><input type="checkbox" data-sh="${i}"${f.show ? " checked" : ""} style="width:auto"></td><td>${esc(f.name || "")}</td><td>${esc(f.email || "")}</td><td>${esc(f.base || "")}</td><td>${n ? n + " days" : "none yet"}</td><td class="r"><button class="btn danger small" data-del="${i}" type="button">Remove</button></td></tr>`; }).join("")
+  $("#cbFRows").innerHTML = F.length ? F.map((f, i) => { const n = Object.keys(f.days || {}).length; return `<tr><td><input type="checkbox" data-sh="${i}"${f.show ? " checked" : ""} style="width:auto"></td><td>${esc(f.name || "")}</td><td>${esc(f.email || "")}</td><td>${esc(f.base || "")}</td><td>${f.shared ? `shared · ${n} days${f.updated ? ` · updated ${fmtDate(f.updated.slice(0, 10))}` : ""}` : cbOnline() && f.email ? `<span class="hint" style="margin:0">waiting: ${esc(f.name || "they")} must add your email</span>` : n ? n + " days" : "none yet"}</td><td class="r"><button class="btn danger small" data-del="${i}" type="button">Remove</button></td></tr>`; }).join("")
     : '<tr><td colspan="6" style="color:var(--muted)">No friends added yet.</td></tr>';
+  $("#cbSyncMsg").textContent = cbSyncMsg; $("#cbSyncMsg").classList.toggle("hidden", !cbSyncMsg);
+}
+/* Sharing through accounts (Supabase, see supabase/crew_base_sharing.sql): my roster and friends list are saved
+   to my account; a friend's roster comes back only if that friend has added my email. Logbook data never leaves the device. */
+const cbOnline = () => !!(Auth.live && Auth.db() && user && user.id !== "sample");
+let cbSyncMsg = "", cbPushT = null, cbPulledFor = null;
+function cbPush(){ if (!cbOnline()) return; clearTimeout(cbPushT); cbPushT = setTimeout(() => cbSync(false), 600); }
+async function cbSync(pull = true){
+  if (!cbOnline()) return;
+  const db = Auth.db(), C = cb(), me = user.email.toLowerCase(), F = C.friends;
+  const fail = e => { console.warn(e); cbSyncMsg = /relation|schema cache|does not exist|42P01|PGRST20/i.test(`${e?.code} ${e?.message}`) ? "Sharing isn't set up on the server yet: run supabase/crew_base_sharing.sql in Supabase." : "Couldn't reach the server; showing what is saved on this device."; cbRenderFriends(); };
+  try {
+    let r;
+    if (pull) {
+      // a new device starts empty: take my saved roster and friends list from the account first, so they aren't overwritten
+      r = await db.from("crew_rosters").select("name,base,days").eq("user_id", user.id); if (r.error) return fail(r.error);
+      const row = r.data[0];
+      if (row && !Object.keys(C.me.days).length) { C.me.days = row.days || {}; C.me.name ||= row.name || ""; C.me.base ||= row.base || ""; }
+      r = await db.from("crew_friends").select("friend_email").eq("user_id", user.id); if (r.error) return fail(r.error);
+      for (const { friend_email } of r.data) if (!F.some(f => (f.email || "").toLowerCase() === friend_email)) F.push({ email: friend_email, name: friend_email.split("@")[0], base: "", days: {}, show: true });
+    }
+    r = await db.from("crew_rosters").upsert({ user_id: user.id, email: me, name: C.me.name || data.profile.name || null, base: C.me.base || null, days: C.me.days, updated_at: new Date().toISOString() });
+    if (r.error) return fail(r.error);
+    const emails = [...new Set(F.map(f => (f.email || "").toLowerCase()).filter(Boolean))];
+    if (emails.length) { r = await db.from("crew_friends").upsert(emails.map(friend_email => ({ user_id: user.id, friend_email })), { onConflict: "user_id,friend_email" }); if (r.error) return fail(r.error); }
+    let del = db.from("crew_friends").delete().eq("user_id", user.id);
+    if (emails.length) del = del.not("friend_email", "in", `(${emails.map(e => `"${e}"`).join(",")})`);
+    r = await del; if (r.error) return fail(r.error);
+    cbSyncMsg = "";
+    if (!pull || !emails.length) return cbRenderFriends();
+    r = await db.from("crew_rosters").select("email,name,base,days,updated_at").in("email", emails);
+    if (r.error) return fail(r.error);
+    const got = new Map(r.data.map(x => [x.email.toLowerCase(), x]));
+    for (const f of F) {
+      const x = got.get((f.email || "").toLowerCase());
+      f.shared = !!x;
+      if (x) { f.days = x.days || {}; if (x.base) f.base = x.base; if (!f.name && x.name) f.name = x.name; f.updated = x.updated_at; }
+    }
+    save(); renderCrewBase();
+  } catch (e) { fail(e); }
 }
 $("#cbFRows").addEventListener("change", e => { const i = e.target.dataset.sh; if (i === undefined) return; cb().friends[+i].show = e.target.checked; save(); renderCrewBase(); });
-$("#cbFRows").addEventListener("click", e => { const b = e.target.closest("[data-del]"); if (!b) return; if (b.textContent !== "Sure?") { b.textContent = "Sure?"; return; } cb().friends.splice(+b.dataset.del, 1); save(); renderCrewBase(); });
+$("#cbFRows").addEventListener("click", e => { const b = e.target.closest("[data-del]"); if (!b) return; if (b.textContent !== "Sure?") { b.textContent = "Sure?"; return; } cb().friends.splice(+b.dataset.del, 1); save(); cbPush(); renderCrewBase(); });
 const cbKeepMe = () => { const C = cb(); C.me.name = $("#cbName").value.trim(); C.me.base = $("#cbBase").value.trim().toUpperCase(); };
 $("#cbSave").addEventListener("click", () => {
   cbKeepMe(); const C = cb();
-  if (save()) { const n = Object.keys(C.me.days).length; cbMsg("#cbMsg", n ? `Saved. Your roster has ${n} days.` : "Saved your name and base. Drop your roster PDF next.", !n); renderCrewBase(); }
+  if (save()) { cbPush(); const n = Object.keys(C.me.days).length; cbMsg("#cbMsg", n ? `Saved. Your roster has ${n} days.` : "Saved your name and base. Drop your roster PDF next.", !n); renderCrewBase(); }
 });
 // why a dropped file gave no days
 const cbWhy = meta => meta.notPdf ? "That isn't a PDF. Drop the Personal Crew Schedule Report PDF from AIMS." : meta.noGrid ? "Couldn't find the roster in that PDF. Is it the Personal Crew Schedule Report from AIMS?" : "No days found in that file.";
-$("#cbClearMe").addEventListener("click", e => { if (e.target.textContent !== "Sure?") { e.target.textContent = "Sure?"; return; } cb().me.days = {}; save(); e.target.textContent = "Clear my roster"; cbMsg("#cbMsg", "Your roster was cleared."); renderCrewBase(); });
+$("#cbClearMe").addEventListener("click", e => { if (e.target.textContent !== "Sure?") { e.target.textContent = "Sure?"; return; } cb().me.days = {}; save(); cbPush(); e.target.textContent = "Clear my roster"; cbMsg("#cbMsg", "Your roster was cleared."); renderCrewBase(); });
 const cbDrop = $("#cbDrop");
 cbDrop.addEventListener("click", () => $("#cbFile").click());
 ["dragenter","dragover"].forEach(ev => cbDrop.addEventListener(ev, e => { e.preventDefault(); cbDrop.classList.add("over"); }));
 ["dragleave","drop"].forEach(ev => cbDrop.addEventListener(ev, e => { e.preventDefault(); cbDrop.classList.remove("over"); }));
 const cbTakeMine = f => cbReadFile(f, (days0, meta) => { if (!Object.keys(days0).length) return cbMsg("#cbMsg", cbWhy(meta), true); cbAskTz(days0, meta, days => { const n = Object.keys(days).length; cbKeepMe();
   // the base printed on the roster (e.g. AUH-CP-789) is the one that counts
-  const C = cb(); if (meta.base) { C.me.base = String(meta.base).toUpperCase(); $("#cbBase").value = C.me.base; } Object.assign(C.me.days, days); if (save()) { cbMsg("#cbMsg", `Read ${n} days from ${f.name}${meta.utc === false ? ", converted to UTC" : ""}.`); renderCrewBase(); } }); });
+  const C = cb(); if (meta.base) { C.me.base = String(meta.base).toUpperCase(); $("#cbBase").value = C.me.base; } Object.assign(C.me.days, days); if (save()) { cbPush(); cbMsg("#cbMsg", `Read ${n} days from ${f.name}${meta.utc === false ? ", converted to UTC" : ""}.`); renderCrewBase(); } }); });
 cbDrop.addEventListener("drop", e => cbTakeMine(e.dataTransfer.files[0]));
 $("#cbFile").addEventListener("change", e => { cbTakeMine(e.target.files[0]); e.target.value = ""; });
 $("#cbShare").addEventListener("click", () => {
@@ -1704,7 +1747,7 @@ $("#cbFAdd").addEventListener("click", () => {
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return cbMsg("#cbFMsg", "That doesn't look like an email address.", true);
   if (F.some(f => f.email === email)) return cbMsg("#cbFMsg", "That friend is already on your list.", true);
   F.push({ email, name: $("#cbFName").value.trim() || email.split("@")[0], base: "", days: {}, show: true });
-  if (save()) { $("#cbFEmail").value = ""; $("#cbFName").value = ""; cbMsg("#cbFMsg", "Added. Load the roster file they send you."); renderCrewBase(); }
+  if (save()) { $("#cbFEmail").value = ""; $("#cbFName").value = ""; cbMsg("#cbFMsg", cbOnline() ? "Added. Their roster appears once they have added your email too." : "Added. Load the roster file they send you."); renderCrewBase(); cbSync(); }
 });
 $("#cbFLoadBtn").addEventListener("click", () => $("#cbFLoad").click());
 $("#cbFLoad").addEventListener("change", e => {
