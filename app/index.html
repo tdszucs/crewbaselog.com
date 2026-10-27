@@ -69,6 +69,15 @@ h2{font-size:24px;letter-spacing:-.02em;margin:0 0 6px}
 .card h3{margin:0 0 4px;font-size:16px}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 18px}
 .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+.stepn{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:50%;background:var(--accent-soft);color:var(--accent);font-size:13px;margin-right:10px;vertical-align:1px}
+.airlines{display:flex;flex-wrap:wrap;gap:10px}
+.airline{display:grid;gap:2px;text-align:left;padding:12px 16px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);cursor:pointer;font:inherit;min-width:220px}
+.airline span{font-size:12.5px;color:var(--muted)}
+.airline.on{border-color:var(--accent);background:var(--accent-soft);box-shadow:0 0 0 1px var(--accent)}
+.lbline{border-collapse:collapse;font-size:11.5px;min-width:max-content}
+.lbline th,.lbline td{border:1px solid var(--ink);padding:3px 5px;text-align:center;white-space:nowrap}
+.lbline th{font-size:9.5px;font-weight:700;background:var(--bg)}
+.lbline td{font-family:"JetBrains Mono",monospace;height:24px}
 .lbgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:0 12px}
 .lbgrid .field{margin-bottom:10px}.lbgrid .wide{grid-column:1/-1}
 .rowbtn{background:none;border:0;padding:2px 6px;cursor:pointer;color:var(--muted);font:inherit;font-size:13px}
@@ -213,9 +222,8 @@ td.r,th.r{text-align:right}
       <button data-t="profile">Profile</button>
       <button data-t="expiries">Expiries</button>
       <button data-t="signature">Signature</button>
-      <button data-t="import">Import</button>
       <button data-t="logbook">Logbook</button>
-      <button data-t="print">Print</button>
+      <button data-t="import">Your data</button>
       <button data-t="crewbase">Crew Base</button>
       <button data-t="jobs">Jobs</button>
     </nav>
@@ -298,40 +306,44 @@ td.r,th.r{text-align:right}
       </div>
     </div>
 
-    <!-- import -->
+    <!-- your data: import + export -->
     <div data-p="import" class="hidden">
-      <h2>Import flights</h2>
-      <p class="lead">Files are read inside your browser. Nothing is uploaded to our servers.</p>
-      <div class="notice"><b>Each time you update your logbook:</b> drop your saved <b>CrewBase Log CSV</b> from last time together with your <b>new export</b> (e.g. from eCrew). They are merged and duplicates are skipped. Then download your new full logbook CSV and PDF.</div>
-      <div class="grid3" style="margin-bottom:18px">
-        <div class="opt"><span class="tag">Supported</span><h4>eCrew / AIMS export</h4><p>The Pilot LogBook report from your airline's crew system, saved as CSV or Excel. Columns are recognised automatically. <a href="#ecrewHelp">How to get it</a></p></div>
-        <div class="opt"><span class="tag">Supported</span><h4>Another logbook or spreadsheet</h4><p>CSV or Excel exported from another app or your own sheet. Match the columns once and we remember them.</p></div>
-        <div class="opt"><span class="tag" style="color:var(--muted)">Coming later</span><h4>Paper or PDF logbook</h4><p>Enter your brought-forward totals for now. Scanning old pages is on the roadmap.</p></div>
-      </div>
+      <h2>Your data</h2>
+      <p class="lead">Bring your flights in, then download your logbook. Files are read inside your browser; nothing is uploaded to our servers.</p>
+      <div class="notice"><b>Next time:</b> upload the CrewBase Log CSV you downloaded here, together with your new AIMS file. They are merged and duplicates are skipped. Then download your new CSV and PDF.</div>
+
       <div class="card">
-        <div class="drop" id="drop"><b>Drop one or more CSV or Excel files here</b><br><span class="hint">or click to choose files · .csv, .txt, .xlsx</span>
+        <h3><span class="stepn">1</span>Import your past logbook</h3>
+        <p class="hint" style="margin:0 0 14px;font-size:14px">Most pilots start with a logbook from before. Upload it as CSV or Excel: the CrewBase Log CSV you downloaded last time, or an export from another logbook app or your own spreadsheet.</p>
+        <div class="drop" id="drop"><b>Drop your past logbook here</b><br><span class="hint">or click to choose files · .csv, .txt, .xlsx</span>
           <input type="file" id="impFile" accept=".csv,.txt,.tsv,.xlsx,.xls" multiple class="hidden"></div>
         <div class="row-actions" style="margin-top:12px;justify-content:center"><a href="#" id="dlSample" class="hint">Download a sample CSV to try</a></div>
-        <p class="err" id="impErr"></p>
       </div>
-      <div class="card hidden" id="impDone">
-        <h3>Your logbook is up to date</h3>
-        <div id="impDoneLog" class="hint" style="font-size:14px;margin:0 0 14px"></div>
-        <div class="row-actions" style="margin:0"><button class="btn" type="button" data-csv>Download full logbook (CSV)</button><button class="btn ghost" type="button" data-go="print">Make the PDF logbook</button></div>
-        <p class="hint" style="margin:12px 0 0">Keep the CSV somewhere safe (email, cloud drive). Your flights live only in this browser, so next time import that CSV together with your new file.</p>
+
+      <div class="card">
+        <h3><span class="stepn">2</span>Import new flights from AIMS</h3>
+        <p class="hint" style="margin:0 0 12px;font-size:14px">Choose your airline. Each airline's crew system exports flights a little differently.</p>
+        <div class="airlines" id="airlines"><button type="button" class="airline" data-air="etihad"><b>Etihad Airways</b><span>eCrew · Pilot LogBook report</span></button></div>
+        <div class="hidden" id="air_etihad" style="margin-top:16px">
+          <ol style="margin:0 0 14px;padding-left:20px;line-height:1.8">
+            <li>Log in to <b>eCrew</b>.</li>
+            <li>In the left menu open <b>Reports</b> → <b>Pilot LogBook report</b>.</li>
+            <li>Set the <b>Period</b> (for example 01/09/2026 – 30/09/2026, or a whole year) and press <b>Go</b>.</li>
+            <li>Click the <b>Export</b> button in the report toolbar (the save icon with a small ▾ arrow, next to the print icons).</li>
+            <li>Choose <b>CSV</b>. If CSV isn't listed, choose <b>Excel (XLSX)</b>; both work.</li>
+            <li>Drop the file below.</li>
+          </ol>
+          <div class="drop" id="dropAims"><b>Drop your Etihad eCrew file here</b><br><span class="hint">or click to choose files · .csv, .xlsx</span>
+            <input type="file" id="aimsFile" accept=".csv,.txt,.tsv,.xlsx,.xls" multiple class="hidden"></div>
+          <p class="hint" style="margin:12px 0 0">Overlapping periods are fine: flights already in your logbook are skipped. The heading, crew line and "Totals" row are ignored. Simulator sessions aren't imported yet.</p>
+        </div>
+        <div class="notice" style="margin:16px 0 0;background:var(--bg);border-color:var(--line)">
+          <b>Don't see your airline?</b> Send us these and we will add your airline:
+          <ul style="margin:8px 0 10px;padding-left:20px;line-height:1.7"><li>your logbook</li><li>your roster</li><li>your flown flights exported from AIMS, eCrew or your airline's online system</li></ul>
+          <a class="btn ghost small" id="airMail" href="#">Email us your files</a> <span class="hint">Attach the files to the email before sending.</span>
+        </div>
       </div>
-      <details class="card" id="ecrewHelp">
-        <summary style="cursor:pointer;font-weight:600;font-size:16px">How to get your file from eCrew</summary>
-        <ol style="margin:16px 0 0;padding-left:20px;line-height:1.8">
-          <li>Log in to your airline's <b>eCrew</b> portal.</li>
-          <li>In the left menu open <b>Reports</b> → <b>Pilot LogBook report</b>.</li>
-          <li>Set the <b>Period</b> (for example 01/09/2026 – 30/09/2026, or a whole year) and press <b>Go</b>.</li>
-          <li>When the report appears, click the <b>Export</b> button in the report toolbar (the save icon with a small ▾ arrow, next to the print icons).</li>
-          <li>Choose <b>CSV</b>. If CSV isn't listed, choose <b>Excel (XLSX)</b>; both work.</li>
-          <li>Save the file, then drop it in the box above.</li>
-        </ol>
-        <p class="hint" style="margin:14px 0 0">Tips: export month by month or a full year at a time. Flights you've already imported are skipped automatically, so overlapping periods are fine. The heading, crew line and "Totals" row in the file are ignored. Only actual flights are imported. Simulator sessions from the "Synth. devices" columns aren't imported yet.</p>
-      </details>
+      <p class="err" id="impErr"></p>
       <div class="card hidden" id="mapCard">
         <h3>Match your columns</h3>
         <p class="hint" style="margin:0 0 16px" id="mapInfo"></p>
@@ -345,6 +357,53 @@ td.r,th.r{text-align:right}
         <div class="tablewrap" id="preview"></div>
         <div class="row-actions" style="margin-top:16px"><button class="btn" id="btnImport" type="button">Import flights</button><button class="btn ghost" id="btnCancelImp" type="button">Cancel</button><span id="impResult" class="ok-msg"></span></div>
       </div>
+      <div class="card hidden" id="impDone">
+        <h3>Your logbook is up to date</h3>
+        <div id="impDoneLog" class="hint" style="font-size:14px;margin:0 0 14px"></div>
+        <div class="row-actions" style="margin:0"><button class="btn" type="button" data-csv>Download CSV file</button><button class="btn ghost" type="button" data-go="import" data-scroll="#outCard">Download PDF logbook</button></div>
+      </div>
+
+      <form class="card" id="addForm">
+        <h3><span class="stepn">3</span>Add a flight by hand</h3>
+        <p class="hint" style="margin:0 0 14px;font-size:14px">For a flight that isn't in any file. The preview below shows the line exactly as it will appear in your EASA logbook.</p>
+        <div class="lbgrid" id="addFields"></div>
+        <div class="field" style="margin-top:4px"><label>Preview: your logbook line</label><div class="tablewrap"><div id="addPreview"></div></div></div>
+        <div class="row-actions" style="margin:0"><button class="btn" type="submit">Add flight to logbook</button><button class="btn ghost" type="button" id="addClear">Clear</button><span class="err" id="addErr" style="margin:0"></span><span class="ok-msg" id="addOk"></span></div>
+      </form>
+
+      <div class="card" id="outCard">
+        <h3><span class="stepn">4</span>Download your logbook</h3>
+        <p class="hint" style="margin:0 0 16px;font-size:14px" id="outInfo"></p>
+        <div class="grid2" style="gap:18px">
+          <div>
+            <h4 style="margin:0 0 10px">PDF logbook</h4>
+            <div class="field"><label for="prFmtSel">Format</label><select id="prFmtSel"><option value="EASA">EASA Part-FCL (FCL.050)</option><option value="UK">UK CAA (UK FCL.050)</option><option value="FAA">FAA (14 CFR 61.51)</option></select></div>
+            <div class="field" id="prRange">
+              <label style="display:flex;gap:8px;align-items:center;font-weight:400"><input type="radio" name="prRange" value="all" checked style="width:auto"> Full logbook</label>
+              <label style="display:flex;gap:8px;align-items:center;font-weight:400"><input type="radio" name="prRange" value="last10" style="width:auto"> Last 10 pages</label>
+              <label style="display:flex;gap:8px;align-items:center;font-weight:400"><input type="radio" name="prRange" value="dates" style="width:auto"> Between dates</label>
+            </div>
+            <div class="grid2 hidden" id="prDates"><div class="field"><label for="prFrom">From</label><input type="date" id="prFrom"></div><div class="field"><label for="prTo">To</label><input type="date" id="prTo"></div></div>
+            <details style="margin:0 0 14px"><summary style="cursor:pointer;font-size:14px;color:var(--muted)">More options</summary>
+              <div style="margin-top:12px">
+                <div class="field"><label for="prRows">Lines per page</label><select id="prRows"><option>14</option><option selected>18</option><option>24</option></select></div>
+                <div class="field"><label for="prCrew">Flights are</label><select id="prCrew"><option value="MP">Multi-pilot</option><option value="SPME">Single-pilot, multi-engine</option><option value="SPSE">Single-pilot, single-engine</option></select><div class="hint">Decides which time column is filled.</div></div>
+                <div class="field"><label for="prPaper">Paper size</label><select id="prPaper"><option value="auto">Format default</option><option value="A4">A4</option><option value="LETTER">US Letter</option></select></div>
+                <div class="field"><label for="prBF">Brought forward (hh:mm, optional)</label><input id="prBF" class="mono" placeholder="e.g. 3250:15"><div class="hint">Total time from a paper logbook not imported here.</div></div>
+                <label style="display:flex;gap:8px;align-items:center;font-weight:400;margin:2px 0 4px"><input type="checkbox" id="prCover" checked style="width:auto"> Include cover page</label>
+                <label style="display:flex;gap:8px;align-items:center;font-weight:400;margin:0"><input type="checkbox" id="prSig" checked style="width:auto"> Sign each page with my saved signature</label>
+              </div>
+            </details>
+            <div class="row-actions" style="margin:0"><button class="btn" id="btnMakePdf" type="button">Download PDF logbook</button><span id="prMsg" class="hint"></span></div>
+          </div>
+          <div>
+            <h4 style="margin:0 0 10px">CSV file</h4>
+            <p class="hint" style="margin:0 0 14px;font-size:14px">Your full logbook in one file. Keep it safe (email, cloud drive): next time, upload it in step 1 together with your new AIMS file.</p>
+            <button class="btn" type="button" data-csv>Download CSV file</button>
+          </div>
+        </div>
+      </div>
+      <div class="card hidden" id="pdfCard" style="padding:0;overflow:hidden"><iframe id="pdfFrame" title="Logbook preview" style="width:100%;height:78vh;border:0;display:block;background:#fff"></iframe></div>
     </div>
 
     <!-- logbook -->
@@ -352,10 +411,14 @@ td.r,th.r{text-align:right}
       <h2>Logbook</h2>
       <p class="lead">Your flights are kept only in this browser. Download your full logbook CSV after each import and keep it safe: if you clear your browser data or change device, import it again.</p>
       <div class="stats" id="lbStats"></div>
+      <div class="card hidden" id="lbSummary">
+        <div style="display:flex;justify-content:space-between;gap:12px;align-items:baseline;flex-wrap:wrap"><h3>Hours summary for job applications</h3><button class="btn ghost small" type="button" id="lbSumCopy">Copy table</button></div>
+        <div class="tablewrap" id="lbSumTable"></div>
+      </div>
       <div class="card">
         <div class="row-actions" style="margin:0 0 14px">
-          <button class="btn small" type="button" data-csv>Download full logbook (CSV)</button>
-          <button class="btn ghost small" type="button" data-go="print">Make the PDF logbook</button>
+          <button class="btn small" type="button" data-csv>Download CSV file</button>
+          <button class="btn ghost small" type="button" data-go="import" data-scroll="#outCard">Download PDF logbook</button>
           <button class="btn ghost small" id="btnBackup" type="button" title="Includes profile, expiries, signature and rosters">Download full backup</button>
           <label class="btn ghost small" style="margin:0">Restore backup<input type="file" id="restoreFile" accept=".json" class="hidden"></label>
           <button class="btn danger small" id="btnClearFlights" type="button">Delete all flights</button>
@@ -369,31 +432,6 @@ td.r,th.r{text-align:right}
         <div class="tablewrap" id="lbTable"></div>
         <p class="hint" id="lbMore"></p>
       </div>
-    </div>
-
-    <!-- print -->
-    <div data-p="print" class="hidden">
-      <h2>Print your logbook</h2>
-      <p class="lead">Make a print-ready PDF of your flights, page totals and signature included. The PDF is made in your browser.</p>
-      <div class="grid3" style="margin-bottom:18px" id="fmtCards">
-        <label class="opt fmt" data-f="EASA"><input type="radio" name="fmt" value="EASA" class="hidden"><span class="tag">A4 landscape · hh:mm</span><h4>EASA</h4><p>Part-FCL layout (FCL.050): single/multi-pilot time, landings, night/IFR, pilot function, FSTD.</p></label>
-        <label class="opt fmt" data-f="FAA"><input type="radio" name="fmt" value="FAA" class="hidden"><span class="tag">Letter landscape · decimal</span><h4>FAA</h4><p>US style (14 CFR 61.51): category/class, cross-country, night, instrument, PIC/SIC, decimal hours.</p></label>
-        <label class="opt fmt" data-f="UK"><input type="radio" name="fmt" value="UK" class="hidden"><span class="tag">A4 landscape · hh:mm</span><h4>UK CAA</h4><p>UK Part-FCL layout (UK FCL.050). Same columns as EASA, with UK headings.</p></label>
-      </div>
-      <div class="card">
-        <div class="grid3" style="gap:0 18px">
-          <div class="field"><label for="prFrom">From date</label><input type="date" id="prFrom"></div>
-          <div class="field"><label for="prTo">To date</label><input type="date" id="prTo"></div>
-          <div class="field"><label for="prRows">Lines per page</label><select id="prRows"><option>14</option><option selected>18</option><option>24</option></select></div>
-          <div class="field"><label for="prCrew">Flights are</label><select id="prCrew"><option value="MP">Multi-pilot</option><option value="SPME">Single-pilot, multi-engine</option><option value="SPSE">Single-pilot, single-engine</option></select><div class="hint">Decides which time column is filled.</div></div>
-          <div class="field"><label for="prPaper">Paper size</label><select id="prPaper"><option value="auto">Format default</option><option value="A4">A4</option><option value="LETTER">US Letter</option></select></div>
-          <div class="field"><label for="prBF">Brought forward (hh:mm, optional)</label><input id="prBF" class="mono" placeholder="e.g. 3250:15"><div class="hint">Total time from a previous logbook.</div></div>
-        </div>
-        <label style="display:flex;gap:8px;align-items:center;font-weight:400;margin:2px 0 4px"><input type="checkbox" id="prCover" checked style="width:auto"> Include cover page</label>
-        <label style="display:flex;gap:8px;align-items:center;font-weight:400;margin:0 0 14px"><input type="checkbox" id="prSig" checked style="width:auto"> Sign each page with my saved signature</label>
-        <div class="row-actions"><button class="btn" id="btnMakePdf" type="button">Create PDF</button><a class="btn ghost hidden" id="pdfDl">Download PDF</a><span id="prMsg" class="hint"></span></div>
-      </div>
-      <div class="card hidden" id="pdfCard" style="padding:0;overflow:hidden"><iframe id="pdfFrame" title="Logbook preview" style="width:100%;height:78vh;border:0;display:block;background:#fff"></iframe></div>
     </div>
 
     <!-- crew base -->
@@ -642,7 +680,7 @@ $("#btnOut").addEventListener("click", () => Auth.signOut());
 function tab(t){
   $$("#tabs button").forEach(b => b.classList.toggle("on", b.dataset.t === t));
   $$("[data-p]").forEach(p => p.classList.toggle("hidden", p.dataset.p !== t));
-  ({ overview: renderOverview, profile: renderProfile, expiries: renderExpiries, signature: renderSignature, logbook: renderLogbook, print: renderPrint, crewbase: renderCrewBase })[t]?.();
+  ({ overview: renderOverview, profile: renderProfile, expiries: renderExpiries, signature: renderSignature, logbook: renderLogbook, import: renderYourData, crewbase: renderCrewBase })[t]?.();
   window.scrollTo(0,0);
 }
 $("#tabs").addEventListener("click", e => { if (e.target.dataset.t) tab(e.target.dataset.t); });
@@ -706,7 +744,7 @@ $("#fbForm").addEventListener("submit", async e => {
   }
   $("#fbSend").disabled = false;
 });
-document.addEventListener("click", e => { const g = e.target.closest("[data-go]"); if (g) { e.preventDefault(); tab(g.dataset.go); } });
+document.addEventListener("click", e => { const g = e.target.closest("[data-go]"); if (!g) return; e.preventDefault(); tab(g.dataset.go); if (g.dataset.scroll) $(g.dataset.scroll)?.scrollIntoView({ behavior: "smooth", block: "start" }); });
 
 /* ---------- profile ---------- */
 const PF = { pName: "name", pEmail: "email", pLic: "lic", pType: "type", pBase: "base" };
@@ -1039,10 +1077,82 @@ document.addEventListener("click", e => {
   if (!data.flights.length) return alert("There are no flights to export yet.");
   download(`crewbaselog-logbook-${todayISO()}.csv`, "text/csv", "\ufeff" + logbookCSV());
 });
+/* ---------- your data: airlines, add a flight by hand ---------- */
+function renderYourData(){
+  renderPrint();
+  if (!$("#addFields").children.length) { $("#addFields").innerHTML = flightFieldsHTML("n_"); renderAddPreview(); }
+}
+$("#airlines").addEventListener("click", e => {
+  const b = e.target.closest("[data-air]"); if (!b) return;
+  const on = !b.classList.contains("on");
+  $$("#airlines .airline").forEach(x => { x.classList.toggle("on", on && x === b); $("#air_" + x.dataset.air).classList.toggle("hidden", !(on && x === b)); });
+});
+const dropAims = $("#dropAims");
+dropAims.addEventListener("click", () => $("#aimsFile").click());
+$("#aimsFile").addEventListener("change", e => { handleFiles(e.target.files); e.target.value = ""; });
+["dragenter","dragover"].forEach(ev => dropAims.addEventListener(ev, e => { e.preventDefault(); dropAims.classList.add("over"); }));
+["dragleave","drop"].forEach(ev => dropAims.addEventListener(ev, e => { e.preventDefault(); dropAims.classList.remove("over"); }));
+dropAims.addEventListener("drop", e => handleFiles(e.dataTransfer.files));
+$("#airMail").addEventListener("click", e => {
+  e.preventDefault();
+  const body = `Hello,\n\nPlease add my airline to CrewBase Log.\n\nAirline:\nCrew system (AIMS, eCrew, other):\n\nAttached:\n- my logbook\n- my roster\n- my flown flights exported from the crew system\n\nThank you`;
+  location.href = `mailto:${FEEDBACK_TO}?subject=${encodeURIComponent("Please add my airline to CrewBase Log")}&body=${encodeURIComponent(body)}`;
+});
+
+// one line of the EASA (FCL.050) logbook, same columns and formatting as the PDF
+function easaLineHTML(f){
+  const crew = $("#prCrew").value, t = m => lbTime(m), c = n => n ? String(n) : "", tick = on => on ? "✓" : "";
+  const self = !f.picName || /^self$/i.test(f.picName.trim());
+  const cells = [f.date ? ddmmyy(f.date) : "", f.from, f.out, f.to, f.in, f.acType, f.reg,
+    tick(crew === "SPSE" && f.total), tick(crew === "SPME" && f.total), crew === "MP" ? t(f.total) : "", t(f.total),
+    self ? (f.from || f.to || f.total ? "SELF" : "") : f.picName, c(f.ldgDay), c(f.ldgNight), t(f.night), t(f.ifr),
+    t(f.pic), t(f.copilot), t(f.dual), t(f.instructor), "", "", f.remarks];
+  return `<table class="lbline"><thead>
+    <tr><th rowspan="2">DATE<br>dd/mm/yy</th><th colspan="2">DEPARTURE</th><th colspan="2">ARRIVAL</th><th colspan="2">AIRCRAFT</th><th colspan="2">SINGLE PILOT TIME</th><th rowspan="2">MULTI PILOT<br>TIME</th><th rowspan="2">TOTAL<br>TIME</th><th rowspan="2">PIC NAME</th><th colspan="2">LANDINGS</th><th colspan="2">OP. COND. TIME</th><th colspan="4">PILOT FUNCTION TIME</th><th colspan="2">FSTD SESSION</th><th rowspan="2">REMARKS AND<br>ENDORSEMENTS</th></tr>
+    <tr><th>PLACE</th><th>TIME</th><th>PLACE</th><th>TIME</th><th>TYPE</th><th>REG</th><th>SE</th><th>ME</th><th>DAY</th><th>NIGHT</th><th>NIGHT</th><th>IFR</th><th>PIC</th><th>COP</th><th>DUAL</th><th>INSTR</th><th>TYPE</th><th>TIME</th></tr>
+  </thead><tbody><tr>${cells.map(v => `<td>${esc(v || "")}</td>`).join("")}</tr></tbody></table>`;
+}
+function renderAddPreview(){
+  const { f, err } = readFlightForm("n_");
+  $("#addPreview").innerHTML = easaLineHTML(f);
+  return err;
+}
+$("#addFields").addEventListener("input", () => { renderAddPreview(); $("#addErr").textContent = ""; $("#addOk").textContent = ""; });
+$("#prCrew").addEventListener("change", renderAddPreview);
+$("#addClear").addEventListener("click", () => { $("#addFields").innerHTML = flightFieldsHTML("n_"); renderAddPreview(); $("#addErr").textContent = ""; });
+$("#addForm").addEventListener("submit", e => {
+  e.preventDefault(); $("#addOk").textContent = "";
+  const { f, err } = readFlightForm("n_"); if (err) return $("#addErr").textContent = err;
+  if (data.flights.some(x => dupKey(x) === dupKey(f))) return $("#addErr").textContent = "That flight is already in your logbook.";
+  data.flights.push(f); data.flights.sort((a,b) => (a.date+a.out).localeCompare(b.date+b.out));
+  if (!save()) return;
+  $("#addFields").innerHTML = flightFieldsHTML("n_"); renderAddPreview(); $("#addErr").textContent = "";
+  $("#addOk").textContent = `Added ${flightLabel(f)}. Your logbook has ${data.flights.length.toLocaleString()} flights.`; renderPrint();
+});
+
+/* ---------- hours summary (for job applications) ---------- */
+function renderSummary(){
+  const F = data.flights, box = $("#lbSummary");
+  box.classList.toggle("hidden", !F.length); if (!F.length) return;
+  const K = ["total","pic","copilot","night","ifr"], add = (o, f) => { o.n++; K.forEach(k => o[k] += f[k] || 0); if (f.date > o.last) o.last = f.date; return o; };
+  const blank = () => ({ n: 0, last: "", ...Object.fromEntries(K.map(k => [k, 0])) });
+  const by = {}; F.forEach(f => add(by[f.acType || "Unknown"] ||= blank(), f));
+  const all = F.reduce(add, blank()), since = new Date(Date.now() - 365*864e5).toISOString().slice(0, 10), y = F.filter(f => f.date >= since).reduce(add, blank());
+  const row = (name, o, b) => `<tr${b ? ' style="font-weight:700"' : ""}><td>${esc(name)}</td><td class="r">${o.n.toLocaleString()}</td>${K.map(k => `<td class="r">${fmtMin(o[k])}</td>`).join("")}<td>${o.last ? fmtDate(o.last) : ""}</td></tr>`;
+  $("#lbSumTable").innerHTML = `<table><thead><tr><th>Aircraft type</th><th class="r">Flights</th><th class="r">Total</th><th class="r">PIC</th><th class="r">Co-pilot</th><th class="r">Night</th><th class="r">IFR</th><th>Last flown</th></tr></thead><tbody>` +
+    Object.entries(by).sort((a, b) => b[1].total - a[1].total).map(([t, o]) => row(t, o)).join("") + row("All types", all, true) + row("Last 12 months", y) + "</tbody></table>";
+}
+$("#lbSumCopy").addEventListener("click", async () => {
+  const t = [...$("#lbSumTable").querySelectorAll("tr")].map(r => [...r.children].map(c => c.textContent).join("\t")).join("\n");
+  try { await navigator.clipboard.writeText(t); $("#lbSumCopy").textContent = "Copied"; } catch { $("#lbSumCopy").textContent = "Copy failed"; }
+  setTimeout(() => $("#lbSumCopy").textContent = "Copy table", 1500);
+});
+
 function download(name, type, text){ const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); }
 
 /* ---------- logbook ---------- */
 function renderLogbook(){
+  renderSummary();
   const F = data.flights, sum = k => F.reduce((s,f) => s + (f[k]||0), 0);
   $("#lbStats").innerHTML = [["Flights", F.length.toLocaleString()], ["Total", fmtMin(sum("total"))], ["PIC", fmtMin(sum("pic"))], ["Night", fmtMin(sum("night"))]]
     .map(([k,v]) => `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`).join("");
@@ -1059,11 +1169,29 @@ function renderLogbook(){
 const LB_DUR = ["total","pic","copilot","dual","instructor","night","ifr"], LB_TIME = ["out","off","on","in"];
 let lbEditing = null; // the flight object being edited (indices shift when flights are added or sorted)
 const flightLabel = f => `${fmtDate(f.date)} ${f.flightNo || ""} ${f.from || "?"}–${f.to || "?"}`.replace(/\s+/g, " ");
+// the flight form (edit on the Logbook tab, add on Your data); ids are prefix + field key
+function flightFieldsHTML(pre, f = {}){
+  const v = k => LB_DUR.includes(k) ? (f[k] ? fmtMin(f[k]) : "") : k.startsWith("ldg") ? (f[k] || "") : f[k] ?? "";
+  return FIELDS.map(([k, label]) => `<div class="field${k === "remarks" ? " wide" : ""}"><label for="${pre}${k}">${label}</label><input id="${pre}${k}" data-k="${k}" value="${esc(String(v(k)))}"` +
+    (k === "date" ? ' type="date" required' : LB_TIME.includes(k) ? ' class="mono" placeholder="HH:MM"' : LB_DUR.includes(k) ? ' class="mono" placeholder="H:MM"' : k.startsWith("ldg") ? ' type="number" min="0" step="1"' : "") + "></div>").join("");
+}
+// -> { f, err } ; f is base plus the form's values
+function readFlightForm(pre, base = {}){
+  const g = k => $("#" + pre + k).value.trim(), bad = [], f = { ...base };
+  f.date = g("date"); if (!/^\d{4}-\d{2}-\d{2}$/.test(f.date)) bad.push("date");
+  for (const k of ["flightNo","from","to","reg"]) f[k] = g(k).toUpperCase();
+  f.acType = acTypeName(g("acType")); f.picName = g("picName"); f.remarks = g("remarks");
+  for (const k of LB_TIME) { f[k] = parseTime(g(k)); if (g(k) && !f[k]) bad.push(k); }
+  for (const k of LB_DUR) { f[k] = parseDur(g(k)); if (g(k) && !f[k] && !/^0*[:.]?0*$/.test(g(k))) bad.push(k); }
+  for (const k of ["ldgDay","ldgNight"]) f[k] = Math.max(0, parseInt(g(k)) || 0);
+  if (!f.total && f.out && f.in) f.total = tdiff(f.out, f.in);
+  const err = bad.length ? "Check: " + bad.map(k => FIELDS.find(x => x[0] === k)[1]).join(", ") + ". Times as HH:MM, durations as H:MM."
+    : !valid(f) ? "A flight needs a date and a route or total time." : "";
+  return { f, err };
+}
 function lbOpenEdit(i){
   const f = data.flights[i]; if (!f) return; lbEditing = f;
-  const v = k => LB_DUR.includes(k) ? (f[k] ? fmtMin(f[k]) : "") : k.startsWith("ldg") ? (f[k] || "") : f[k] ?? "";
-  $("#lbEditFields").innerHTML = FIELDS.map(([k, label]) => `<div class="field${k === "remarks" ? " wide" : ""}"><label for="e_${k}">${label}</label><input id="e_${k}" data-k="${k}" value="${esc(String(v(k)))}"` +
-    (k === "date" ? ' type="date" required' : LB_TIME.includes(k) ? ' class="mono" placeholder="HH:MM"' : LB_DUR.includes(k) ? ' class="mono" placeholder="H:MM"' : k.startsWith("ldg") ? ' type="number" min="0" step="1"' : "") + "></div>").join("");
+  $("#lbEditFields").innerHTML = flightFieldsHTML("e_", f);
   $("#lbEditTitle").textContent = "Edit flight: " + flightLabel(f); $("#lbEditErr").textContent = "";
   $("#lbEdit").classList.remove("hidden"); $("#lbEdit").scrollIntoView({ behavior: "smooth", block: "start" }); $("#e_date").focus({ preventScroll: true });
 }
@@ -1082,16 +1210,7 @@ $("#lbEditDel").addEventListener("click", () => lbDelete(data.flights.indexOf(lb
 $("#lbEdit").addEventListener("submit", e => {
   e.preventDefault();
   const at = data.flights.indexOf(lbEditing); if (at < 0) return lbCloseEdit();
-  const g = k => $("#e_" + k).value.trim(), bad = [], f = { ...lbEditing };
-  f.date = g("date"); if (!/^\d{4}-\d{2}-\d{2}$/.test(f.date)) bad.push("date");
-  for (const k of ["flightNo","from","to","reg"]) f[k] = g(k).toUpperCase();
-  f.acType = acTypeName(g("acType")); f.picName = g("picName"); f.remarks = g("remarks");
-  for (const k of LB_TIME) { f[k] = parseTime(g(k)); if (g(k) && !f[k]) bad.push(k); }
-  for (const k of LB_DUR) { f[k] = parseDur(g(k)); if (g(k) && !f[k] && !/^0*[:.]?0*$/.test(g(k))) bad.push(k); }
-  for (const k of ["ldgDay","ldgNight"]) f[k] = Math.max(0, parseInt(g(k)) || 0);
-  if (bad.length) return $("#lbEditErr").textContent = "Check: " + bad.map(k => FIELDS.find(x => x[0] === k)[1]).join(", ") + ". Times as HH:MM, durations as H:MM.";
-  if (!f.total && f.out && f.in) f.total = tdiff(f.out, f.in);
-  if (!valid(f)) return $("#lbEditErr").textContent = "A flight needs a date and a route or total time.";
+  const { f, err } = readFlightForm("e_", lbEditing); if (err) return $("#lbEditErr").textContent = err;
   data.flights[at] = f; data.flights.sort((a,b) => (a.date+a.out).localeCompare(b.date+b.out));
   if (save()) { lbCloseEdit(); renderLogbook(); }
 });
@@ -1307,13 +1426,16 @@ $("#cbMin").addEventListener("change", renderCrewBase);
 /* ================= PRINT (PDF logbook) ================= */
 let prFmt = null, pdfUrl = null;
 function renderPrint(){
-  if (!prFmt) prFmt = data.profile.format === "FAA" ? "FAA" : data.profile.format === "UK CAA" ? "UK" : "EASA";
-  $$(".fmt").forEach(c => c.classList.toggle("on", c.dataset.f === prFmt));
+  if (!prFmt) { prFmt = data.profile.format === "FAA" ? "FAA" : data.profile.format === "UK CAA" ? "UK" : "EASA"; $("#prFmtSel").value = prFmt; }
   const F = data.flights;
   if (F.length && !$("#prFrom").value) { $("#prFrom").value = F[0].date; $("#prTo").value = F[F.length-1].date; }
-  $("#prMsg").textContent = F.length ? "" : "Import some flights first.";
+  $("#prDates").classList.toggle("hidden", prRange() !== "dates");
+  $("#outInfo").textContent = F.length ? `Your logbook has ${F.length.toLocaleString()} flight${F.length === 1 ? "" : "s"}, ${fmtDate(F[0].date)} to ${fmtDate(F[F.length-1].date)}.` : "Import or add some flights first.";
+  $("#prMsg").textContent = "";
 }
-$("#fmtCards").addEventListener("click", e => { const c = e.target.closest(".fmt"); if (!c) return; e.preventDefault(); prFmt = c.dataset.f; renderPrint(); });
+const prRange = () => $('[name="prRange"]:checked').value;
+$("#prFmtSel").addEventListener("change", e => prFmt = e.target.value);
+$("#prRange").addEventListener("change", renderPrint);
 
 const dec = m => m ? (m/60).toFixed(1) : "";
 const hm = m => m ? fmtMin(m) : "";
@@ -1396,7 +1518,7 @@ const licType = t => String(t || "").replace(/\((\w)\)/, " $1").trim().toUpperCa
 // 1234:05 -> "1,234:05"; 0 -> ""
 const lbTime = m => { m = Math.round(m || 0); if (!m) return ""; const h = Math.floor(m/60); return h.toLocaleString("en-US") + ":" + String(m % 60).padStart(2, "0"); };
 
-async function makeEasaPdf(F, bf, rowsPerPage, crew){
+async function makeEasaPdf(F, bf, rowsPerPage, crew, before = [], pageOffset = 0){
   const { PDFDocument, rgb } = PDFLib;
   const W = 841.8898, H = 595.2756;
   const doc = await PDFDocument.create();
@@ -1476,8 +1598,8 @@ async function makeEasaPdf(F, bf, rowsPerPage, crew){
   const fmtN = (kind, v) => kind === "c" ? (v ? String(v) : "") : lbTime(v);
   const TOP = 78, BOT = 438, rh = (BOT - TOP) / rowsPerPage;
   const pages = Math.max(1, Math.ceil(F.length / rowsPerPage));
-  const totalPages = pre.length + pages;
-  const prev = NUM.map(() => 0); prev[3] = bf || 0;
+  const totalPages = pre.length + pageOffset + pages;
+  const prev = NUM.map(([, fn]) => before.reduce((s, f) => s + (+fn(f) || 0), 0)); prev[3] += bf || 0;
   const tick = (pg, x0, x1, top, bot) => { const cx = (x0 + x1)/2, cy = Y((top + bot)/2); pg.drawSvgPath("M0 2.2 L1.8 4.2 L5 -0.6", { x: cx - 2.5, y: cy + 1.8, borderColor: black, borderWidth: 0.6 }); };
 
   for (let p = 0; p < pages; p++) {
@@ -1538,22 +1660,29 @@ async function makeEasaPdf(F, bf, rowsPerPage, crew){
     center(pg, P.name || "", X[22], R, 494.59, 6, bold);
     // footer
     put(pg, "CrewBase Log - For pilots", 20, H - 21.76, 6);
-    const pn = `Page ${pre.length + p + 1} of ${totalPages}`;
+    const pn = `Page ${pre.length + pageOffset + p + 1} of ${totalPages}`;
     put(pg, pn, R - width(pn, font, 6), H - 21.76, 6);
     tot.forEach((v, k) => prev[k] = v);
   }
   return doc.save();
 }
 
+/* which flights go in the PDF; earlier flights are carried into "total from previous pages" */
+function pdfSelection(rows){
+  const all = data.flights, range = prRange();
+  if (range === "last10") { const first = Math.max(0, Math.ceil(all.length / rows) - 10); return { F: all.slice(first * rows), before: all.slice(0, first * rows), pageOffset: first }; }
+  if (range === "dates") { const from = $("#prFrom").value || "0000", to = $("#prTo").value || "9999"; return { F: all.filter(f => f.date >= from && f.date <= to), before: all.filter(f => f.date < from), pageOffset: 0 }; }
+  return { F: all, before: [], pageOffset: 0 };
+}
 async function makePdf(){
-  const crew = $("#prCrew").value, rows = +$("#prRows").value, from = $("#prFrom").value || "0000", to = $("#prTo").value || "9999";
-  const F = data.flights.filter(f => f.date >= from && f.date <= to);
-  if (!F.length) throw new Error("No flights in that date range.");
+  const crew = $("#prCrew").value, rows = +$("#prRows").value;
+  const { F, before, pageOffset } = pdfSelection(rows);
+  if (!F.length) throw new Error(data.flights.length ? "No flights in that date range." : "Import or add some flights first.");
   const bf = parseHM($("#prBF").value); if (isNaN(bf)) throw new Error("Brought-forward total should look like 3250:15.");
   if (!window.PDFLib) await loadScript("https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js");
   const { PDFDocument, StandardFonts, rgb } = PDFLib;
   const isFAA = prFmt === "FAA";
-  if (!isFAA) return makeEasaPdf(F, bf, rows, crew);
+  if (!isFAA) return makeEasaPdf(F, bf, rows, crew, before, pageOffset);
   const cols = isFAA ? faaColumns(crew) : easaColumns(crew);
   const paper = $("#prPaper").value === "auto" ? (isFAA ? "LETTER" : "A4") : $("#prPaper").value;
   const [W,H] = paper === "A4" ? [841.89, 595.28] : [792, 612];
@@ -1595,9 +1724,9 @@ async function makePdf(){
   const topY = H - M - 26, hdrH = 34, footH = 58, totRows = 3, totH = 12;
   const rh = Math.min(24, (topY - hdrH - totRows*totH - footH - 14) / rows);
   const pages = Math.ceil(F.length / rows);
-  const prev = cols.map(c => c.n ? 0 : null);
+  const prev = cols.map(c => c.n ? before.reduce((s, f) => s + (+c.n(f) || 0), 0) : null);
   const bfIdx = cols.findIndex(c => /TOTAL\n(TIME OF\nFLIGHT|DURATION)/.test(c.h));
-  if (bf && bfIdx >= 0) prev[bfIdx] = bf;
+  if (bf && bfIdx >= 0) prev[bfIdx] += bf;
 
   for (let p = 0; p < pages; p++) {
     const pg = doc.addPage([W,H]), chunk = F.slice(p*rows, (p+1)*rows);
@@ -1680,8 +1809,8 @@ $("#btnMakePdf").addEventListener("click", async () => {
     if (pdfUrl) URL.revokeObjectURL(pdfUrl);
     pdfUrl = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
     $("#pdfFrame").src = pdfUrl; $("#pdfCard").classList.remove("hidden");
-    const a = $("#pdfDl"); a.href = pdfUrl; a.download = `logbook-${prFmt.toLowerCase()}-${todayISO()}.pdf`; a.classList.remove("hidden");
-    $("#prMsg").textContent = `Done: ${Math.round(bytes.length/1024)} KB.`;
+    const a = document.createElement("a"); a.href = pdfUrl; a.download = `crewbaselog-logbook-${prFmt.toLowerCase()}-${todayISO()}.pdf`; a.click();
+    $("#prMsg").textContent = `Downloaded (${Math.round(bytes.length/1024)} KB). Preview below.`;
   } catch (x) { console.error(x); $("#prMsg").textContent = x.message || "Couldn't build the PDF."; $("#prMsg").style.color = "var(--bad)"; }
   btn.disabled = false;
 });
