@@ -270,7 +270,7 @@ td.r,th.r{text-align:right}
       <h2>Import flights</h2>
       <p class="lead">Files are read inside your browser. Nothing is uploaded to our servers.</p>
       <div class="grid3" style="margin-bottom:18px">
-        <div class="opt"><span class="tag">Supported</span><h4>AIMS / eCrew export</h4><p>The CSV of flown sectors from your airline's crew system. Columns are recognised automatically.</p></div>
+        <div class="opt"><span class="tag">Supported</span><h4>eCrew / AIMS export</h4><p>The Pilot LogBook report from your airline's crew system, saved as CSV or Excel. Columns are recognised automatically. <a href="#ecrewHelp">How to get it</a></p></div>
         <div class="opt"><span class="tag">Supported</span><h4>Another logbook or spreadsheet</h4><p>CSV or Excel exported from another app or your own sheet. Match the columns once and we remember them.</p></div>
         <div class="opt"><span class="tag" style="color:var(--muted)">Coming later</span><h4>Paper or PDF logbook</h4><p>Enter your brought-forward totals for now. Scanning old pages is on the roadmap.</p></div>
       </div>
@@ -280,6 +280,18 @@ td.r,th.r{text-align:right}
         <div class="row-actions" style="margin-top:12px;justify-content:center"><a href="#" id="dlSample" class="hint">Download a sample CSV to try</a></div>
         <p class="err" id="impErr"></p>
       </div>
+      <details class="card" id="ecrewHelp">
+        <summary style="cursor:pointer;font-weight:600;font-size:16px">How to get your file from eCrew</summary>
+        <ol style="margin:16px 0 0;padding-left:20px;line-height:1.8">
+          <li>Log in to your airline's <b>eCrew</b> portal.</li>
+          <li>In the left menu open <b>Reports</b> → <b>Pilot LogBook report</b>.</li>
+          <li>Set the <b>Period</b> (for example 01/09/2026 – 30/09/2026, or a whole year) and press <b>Go</b>.</li>
+          <li>When the report appears, click the <b>Export</b> button in the report toolbar (the save icon with a small ▾ arrow, next to the print icons).</li>
+          <li>Choose <b>CSV</b>. If CSV isn't listed, choose <b>Excel (XLSX)</b>; both work.</li>
+          <li>Save the file, then drop it in the box above.</li>
+        </ol>
+        <p class="hint" style="margin:14px 0 0">Tips: export month by month or a full year at a time. Flights you've already imported are skipped automatically, so overlapping periods are fine. The heading, crew line and "Totals" row in the file are ignored. Only actual flights are imported. Simulator sessions from the "Synth. devices" columns aren't imported yet.</p>
+      </details>
       <div class="card hidden" id="mapCard">
         <h3>Match your columns</h3>
         <p class="hint" style="margin:0 0 16px" id="mapInfo"></p>
@@ -712,12 +724,34 @@ async function readFile(f){
 }
 // find header row: first row (in first 15) with >= 3 recognisable column names
 function findHeader(rows){
-  const known = new Set(FIELDS.flatMap(f => f[2]));
+  const known = new Set([...FIELDS.flatMap(f => f[2]), ...ECREW_WORDS]);
   let best = 0, bestScore = -1;
   rows.slice(0,15).forEach((r,i) => { const s = r.filter(c => known.has(norm(c))).length; if (s > bestScore) { best = i; bestScore = s; } });
   return best;
 }
 const norm = s => String(s||"").toLowerCase().replace(/[_\.]/g," ").replace(/\s+/g," ").trim();
+/* eCrew "Pilot LogBook report" layout:
+   Date | DEPARTURE Airport, Time | ARRIVAL Airport, Time | AIRCRAFT Type, Reg. | Flt time | Name PIC |
+   TOFF Day, Night | LND Day, Night | OPERATED AS PIC, Co-Plt, Instr | SYNTH. DEVICES Time, Type */
+const ECREW_WORDS = ["airport","time","flt time","name pic","co-plt","instr","day","night","reg","type","pic"];
+function ecrewMap(headers){
+  const h = headers.map(norm), all = w => h.reduce((a,x,i) => (x === w ? a.concat(i) : a), []);
+  const airports = all("airport");
+  if (airports.length < 2 || h.indexOf("flt time") < 0) return null;
+  const after = (w, from) => h.findIndex((x,i) => i > from && x === w);
+  const days = all("day"), nights = all("night");
+  const m = {
+    date: h.indexOf("date"), from: airports[0], out: after("time", airports[0]),
+    to: airports[1], in: after("time", airports[1]),
+    acType: after("type", airports[1]), reg: h.findIndex(x => x === "reg" || x === "reg "),
+    total: h.indexOf("flt time"), picName: h.indexOf("name pic"),
+    ldgDay: days[1] ?? -1, ldgNight: nights[1] ?? -1,
+    pic: h.indexOf("pic"), copilot: h.findIndex(x => x === "co-plt" || x === "co plt" || x === "co-pilot"), instructor: h.indexOf("instr")
+  };
+  // takeoffs: first day/night pair (kept for remarks-free recency in future)
+  for (const k in m) if (m[k] < 0) delete m[k];
+  return m;
+}
 function guessMap(headers){
   const map = {}, used = new Set();
   for (const [k,, syn] of FIELDS) {
@@ -783,13 +817,14 @@ async function handleFile(f){
   const h = findHeader(rows), headers = rows[h].map(c => String(c).trim()), body = rows.slice(h+1);
   const sig = headers.map(norm).join("|");
   const saved = data.templates[sig];
-  imp = { headers, rows: body, map: saved ? { ...saved } : guessMap(headers), sig, name: f.name, fromTemplate: !!saved };
+  const ec = saved ? null : ecrewMap(headers);
+  imp = { headers, rows: body, map: saved ? { ...saved } : (ec || guessMap(headers)), sig, name: f.name, fromTemplate: !!saved, ecrew: !!ec };
   renderMapping();
 }
 function renderMapping(){
   $("#mapCard").classList.remove("hidden");
   $("#mapInfo").innerHTML = `<b>${esc(imp.name)}</b>: ${imp.rows.length.toLocaleString()} rows, ${imp.headers.length} columns. ` +
-    (imp.fromTemplate ? "We've seen this layout before and used your saved matching." : "We've guessed the matches. Check them, then import. Your choices are remembered for next time.");
+    (imp.fromTemplate ? "We've seen this layout before and used your saved matching." : imp.ecrew ? "Recognised as an eCrew Pilot LogBook report. Check the preview, then import." : "We've guessed the matches. Check them, then import. Your choices are remembered for next time.");
   const opts = '<option value="">— not in file —</option>' + imp.headers.map((h,i) => `<option value="${i}">${esc(h || "Column " + (i+1))}</option>`).join("");
   $("#mapGrid").innerHTML = FIELDS.map(([k,label]) => `<div><label for="m_${k}">${label}</label><select id="m_${k}" data-k="${k}">${opts}</select></div>`).join("");
   FIELDS.forEach(([k]) => $("#m_"+k).value = imp.map[k] ?? "");
@@ -1126,7 +1161,7 @@ $("#btnSample").addEventListener("click", e => {
   $("#demoBanner").classList.toggle("hidden", Auth.live);
   try { await Auth.init(); } catch (x) { console.error(x); }
   Auth.onChange(u => { user = u; if (u) enterApp(); else { setMode("login"); show("#vAuth"); } });
-  user = await Auth.current();
+  try { user = await Auth.current(); } catch (x) { user = null; $("#authErr").textContent = "Couldn't reach the sign-in service. Check your connection and reload."; }
   if (user) enterApp(); else { setMode("login"); show("#vAuth"); }
 })();
 </script>
