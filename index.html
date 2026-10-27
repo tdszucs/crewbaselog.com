@@ -25,7 +25,7 @@ a{color:inherit}
 .wrap{max-width:1080px;margin:0 auto;padding:0 20px}
 header{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--bg) 85%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
 .nav{display:flex;align-items:center;justify-content:space-between;height:64px}
-.logo{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:-.01em;text-decoration:none}
+.logo{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:-.01em;text-decoration:none;white-space:nowrap}
 .logo svg{width:30px;height:30px}
 .nav a.btn{font-size:14px}
 .btn{display:inline-block;padding:11px 20px;border-radius:10px;background:var(--brand);color:var(--bg);font-weight:600;text-decoration:none;transition:transform .15s}
@@ -70,6 +70,7 @@ footer .wrap{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
   .grid,.steps{grid-template-columns:1fr}
   section{padding:48px 0}
 }
+@media (max-width:560px){ .nav-cta{display:none} }
 @media (max-width:420px){ .wrap{padding:0 16px} td:nth-child(3),th:nth-child(3){display:none} }
 </style>
 </head>
@@ -80,7 +81,7 @@ footer .wrap{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
       <svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="#0b3d5c"/><path d="M12 38l40-14-10 22-8-6-6 8v-10z" fill="#f2b544"/></svg>
       CrewBase Log
     </a>
-    <a class="btn" href="#access">Get early access</a>
+    <div style="display:flex;gap:8px"><a class="btn ghost" href="/app/">Log in</a><a class="btn nav-cta" href="#access">Get early access</a></div>
   </div>
 </header>
 
