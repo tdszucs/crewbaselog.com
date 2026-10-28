@@ -403,9 +403,10 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
 
       <div class="card">
         <h3><span class="stepn">1</span>Import your past logbook</h3>
-        <p class="hint" style="margin:0 0 14px;font-size:14px">Most pilots start with a logbook from before. Upload the CrewBase Log CSV you downloaded last time, an export from another logbook app or your own spreadsheet (CSV or Excel), or a PDF logbook in the EASA layout made by a logbook app. Scanned paper pages can't be read; enter their totals under previous experience instead.</p>
+        <p class="hint" style="margin:0 0 14px;font-size:14px">Most pilots start with a logbook from before. Upload the CrewBase Log CSV you downloaded last time, an export from another logbook app or your own spreadsheet (CSV or Excel), or a PDF logbook in the EASA or JAR layout made by a logbook app. Scanned paper pages can't be read; enter their totals under previous experience instead.</p>
+        <p class="hint" style="margin:-6px 0 14px;font-size:13.5px">Read automatically: <b>Flylog</b> CSV and EASA / JAR PDF, <b>CrewLounge PILOTLOG</b> (mccPILOTLOG) CSV and logbook PDF, <b>Safelog</b> CSV, <b>eCrew</b> Pilot LogBook report (CSV, Excel, PDF). Any other CSV or Excel file: you match the columns once.</p>
         <div class="drop" id="drop"><b>Drop your past logbook here</b><br><span class="hint">or click to choose files · .csv, .xlsx, .pdf</span>
-          <input type="file" id="impFile" accept=".csv,.txt,.tsv,.xlsx,.xls,.pdf" multiple class="hidden"></div>
+          <input type="file" id="impFile" accept=".csv,.txt,.tsv,.xlsx,.xls,.pdf,.json,.zip" multiple class="hidden"></div>
         <div class="row-actions" style="margin-top:12px;justify-content:space-between"><label style="display:flex;gap:8px;align-items:center;font-weight:400;margin:0;font-size:14px"><input type="checkbox" id="impManual" style="width:auto"> Let me match the columns myself (if a file was read wrongly)</label><a href="#" id="dlSample" class="hint">Download a sample CSV to try</a></div>
         <details id="prevBox" style="margin-top:14px"><summary style="cursor:pointer;font-size:15px;font-weight:600">Previous experience (brought forward)</summary>
           <p class="hint" style="margin:10px 0 14px;font-size:14px">Hours from logbooks you don't import flight by flight, such as an old paper logbook: copy the totals from its last page. They are added to your statistics and carried into "total from previous pages" on page 1 of your PDF logbook. Times as H:MM. <span id="prevNote"></span></p>
@@ -1122,7 +1123,14 @@ async function readFile(f){
     const wb = XLSX.read(buf, { type: "array", cellDates: false, raw: false });
     return XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false, defval: "" }).filter(r => r.some(c => String(c).trim() !== ""));
   }
-  return parseCSV(new TextDecoder().decode(buf));
+  return parseCSV(decodeText(buf));
+}
+// UTF-8, or the Windows encoding older logbook apps write (CrewLounge PILOTLOG); a whole CSV saved as one JSON string is unwrapped
+function decodeText(buf){
+  let t; try { t = new TextDecoder("utf-8", { fatal: true }).decode(buf); } catch { t = new TextDecoder("windows-1252").decode(buf); }
+  t = t.replace(/^\ufeff/, "");
+  if (/^\s*"/.test(t) && /"\s*$/.test(t) && t.includes("\\n")) { try { const u = JSON.parse(t.trim()); if (typeof u === "string") t = u; } catch {} }
+  return t;
 }
 // find header row: first row (in first 15) with >= 3 recognisable column names
 function findHeader(rows){
@@ -1196,6 +1204,68 @@ function safelogFlights(headers, rows){
   }
   return { flights, classes };
 }
+/* Logbook app CSV exports, read column by column by name. -> { flights, classes, prev?, note? } or null */
+const appCols = headers => { const at = {}; headers.forEach((h, i) => at[String(h).trim().toLowerCase()] = i); return at; };
+const emptyFlight = () => ({ date: "", flightNo: "", from: "", to: "", out: "", off: "", on: "", in: "", acType: "", reg: "", picName: "", total: 0, pic: 0, copilot: 0, dual: 0, instructor: 0, night: 0, ifr: 0, ldgDay: 0, ldgNight: 0, remarks: "" });
+// Flylog (flylog.io): DATE, DEPARTURE_AIRPORT ... DURATION_BLOCK, DURATION_PIC, DURATION_PICUS, DURATION_SIC ... DURATION_SIMULATOR
+function flylogFlights(headers, rows){
+  const at = appCols(headers); if (at.duration_block === undefined || at.departure_airport === undefined || at.date === undefined) return null;
+  const flights = [], classes = {};
+  for (const r of rows) {
+    const g = k => at[k] === undefined ? "" : String(r[at[k]] ?? "").trim(), d = k => parseDur(g(k)), date = parseDate(g("date"), "YMD");
+    if (!date) continue;
+    const type = g("aircraft_type").toUpperCase(), sim = d("duration_simulator"), total = d("duration_block") || d("duration_flight");
+    if (sim && !total) {
+      flights.push({ ...emptyFlight(), date, fstdTime: sim, fstdType: (g("simulator_type") || [type === "SIM" ? "" : acTypeName(type), g("aircraft_registration")].filter(Boolean).join(" ")).toUpperCase(),
+        remarks: [g("remarks_and_endorsements") || g("remarks"), g("personal_note")].filter(Boolean).join(" · ") }); continue;
+    }
+    const picus = d("duration_picus"), f = { ...emptyFlight(), date, flightNo: g("flight_number").toUpperCase(), from: g("departure_airport").toUpperCase(), to: g("arrival_airport").toUpperCase(),
+      out: parseTime(g("time_block_start")), off: parseTime(g("time_takeoff") || g("time_departure")), on: parseTime(g("time_landing") || g("time_arrival")), in: parseTime(g("time_block_end")),
+      acType: acTypeName(type), reg: g("aircraft_registration").toUpperCase(), picName: g("name_pic"), total, pic: d("duration_pic") + picus, copilot: d("duration_sic"), dual: d("duration_dual"),
+      instructor: d("duration_instructor"), night: d("duration_night"), ifr: d("duration_ifr"), ldgDay: parseInt(g("ldgs_day")) || 0, ldgNight: parseInt(g("ldgs_night")) || 0,
+      remarks: [picus ? "PIC(US)" : "", g("remarks_and_endorsements") || g("remarks")].filter(Boolean).join(" ") };
+    if (/^self$/i.test(f.picName)) f.picName = "SELF";
+    if (f.total && f.acType && d("duration_multi_pilot")) classes[f.acType] ||= "MP";
+    flights.push(f);
+  }
+  return { flights, classes };
+}
+// CrewLounge PILOTLOG / mccPILOTLOG CSV: PILOTLOG_DATE, AF_DEP, AF_ARR, TIME_TOTAL ... (minutes in the classic export, HH:MM in the newer one)
+function crewloungeFlights(headers, rows){
+  const at = appCols(headers); if (at.pilotlog_date === undefined || at.time_total === undefined || at.af_dep === undefined) return null;
+  const flights = [], classes = {}, yes = v => /^(true|1|yes|sim)$/i.test(v);
+  let prev = null, note = "";
+  for (const r of rows) {
+    const g = k => at[k] === undefined ? "" : String(r[at[k]] ?? "").trim();
+    const d = k => { const v = g(k); return /^\d+$/.test(v) ? +v : parseDur(v); };   // plain numbers are minutes
+    const ds = g("pilotlog_date"), date = parseDate(ds, ds.includes("/") ? "MDY" : "YMD"); if (!date) continue;
+    const model = [g("ac_model"), g("ac_variant")].filter(Boolean).join("-"), type = acTypeName(model), total = d("time_total");
+    const picus = d("time_picus"), ldg = (parseInt(g("ldg_day")) || 0) + (parseInt(g("ldg_night")) || 0);
+    // previous experience: a line marked as such, or (newer export) the first line holding hundreds of landings
+    if (yes(g("is_prevexp")) || (at.is_prevexp === undefined && ldg > 50)) {
+      if (at.is_prevexp === undefined) { note = "This CrewLounge export writes times over 24 hours wrongly (55:00 comes out as 07:00), so its previous-experience line was left out: enter those totals under Previous experience, or import the classic PILOTLOG CSV export instead."; continue; }
+      const sp = yes(g("ac_spse")) ? "se" : yes(g("ac_mp")) ? "mp" : "me";
+      prev = { total, pic: d("time_pic") + picus, copilot: d("time_sic"), dual: d("time_dual"), instructor: d("time_instructor"), night: d("time_night"), ifr: d("time_ifr"),
+        ldgDay: parseInt(g("ldg_day")) || 0, ldgNight: parseInt(g("ldg_night")) || 0, fstd: d("time_totalsim"), se: 0, me: 0, mp: 0, [sp]: total };
+      continue;
+    }
+    const remarks = [picus ? "PIC(US)" : "", g("remarks"), g("instruction/training") || g("training")].filter(Boolean).join(" ").replace(/#\w+=\S*/g, "").trim();
+    // a simulator session without its aircraft (the newer export leaves some out): no aircraft, no registration, same airport
+    if (yes(g("ac_issim")) || (!model && !g("ac_reg") && g("af_dep") && g("af_dep") === g("af_arr") && total >= 60)) {
+      flights.push({ ...emptyFlight(), date, fstdTime: d("time_totalsim") || total, fstdType: [type, g("ac_reg")].filter(Boolean).join(" ").toUpperCase(), remarks }); continue;
+    }
+    const t0 = k => { const v = parseTime(g(k)); return v === "00:00" && !d("time_total") ? "" : v; };
+    const f = { ...emptyFlight(), date, flightNo: g("flightnumber").replace(/^0$/, "").toUpperCase(), from: g("af_dep").toUpperCase(), to: g("af_arr").toUpperCase(),
+      out: parseTime(g("time_dep")), in: parseTime(g("time_arr")), off: g("time_to") && g("time_to") !== "00:00" && g("time_to") !== "0" ? t0("time_to") : "", on: g("time_ldg") && g("time_ldg") !== "00:00" && g("time_ldg") !== "0" ? t0("time_ldg") : "",
+      acType: type, reg: g("ac_reg").toUpperCase(), picName: g("pilot1_name"), total, pic: d("time_pic") + picus, copilot: d("time_sic"), dual: d("time_dual"), instructor: d("time_instructor"),
+      night: d("time_night"), ifr: d("time_ifr"), ldgDay: parseInt(g("ldg_day")) || 0, ldgNight: parseInt(g("ldg_night")) || 0, remarks };
+    if (/^self$/i.test(f.picName)) f.picName = "SELF";
+    if (f.total && f.acType && at.ac_mp !== undefined) classes[f.acType] ||= yes(g("ac_mp")) ? "MP" : yes(g("ac_spse")) ? "SPSE" : yes(g("ac_spme")) ? "SPME" : "";
+    if (!classes[f.acType]) delete classes[f.acType];
+    flights.push(f);
+  }
+  return { flights, classes, prev, note };
+}
 function guessMap(headers){
   const map = {}, used = new Set();
   for (const [k,, syn] of MAP_FIELDS) {
@@ -1237,7 +1307,12 @@ function parseDur(s){
 const IATA_AC = {"781":"B787-10","788":"B787-8","789":"B787-9","77W":"B777-300ER","773":"B777-300","772":"B777-200","77L":"B777-200LR","779":"B777-9",
   "744":"B747-400","74N":"B747-8F","359":"A350-900","351":"A350-1000","332":"A330-200","333":"A330-300","339":"A330-900","338":"A330-800",
   "319":"A319","320":"A320","321":"A321","32N":"A320neo","32Q":"A321neo","388":"A380-800","380":"A380"};
-const acTypeName = s => { s = String(s||"").trim().toUpperCase(); return IATA_AC[s] || s; };
+// ICAO type designators used by logbook apps (Flylog: B789, B77W, A332 ...)
+const ICAO_AC = { B788: "B787-8", B789: "B787-9", B78X: "B787-10", B77W: "B777-300ER", B77L: "B777-200LR", B772: "B777-200", B773: "B777-300", B778: "B777-8", B779: "B777-9",
+  B744: "B747-400", B748: "B747-8", B763: "B767-300", B752: "B757-200", B737: "B737-700", B738: "B737-800", B739: "B737-900", B38M: "B737 MAX 8", B39M: "B737 MAX 9",
+  A332: "A330-200", A333: "A330-300", A338: "A330-800", A339: "A330-900", A342: "A340-200", A343: "A340-300", A345: "A340-500", A346: "A340-600",
+  A359: "A350-900", A35K: "A350-1000", A388: "A380-800", A19N: "A319neo", A20N: "A320neo", A21N: "A321neo" };
+const acTypeName = s => { s = String(s||"").trim().toUpperCase(); return IATA_AC[s] || ICAO_AC[s] || s; };
 const tdiff = (a,b) => { if (!a||!b) return 0; const [h1,m1]=a.split(":").map(Number),[h2,m2]=b.split(":").map(Number); let d=(h2*60+m2)-(h1*60+m1); if (d<0) d+=1440; return d; };
 function rowToFlight(r, map, fmt){
   const g = k => map[k] !== undefined && map[k] !== "" ? String(r[map[k]] ?? "").trim() : "";
@@ -1309,10 +1384,13 @@ function autoFill(f){
 }
 const valid = f => f.date && (f.from || f.to || f.total || f.fstdTime);
 const aptKey = c => (AIRPORTS && AIRPORTS[c] ? AIRPORTS[c].join(",") : c);   // AUH and OMAA: same position, same airport
-// one flight logged twice with different times: same day and route, and the same flight number, or (without numbers) off-blocks within 90 minutes
+// one flight logged twice with different times (planned and actual, or corrected): same day and route, and the same flight
+// number, or (without numbers) block times that overlap. Back-to-back sorties (circuits, a shuttle) never overlap.
 const hm2m = t => { const [h, m] = String(t).split(":").map(Number); return h * 60 + m; };
+const fltNo = n => n.replace(/^([A-Z]{2,3})0+/, "$1");
 const sameFlight = (a, b) => !isSim(a) && !isSim(b) && a.date === b.date && aptKey(a.from) === aptKey(b.from) && aptKey(a.to) === aptKey(b.to) &&
-  (a.flightNo && b.flightNo ? a.flightNo.replace(/^([A-Z]{2,3})0+/, "$1") === b.flightNo.replace(/^([A-Z]{2,3})0+/, "$1") : !!(a.out && b.out) && Math.abs(hm2m(a.out) - hm2m(b.out)) <= 90);
+  (a.flightNo && b.flightNo ? fltNo(a.flightNo) === fltNo(b.flightNo) :
+    !!(a.out && b.out) && Math.abs(hm2m(a.out) - hm2m(b.out)) < Math.min(a.total || 90, b.total || 90, 90));
 const dupKey = f => [f.date, aptKey(f.from), aptKey(f.to), f.out || f.flightNo, f.fstdTime || ""].join("|");
 
 /* A past logbook printed in the EASA (FCL.050) layout, as a PDF with text (not a scan): each spread is a left page
@@ -1320,6 +1398,74 @@ const dupKey = f => [f.date, aptKey(f.from), aptKey(f.to), f.out || f.flightNo, 
    pilot function times, FSTD session, remarks), lines matched by height. Columns are found from the printed headings;
    times may be printed as "3 21", "58" (minutes) or "3:21". -> { flights, prev, check } or null */
 const EASA_PREV = ["se","me","mp","total","ldgDay","ldgNight","night","ifr","pic","copilot","dual","instructor","fstd"];
+/* EASA / JAR logbook printed with the whole line on one page (Flylog): the bottom heading line
+   (PLACE TIME PLACE TIME TYPE REG SE ME [take-offs] landings NIGHT IFR PIC COP DUAL INSTR TYPE TIME) and the
+   DATE, MULTI PILOT, TOTAL, PIC NAME and REMARKS headings above it place the columns; names may wrap onto a
+   second line, so every word goes to the nearest dated line. Pages: [{ W: words { s, x, w, c, y top-down } }] */
+function parseOnePageLogbook(pages){
+  const out = { flights: [], prev: null, check: null, classes: {} }, num = s => /^[\d,]+(:\d{2})?$/.test(s);
+  const dur = s => { s = String(s || "").replace(/,/g, ""); const m = s.match(/^(\d+):(\d{2})$/); return m ? +m[1] * 60 + +m[2] : 0; };
+  const isDate = s => /^\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}$/.test(s);
+  pages.forEach((pg, n) => {
+    const W = pg.W, base = W.filter(w => w.s === "PLACE").sort((a, b) => a.x - b.x)[0], hy = base.y;
+    const line = W.filter(w => Math.abs(w.y - hy) < 2).sort((a, b) => a.x - b.x), C = [];
+    // the bottom heading words in order; with TAKE-OFFS printed, the first DAY / NIGHT pair is take-offs
+    const takeoffs = W.some(w => /^TAKE-?OFFS$/.test(w.s)), seq = [], ldg = [];
+    let places = 0, times = 0, types = 0, dn = 0;
+    for (const w of line) {
+      const k = w.s === "PLACE" ? (places++ ? "to" : "from") : w.s === "TIME" ? ["out", "in", "fstdTime"][times++] : w.s === "TYPE" ? (types++ ? "fstdType" : "acType") :
+        w.s === "REG" ? "reg" : w.s === "SE" ? "se" : w.s === "ME" ? "me" : /^(DAY|NIGHT|NGT)$/.test(w.s) && dn < (takeoffs ? 4 : 2) ? ["d", "n", "d", "n"][dn++] :
+        w.s === "NIGHT" ? "night" : w.s === "IFR" ? "ifr" : w.s === "PIC" ? "pic" : w.s === "COP" ? "copilot" : w.s === "DUAL" ? "dual" : w.s === "INSTR" ? "instructor" : "";
+      if (k === "d" || k === "n") { if (!takeoffs || dn > 2) C.push({ k: k === "d" ? "ldgDay" : "ldgNight", c: w.c }); else C.push({ k: "", c: w.c }); }
+      else if (k) C.push({ k, c: w.c });
+    }
+    const above = (s, nx) => W.filter(w => w.s === s && w.y < hy && hy - w.y < 30 && (!nx || W.some(v => v.s === nx && Math.abs(v.y - w.y) < 2 && v.x > w.x && v.x - w.x < 40)));
+    const date = above("DATE")[0], multi = above("MULTI")[0], total = above("TOTAL")[0], pn = above("PIC", "NAME")[0], rem = above("REMARKS")[0];
+    if (date) C.push({ k: "date", c: date.c }); if (multi) C.push({ k: "mp", c: multi.c }); if (total) C.push({ k: "total", c: total.c });
+    if (pn) { const nm = W.find(v => v.s === "NAME" && Math.abs(v.y - pn.y) < 2 && v.x > pn.x); C.push({ k: "picName", c: (pn.x + nm.x + nm.w) / 2 }); }
+    const ft = C.find(c => c.k === "fstdTime"), remX = rem ? Math.min(rem.x, (ft ? ft.c : rem.x) + 12) : 1e9;
+    const col = w => w.x >= remX ? "remarks" : C.reduce((b, c) => Math.abs(c.c - w.c) < Math.abs(b.c - w.c) ? c : b).k;
+    // lines end at the page totals
+    const tot = W.filter(w => w.s === "TOTAL" && w.y > hy).sort((a, b) => a.y - b.y), stop = tot.length ? tot[0].y - 6 : 1e9;
+    const anchors = W.filter(w => w.y > hy + 4 && w.y < stop && isDate(w.s) && col(w) === "date").sort((a, b) => a.y - b.y), rows = anchors.map(a => ({ y: a.y, c: {} }));
+    for (const w of W) {
+      if (w.y <= hy + 4 || w.y >= stop || !rows.length) continue;
+      const r = rows.reduce((b, r) => Math.abs(r.y - w.y) < Math.abs(b.y - w.y) ? r : b); if (Math.abs(r.y - w.y) > 11) continue;
+      const k = col(w); if (k) (r.c[k] ||= []).push(w);
+    }
+    const txt = ws => (ws || []).sort((a, b) => a.y - b.y > 2 ? 1 : b.y - a.y > 2 ? -1 : a.x - b.x).map(w => w.s).join(" ").trim();
+    const t = (r, k) => dur((r.c[k] || []).map(w => w.s).find(num)), cnt = (r, k) => (r.c[k] || []).filter(w => /^\d+$/.test(w.s)).reduce((s, w) => s + +w.s, 0);
+    for (const r of rows) {
+      const dm = txt(r.c.date).match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})$/); if (!dm) continue;
+      const day = iso(+dm[3], +dm[2], +dm[1]), fst = t(r, "fstdTime"), tot2 = t(r, "total");
+      // a simulator line's IFR time and landings are not flight time: counted apart, so the check can leave them out
+      if (fst && !tot2) { out.simIfr = (out.simIfr || 0) + t(r, "ifr"); out.simLdg = (out.simLdg || 0) + cnt(r, "ldgDay") + cnt(r, "ldgNight"); out.simLdgDay = (out.simLdgDay || 0) + cnt(r, "ldgDay"); out.simLdgNight = (out.simLdgNight || 0) + cnt(r, "ldgNight");
+        out.flights.push({ date: day, flightNo: "", from: "", to: "", out: "", off: "", on: "", in: "", acType: "", reg: "", picName: "", total: 0, pic: 0, copilot: 0, dual: 0, instructor: 0,
+        night: 0, ifr: 0, ldgDay: 0, ldgNight: 0, fstdTime: fst, fstdType: txt(r.c.fstdType).toUpperCase(), remarks: txt(r.c.remarks) }); continue; }
+      const clock = k => (r.c[k] || []).map(w => w.s).find(s => /^\d{1,2}:\d{2}$/.test(s)) || "";
+      const f = { date: day, flightNo: "", from: txt(r.c.from).toUpperCase(), to: txt(r.c.to).toUpperCase(), out: clock("out").padStart(5, "0"), off: "", on: "", in: clock("in").padStart(5, "0"),
+        acType: acTypeName(txt(r.c.acType)), reg: txt(r.c.reg).toUpperCase(), picName: txt(r.c.picName), total: tot2, pic: t(r, "pic"), copilot: t(r, "copilot"), dual: t(r, "dual"),
+        instructor: t(r, "instructor"), night: t(r, "night"), ifr: t(r, "ifr"), ldgDay: cnt(r, "ldgDay"), ldgNight: cnt(r, "ldgNight"), remarks: txt(r.c.remarks) };
+      if (f.out === "00000") f.out = ""; if (f.in === "00000") f.in = "";
+      if (/^self$/i.test(f.picName)) f.picName = "SELF";
+      const cls = t(r, "mp") ? "MP" : r.c.me ? "SPME" : r.c.se ? "SPSE" : "";
+      if (cls && f.acType) out.classes[f.acType] ||= cls;
+      if (f.total || f.from) out.flights.push(f);
+    }
+    // the totals at the foot: "TOTAL FROM PREVIOUS PAGES" on the first page, "TOTAL TIME" on the last
+    const totals = label => { const lab = W.find(w => w.s === label && w.y > hy && W.some(v => v.s === "TOTAL" && Math.abs(v.y - w.y) < 2)); if (!lab) return null;
+      const g = {}; for (const w of W.filter(w => Math.abs(w.y - lab.y) < 3 && num(w.s) && w.x > lab.x)) (g[col(w)] ||= []).push(w.s);
+      const T = k => dur((g[k] || [])[0]), N = k => (g[k] || []).reduce((s, v) => s + (+v.replace(/,/g, "") || 0), 0);
+      return { se: T("se"), me: T("me"), mp: T("mp"), total: T("total"), ldgDay: N("ldgDay"), ldgNight: N("ldgNight"), night: T("night"), ifr: T("ifr"), pic: T("pic"), copilot: T("copilot"), dual: T("dual"), instructor: T("instructor"), fstd: T("fstdTime") }; };
+    { const th = totals("THIS"), F2 = out.flights.slice(out._n || 0); out._n = out.flights.length; const ld = F2.reduce((a, f) => a + (f.ldgDay || 0), 0); if (th && th.ldgDay !== ld) (out.dbg ||= []).push([n, th.ldgDay, ld, F2.map(f => f.date + ' ' + f.from + '-' + f.to + ' ' + f.ldgDay + '/' + f.ldgNight).join('; ')]); }
+    if (n === 0) out.prev = totals("PREVIOUS");
+    const last = W.find(w => w.s === "TIME" && W.some(v => v.s === "TOTAL" && Math.abs(v.y - w.y) < 2 && w.x - v.x < 40 && w.x > v.x) && w.y > hy);
+    if (last) out.check = totals("TIME") || out.check;
+  });
+  if (out.prev && !Object.values(out.prev).some(Boolean)) out.prev = null;
+  if (out.check) { out.check.ifr -= out.simIfr || 0; out.check.ldgDay -= out.simLdgDay || 0; out.check.ldgNight -= out.simLdgNight || 0; }
+  return out.flights.length ? out : null;
+}
 async function parseEasaLogbookPDF(buf){
   if (!window.pdfjsLib) { await loadScript(PDFJS + "pdf.min.js"); pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS + "pdf.worker.min.js"; }
   const doc = await pdfjsLib.getDocument({ data: new Uint8Array(buf) }).promise, pages = [];
@@ -1334,6 +1480,9 @@ async function parseEasaLogbookPDF(buf){
     const has = s => W.some(w => w.s === s);
     pages.push({ W, kind: has("DEPARTURE") && has("ARRIVAL") ? "L" : (has("REMARKS") || has("FUNCTION")) && has("NIGHT") ? "R" : "" });
   }
+  // the whole line on one page (Flylog EASA / JAR-FCL PDF): its own reader
+  const one = pages.filter(p => p.kind === "L" && p.W.filter(w => w.s === "PLACE").length >= 2 && p.W.some(w => w.s === "COP") && p.W.some(w => w.s === "INSTR"));
+  if (one.length) return parseOnePageLogbook(one);
   // the printed heading words: centre of a word (or of a word and the next one on its line)
   const head = (W, s, next) => { const a = W.find(w => w.s === s && (!next || W.some(v => v.s === next && Math.abs(v.y - w.y) < 2 && v.x > w.x && v.x - (w.x + w.w) < 8)));
     if (!a) return null; const b = next && W.find(v => v.s === next && Math.abs(v.y - a.y) < 2 && v.x > a.x && v.x - (a.x + a.w) < 8); return { c: b ? (a.x + b.x + b.w) / 2 : a.c, y: a.y, x: a.x, r: b ? b.x + b.w : a.x + a.w }; };
@@ -1437,7 +1586,8 @@ function easaCheck(r){
   }
   const v = (k, m) => k.startsWith("ldg") ? m.toLocaleString() : fmtMin(m);
   const off = EASA_PREV.filter(k => sum[k] !== r.check[k]);
-  return !off.length ? `Checked against the PDF's own totals: every column matches (total time ${v("total", r.check.total)}).`
+  const simNote = r.simIfr || r.simLdg ? ` The PDF also counts ${[r.simIfr ? fmtMin(r.simIfr) + " of simulator IFR time" : "", r.simLdg ? r.simLdg + " simulator landing" + (r.simLdg === 1 ? "" : "s") : ""].filter(Boolean).join(" and ")} in its totals; your logbook keeps those with the simulator sessions, not as flight time.` : "";
+  return !off.length ? `Checked against the PDF's own totals: every column matches (total time ${v("total", r.check.total)}).${simNote}`
     : `<span style="color:var(--bad)">Doesn't match the PDF's own totals in ${off.map(k => `${PREV_LABEL[k]} (read ${v(k, sum[k])}, PDF says ${v(k, r.check[k])})`).join(", ")}.</span> Check those flights on the Logbook tab.`;
 }
 /* A flight list printed as a table in a PDF (eCrew "Pilot LogBook report" PDF): the column headings line
@@ -1518,6 +1668,15 @@ async function handleFile(f){
   $("#impResult").textContent = "";
   if (f.size > 20e6) return "That file is over 20 MB. Try exporting a smaller date range.";
   let rows;
+  const head = new Uint8Array(await f.slice(0, 4).arrayBuffer());
+  if (/\.(zip|mdb|accdb|db|sqlite)$/i.test(f.name) || (head[0] === 0x50 && head[1] === 0x4B && /\.zip$/i.test(f.name)))
+    return "This is an app's database backup (for example an mccPILOTLOG .mdb backup), which can't be read here. In the logbook app, export your flights as CSV (or print the logbook as PDF) and drop that file.";
+  if (/\.json$/i.test(f.name)) {
+    const t = decodeText(await f.arrayBuffer());
+    if (/"table"\s*:\s*"Flight"|\\"table\\"\s*:\s*\\"Flight/.test(t)) return "This is a CrewLounge / mccPILOTLOG database file: it stores airports as internal numbers, so the routes can't be read. In CrewLounge PILOTLOG, export your flights as CSV (or print the logbook as PDF) and drop that file instead.";
+    if (/"app"\s*:\s*"CrewBase Log"/.test(t)) return "This is a CrewBase Log full backup: use Restore backup on the Logbook tab.";
+    return "JSON files can't be imported. Export your logbook as CSV, Excel or PDF and drop that file.";
+  }
   if (new TextDecoder().decode(await f.slice(0, 5).arrayBuffer()) === "%PDF-") {
     // a report printed as a table (eCrew Pilot LogBook report PDF) reads like its CSV; otherwise an EASA logbook PDF
     try { rows = await pdfTableRows(await f.arrayBuffer()); } catch (x) { console.warn(x); rows = null; }
@@ -1531,6 +1690,8 @@ async function handleFile(f){
   // our own CSV (older files have fewer of the trailing columns)
   // the pilot asked to match the columns: no format detection, straight to the matching screen
   if ($("#impManual").checked) { imp = { headers, rows: body, map: guessMap(headers), sig, name: f.name, manual: true }; renderMapping(); return; }
+  const app = flylogFlights(headers, body) || crewloungeFlights(headers, body);
+  if (app) { imp = { name: f.name, flights: app.flights, classes: app.classes, appPrev: app.prev, note: app.note, auto: true }; return; }
   const sl = safelogFlights(headers, body);
   if (sl) { imp = { name: f.name, flights: sl.flights, classes: sl.classes, auto: true }; return; }
   const ecl = ecrewListMap(headers);
@@ -1594,11 +1755,14 @@ function doImport(){
   if (imp.pdf) {
     if (imp.pdf.prev) data.prev = imp.pdf.prev;
   }
+  if (imp.appPrev) data.prev = imp.appPrev;
   if (!imp.own && !imp.flights && (added || dup)) data.templates[imp.sig] = Object.fromEntries(Object.entries(imp.map).filter(([,v]) => v !== undefined));
-  if (impBatch && (added || updated || bf || imp.pdf?.prev)) { impBatch.names.push(imp.name); impBatch.added += added; impBatch.updated += updated; data.lastImport = impBatch; }
+  if (impBatch && (added || updated || bf || imp.pdf?.prev || imp.appPrev)) { impBatch.names.push(imp.name); impBatch.added += added; impBatch.updated += updated; data.lastImport = impBatch; }
   if (!save()) return false;
   impLog.push(`<b>${esc(imp.name)}</b>: ${added.toLocaleString()} new entr${added===1?"y":"ies"}${bf}` + (updated ? `, ${updated} updated with new times` : "") + (dup ? `, ${dup.toLocaleString()} already in your logbook` : "") +
     (future ? `, ${future} future flight${future === 1 ? "" : "s"} left out (the logbook only holds flights already flown)` : "") + (badRows.length ? `, ${badRows.length} line${badRows.length === 1 ? "" : "s"} with no route, flight time or sim time left out (${badRows.slice(0, 5).join(", ")}${badRows.length > 5 ? " …" : ""})` : ""));
+  if (imp.appPrev) impLog.push(`Previous experience from the file: <b>${fmtMin(imp.appPrev.total)}</b> total time. Saved as your <a href="#" data-go="import" data-scroll="#prevBox">previous experience</a>.`);
+  if (imp.note) impLog.push(`<span style="color:var(--warn)">${esc(imp.note)}</span>`);
   if (imp.pdf) {
     if (imp.pdf.prev) impLog.push(`Brought forward on its first page, from an earlier logbook: <b>${fmtMin(imp.pdf.prev.total)}</b> total time. Saved as your <a href="#" data-go="import" data-scroll="#prevBox">previous experience</a>.`);
     impLog.push(easaCheck(imp.pdf));
@@ -1707,7 +1871,7 @@ const FIX_CHECKS = [
   { id: "sim", title: "Looks like a simulator session", why: "Same departure and arrival airport and no registration: most likely a simulator session imported as a flight.",
     test: f => !isSim(f) && f.from && f.from === f.to && !f.reg && f.total >= 60, detail: f => `${f.from}–${f.to} ${fmtMin(f.total)}`, fixLabel: "Make them simulator sessions",
     fix: f => Object.assign(f, { fstdTime: f.total, fstdType: f.acType, from: "", to: "", out: "", off: "", on: "", in: "", reg: "", picName: "", total: 0, pic: 0, copilot: 0, dual: 0, instructor: 0, night: 0, ifr: 0, ldgDay: 0, ldgNight: 0 }) },
-  { id: "dup", title: "Possible duplicates", why: "Two lines for the same day and route, with the same flight number or off-blocks within 90 minutes. The second copy is listed.",
+  { id: "dup", title: "Possible duplicates", why: "Two lines for the same day and route, with the same flight number or block times that overlap. The second copy is listed.",
     detail: (f, F) => { const o = F.find(x => x !== f && sameFlight(x, f)); return o ? `same as ${o.flightNo || ""} ${o.out}–${o.in} ${fmtMin(o.total)}`.replace(/\s+/g, " ") : ""; }, fixLabel: "Delete the second copies", del: true },
   { id: "noTotal", title: "No flight time", why: "The line has a route but its total time is 0: the total time column was probably not found.",
     test: f => !isSim(f) && !f.total, detail: f => f.out && f.in ? `block ${f.out}–${f.in}` : "no block times either", fixLabel: "Use the block time (off-block to on-block)",
