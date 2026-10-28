@@ -1098,6 +1098,8 @@ function ecrewMap(headers){
     ldgDay: days[1] ?? -1, ldgNight: nights[1] ?? -1,
     pic: h.indexOf("pic"), copilot: h.findIndex(x => x === "co-plt" || x === "co plt" || x === "co-pilot"), instructor: h.indexOf("instr")
   };
+  // SYNTH. DEVICES Time, Type: after the Instr column
+  if (m.instructor >= 0) { m.simTime = after("time", m.instructor); m.simType = after("type", m.simTime); }
   // takeoffs: first day/night pair (kept for remarks-free recency in future)
   for (const k in m) if (m[k] < 0) delete m[k];
   return m;
@@ -1110,6 +1112,35 @@ function ecrewListMap(headers){
     instructor: at("instr"), simTime: at("simtime"), simType: at("simtype") };
   for (const k in m) if (m[k] < 0) delete m[k];
   return m;
+}
+/* Safelog CSV export: function times split into day / night, single / multi-engine columns, simulator sessions
+   in "Simulator Sim.Time". Read straight into flights: the columns are summed, not matched one to one. */
+function safelogFlights(headers, rows){
+  const at = Object.fromEntries(headers.map((h, i) => [String(h).trim(), i]));
+  if (at["Simulator Sim.Time"] === undefined || at["Total Flight Time"] === undefined || at["Night Multi-Engine (ME) Co-Pilot"] === undefined) return null;
+  const g = (r, c) => String(r[at[c]] ?? "").trim(), d = (r, c) => parseDur(g(r, c));
+  const cols = re => headers.filter(h => re.test(h)), sum = (r, list) => list.reduce((s, c) => s + d(r, c), 0);
+  const CMD = cols(/in Command$/), PICUS = cols(/PICUS$/), COP = cols(/(Co-Pilot|P2)$/), DUAL = cols(/^(Day|Night) .*Dual$/), NIGHT = cols(/^Night .*Engine/);
+  // Boeing types as "787-900" -> B787-9, "777-300ER" -> B777-300ER
+  const type = t => acTypeName(t.replace(/^7(\d)7-(\d{1,2})00$/, "B7$17-$2").replace(/^7\d7-/, "B$&"));
+  const flights = [], classes = {};
+  for (const r of rows) {
+    const date = parseDate(g(r, "Date"), "YMD"), sim = d(r, "Simulator Sim.Time"), notes = g(r, "Notes"), ac = type(g(r, "Aircraft Type"));
+    if (sim && !d(r, "Total Flight Time")) {
+      flights.push({ date, flightNo: "", from: "", to: "", out: "", off: "", on: "", in: "", acType: "", reg: "", picName: "", total: 0, pic: 0, copilot: 0, dual: 0, instructor: 0,
+        night: 0, ifr: 0, ldgDay: 0, ldgNight: 0, fstdTime: sim, fstdType: [ac, g(r, "Simulator Sim.Type")].filter(Boolean).join(" ").toUpperCase(), remarks: notes });
+      continue;
+    }
+    const picus = sum(r, PICUS), f = { date, flightNo: g(r, "Flight Number").toUpperCase(), from: g(r, "Departure").toUpperCase(), to: g(r, "Arrival").toUpperCase(),
+      out: parseTime(g(r, "Block Off") || g(r, "Departure Time")), off: "", on: "", in: parseTime(g(r, "Block On") || g(r, "Arrival Time")),
+      acType: ac, reg: g(r, "Aircraft Registration").toUpperCase(), picName: g(r, "Name of PIC"),
+      total: d(r, "Total Flight Time") || d(r, "Block Duration"), pic: d(r, "P1 PIC") || sum(r, CMD) + picus, copilot: sum(r, COP), dual: sum(r, DUAL), instructor: d(r, "Instructor Flying"),
+      night: sum(r, NIGHT), ifr: d(r, "Instrument Flying"), ldgDay: parseInt(g(r, "Day Ldg")) || 0, ldgNight: parseInt(g(r, "Night Ldg")) || 0,
+      remarks: [picus ? "PIC(US)" : "", notes].filter(Boolean).join(" ") };
+    if (f.total && ac) classes[ac] ||= d(r, "Multi-Crew") ? "MP" : d(r, "Class SE") ? "SPSE" : "SPME";
+    flights.push(f);
+  }
+  return { flights, classes };
 }
 function guessMap(headers){
   const map = {}, used = new Set();
@@ -1169,8 +1200,8 @@ function rowToFlight(r, map, fmt){
   if (g("fstdTime")) { f.fstdTime = parseDur(g("fstdTime")); f.fstdType = g("fstdType"); }
   // eCrew simulator session (SimTime, no flight time): goes in the FSTD columns, not as a flight
   const sim = parseDur(g("simTime"));
-  if (sim && !f.total) { const l = f.ldgDay + f.ldgNight;
-    Object.assign(f, { fstdTime: sim, fstdType: f.acType, remarks: [g("simType"), l ? `${l} landing${l === 1 ? "" : "s"}` : "", f.remarks].filter(Boolean).join(" · "),
+  if (sim && !f.total) {
+    Object.assign(f, { fstdTime: sim, fstdType: f.acType, remarks: [g("simType"), f.remarks].filter(Boolean).join(" · "),
       from: "", to: "", out: "", off: "", on: "", in: "", acType: "", reg: "", picName: "", pic: 0, copilot: 0, instructor: 0, ldgDay: 0, ldgNight: 0 }); }
   if (!f.total && !f.fstdTime && f.out && f.in) f.total = tdiff(f.out, f.in);
   return f;
@@ -1223,7 +1254,8 @@ function autoFill(f){
   return r;
 }
 const valid = f => f.date && (f.from || f.to || f.total || f.fstdTime);
-const dupKey = f => [f.date, f.from, f.to, f.out || f.flightNo, f.fstdTime || ""].join("|");
+const aptKey = c => (AIRPORTS && AIRPORTS[c] ? AIRPORTS[c].join(",") : c);   // AUH and OMAA: same position, same airport
+const dupKey = f => [f.date, aptKey(f.from), aptKey(f.to), f.out || f.flightNo, f.fstdTime || ""].join("|");
 
 /* A past logbook printed in the EASA (FCL.050) layout, as a PDF with text (not a scan): each spread is a left page
    (date, departure, arrival, aircraft, SE / ME / multi-pilot, total, PIC name, landings) and a right page (night, IFR,
@@ -1391,6 +1423,8 @@ async function handleFile(f){
   const h = findHeader(rows), headers = rows[h].map(c => String(c).trim()), body = rows.slice(h+1);
   const sig = headers.map(norm).join("|");
   // our own CSV (older files have fewer of the trailing columns)
+  const sl = safelogFlights(headers, body);
+  if (sl) { imp = { name: f.name, flights: sl.flights, classes: sl.classes, auto: true }; return; }
   const ecl = ecrewListMap(headers);
   if (ecl) { imp = { headers, rows: body, map: ecl, sig, name: f.name, auto: true, fmt: "DMY" }; return; }
   if (LOG_COLS.some((_, n) => n >= 20 && sig === LOG_COLS.slice(0, n + 1).map(c => norm(c[1])).join("|"))) { imp = { headers, rows: body, map: Object.fromEntries(LOG_COLS.map((c, i) => [c[0], i])), sig, name: f.name, own: true }; return; }
@@ -1437,8 +1471,8 @@ function doImport(){
     data.flights.push(f); added++;
   }
   data.flights.sort((a,b) => (a.date+a.out).localeCompare(b.date+b.out));
+  for (const [t, c] of Object.entries(imp.classes || imp.pdf?.classes || {})) if (!(data.acTypes || {})[t] && acClass(t) !== c) (data.acTypes ||= {})[t] = c;
   if (imp.pdf) {
-    for (const [t, c] of Object.entries(imp.pdf.classes)) if (!(data.acTypes || {})[t] && acClass(t) !== c) (data.acTypes ||= {})[t] = c;
     if (imp.pdf.prev) data.prev = imp.pdf.prev;
   }
   if (!imp.own && !imp.flights && (added || dup)) data.templates[imp.sig] = Object.fromEntries(Object.entries(imp.map).filter(([,v]) => v !== undefined));
