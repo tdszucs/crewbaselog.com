@@ -208,6 +208,12 @@ td.r,th.r{text-align:right}
   .exp-head{display:none!important}
 }
 @media (max-width:520px){ .who span{display:none} }
+dialog.kofi{width:min(440px,calc(100vw - 32px));max-height:calc(100dvh - 32px);padding:0;border:0;border-radius:14px;background:#fff;color:#1a1f24;box-shadow:0 20px 60px rgba(0,0,0,.35);overflow:hidden}
+dialog.kofi::backdrop{background:rgba(8,20,30,.55)}
+.kofi-hd{display:flex;align-items:center;justify-content:space-between;padding:12px 14px 10px 18px;font-size:16px}
+.kofi-x{border:0;background:none;font-size:26px;line-height:1;cursor:pointer;color:#555;padding:2px 8px}
+dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px));border:0;background:#f9f9f9}
+.kofi-ft{margin:0;padding:10px 18px 14px;font-size:12.5px;color:#5b6570;line-height:1.5}.kofi-ft a{color:inherit}
 </style>
 </head>
 <body>
@@ -316,7 +322,7 @@ td.r,th.r{text-align:right}
         <div class="row-actions" style="margin:16px 0 0"><button class="btn ghost" type="button" data-go="crewbase">Open Crew Base</button></div>
       </div>
       <div class="card"><h3>Pilot jobs</h3><div class="hint" style="font-size:14px">No jobs posted yet. <a href="#" data-go="jobs">Why jobs?</a></div></div>
-      <div class="card"><h3>Support CrewBase Log</h3><p class="hint" style="margin:0 0 12px;font-size:14px">CrewBase Log is free and stays free. Nobody has to pay. If it saves you time and you'd like to help with the running costs, you can buy us a coffee.</p><a class="btn ghost" href="https://ko-fi.com/tamas25712" target="_blank" rel="noopener">Support on Ko-fi</a></div>
+      <div class="card"><h3>Support CrewBase Log</h3><p class="hint" style="margin:0 0 12px;font-size:14px">CrewBase Log is free and stays free. Nobody has to pay. If it saves you time and you'd like to help with the running costs, you can buy us a coffee.</p><a class="btn ghost" href="https://ko-fi.com/tamas25712" target="_blank" rel="noopener" data-kofi>Buy us a coffee</a></div>
       <form class="card" id="fbForm">
         <h3>Feedback</h3>
         <p class="hint" style="margin:0 0 12px;font-size:14px">CrewBase Log is in a trial phase. Anything that is broken, confusing or missing, tell us. All feedback is appreciated.</p>
@@ -602,12 +608,29 @@ td.r,th.r{text-align:right}
     <div data-p="jobs" class="hidden">
       <h2>Pilot jobs</h2>
       <div class="card"><p style="margin:0;font-size:17px;line-height:1.6">CrewBase Log is free for pilots, and we want to keep it that way.<br>Our support will come from airlines looking for pilots, who will post their vacancies here, and from pilots who choose to chip in.</p></div>
-      <div class="card"><h3>Support CrewBase Log</h3><p class="hint" style="margin:0 0 12px;font-size:14px">Entirely optional: nothing is locked and nobody has to pay. If CrewBase Log helps you, a coffee helps us keep it running.</p><a class="btn ghost" href="https://ko-fi.com/tamas25712" target="_blank" rel="noopener">Support on Ko-fi</a></div>
+      <div class="card"><h3>Support CrewBase Log</h3><p class="hint" style="margin:0 0 12px;font-size:14px">Entirely optional: nothing is locked and nobody has to pay. If CrewBase Log helps you, a coffee helps us keep it running.</p><a class="btn ghost" href="https://ko-fi.com/tamas25712" target="_blank" rel="noopener" data-kofi>Buy us a coffee</a></div>
       <div class="notice">Hiring pilots? <a href="mailto:hello@crewbaselog.com?subject=Job%20listing%20on%20CrewBase%20Log">Get in touch</a> to list a vacancy.</div>
     </div>
   </main>
 </section>
 
+<dialog class="kofi" id="kofiDlg" aria-label="Support CrewBase Log">
+  <div class="kofi-hd"><b>Support CrewBase Log</b><button type="button" class="kofi-x" aria-label="Close">×</button></div>
+  <iframe title="Support CrewBase Log on Ko-fi"></iframe>
+  <p class="kofi-ft">Optional, and nothing is locked. Payments are handled by Ko-fi (card or PayPal); we never see your card details. <a href="https://ko-fi.com/tamas25712" target="_blank" rel="noopener">Open Ko-fi in a new tab</a></p>
+</dialog>
+<script>
+/* Ko-fi donation panel, built in: loaded only when someone opens it */
+(() => {
+  const d = document.getElementById("kofiDlg"), f = d.querySelector("iframe");
+  document.addEventListener("click", e => {
+    const a = e.target.closest("[data-kofi]"); if (!a || !d.showModal) return;
+    e.preventDefault(); if (!f.src) f.src = "https://ko-fi.com/tamas25712/?hidefeed=true&widget=true&embed=true&preview=true"; d.showModal();
+  });
+  d.querySelector(".kofi-x").addEventListener("click", () => d.close());
+  d.addEventListener("click", e => { if (e.target === d) d.close(); });
+})();
+</script>
 <script>
 /* ================= CONFIG =================
    Paste your Supabase project URL and anon key to switch from demo to live logins. */
