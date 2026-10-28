@@ -579,7 +579,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
           <div class="row-actions" style="margin:4px 0 0"><button class="btn small" type="submit">Save flight</button><button class="btn ghost small" type="button" id="lbEditCancel">Cancel</button><button class="btn danger small" type="button" id="lbEditDel">Delete flight</button><span class="err" id="lbEditErr" style="margin:0"></span></div>
         </form>
         <p id="lbMsg" class="hint" style="margin:0 0 8px"></p>
-        <div class="field" style="max-width:340px"><input id="lbSearch" type="search" placeholder="Search date, flight, airport, registration…" aria-label="Search flights"></div>
+        <div class="row-actions" style="margin:0 0 14px;align-items:center"><div class="field" style="max-width:340px;flex:1 1 220px;margin:0"><input id="lbSearch" type="search" placeholder="Search date, flight, airport, registration…" aria-label="Search flights"></div><button class="btn ghost small" type="button" data-restore>Restore backup</button></div>
         <div class="tablewrap" id="lbTable"></div>
         <p class="hint" id="lbMore"></p>
       </div>
@@ -929,6 +929,7 @@ function renderOverview(){
 $("#ovBackup").addEventListener("click", () => $("#btnBackup").click());
 document.addEventListener("click", e => { if (e.target.closest("[data-backup]")) { e.preventDefault(); $("#btnBackup").click(); } });
 $("#ovRestore").addEventListener("click", () => $("#restoreFile").click());
+document.addEventListener("click", e => { if (e.target.closest("[data-restore]")) { e.preventDefault(); $("#restoreFile").click(); } });
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 $("#fbForm").addEventListener("submit", async e => {
