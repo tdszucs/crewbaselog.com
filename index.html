@@ -164,5 +164,15 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
   d.addEventListener("click", e => { if (e.target === d) d.close(); });
 })();
 </script>
+<script src="https://storage.ko-fi.com/cdn/scripts/overlay-widget.js"></script>
+<script>
+  // Ko-fi floating "Support Us" button (bottom corner); opens Ko-fi's support panel on this page
+  if (window.kofiWidgetOverlay) kofiWidgetOverlay.draw("tamas25712", {
+    "type": "floating-chat",
+    "floating-chat.donateButton.text": "Support Us",
+    "floating-chat.donateButton.background-color": "#323842",
+    "floating-chat.donateButton.text-color": "#fff"
+  });
+</script>
 </body>
 </html>
