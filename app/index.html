@@ -316,6 +316,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
       <button data-t="stats">Statistics</button>
       <button data-t="crewbase">Crew Base</button>
       <button data-t="jobs">Jobs</button>
+      <button data-t="admin" id="tabAdmin" class="hidden">Admin</button>
     </nav>
   </div>
   <main>
@@ -705,6 +706,23 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
       <div class="card"><h3>Support CrewBase Log</h3><p class="hint" style="margin:0 0 12px;font-size:14px">Entirely optional: nothing is locked and nobody has to pay. If CrewBase Log helps you, a coffee helps us keep it running.</p><a class="btn ghost" href="https://ko-fi.com/tamas25712" target="_blank" rel="noopener" data-kofi>Buy us a coffee</a></div>
       <div class="notice">Hiring pilots? <a href="mailto:hello@crewbaselog.com?subject=Job%20listing%20on%20CrewBase%20Log">Get in touch</a> to list a vacancy.</div>
     </div>
+
+    <!-- admin: only for the site owner; the database only answers the owner's account -->
+    <div data-p="admin" class="hidden">
+      <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-end;flex-wrap:wrap">
+        <div><h2>Admin</h2><p class="lead" style="margin-bottom:0">Who registered and what they did. Counts and formats only: logbooks stay on each pilot's device.</p></div>
+        <button class="btn ghost small" type="button" id="adRefresh">Refresh</button>
+      </div>
+      <p class="err" id="adErr"></p>
+      <div class="stats" id="adTiles"></div>
+      <div class="card"><h3>Registered pilots</h3><p class="hint" style="margin:0 0 10px;font-size:14px">Tap a pilot to see only their actions.</p><div class="tablewrap" id="adUsers"></div></div>
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 10px"><h3 style="margin:0">Activity</h3>
+          <div style="display:flex;gap:8px;flex-wrap:wrap"><select id="adWho" style="width:auto;max-width:240px"><option value="">Everyone</option></select><select id="adWhat" style="width:auto"><option value="">All actions</option></select></div></div>
+        <div class="tablewrap" id="adLog"></div><p class="hint" id="adMore"></p>
+      </div>
+    </div>
+    </div>
   </main>
 </section>
 
@@ -952,13 +970,65 @@ $("#btnOut").addEventListener("click", () => Auth.signOut());
 function tab(t){
   $$("#tabs button").forEach(b => b.classList.toggle("on", b.dataset.t === t));
   $$("[data-p]").forEach(p => p.classList.toggle("hidden", p.dataset.p !== t));
-  ({ overview: renderOverview, profile: () => { renderProfile(); renderExpiries(); renderSignature(); }, logbook: renderLogbook, import: renderYourData, stats: renderStats, crewbase: renderCrewBase })[t]?.();
+  ({ overview: renderOverview, profile: () => { renderProfile(); renderExpiries(); renderSignature(); }, logbook: renderLogbook, import: renderYourData, stats: renderStats, crewbase: renderCrewBase, admin: renderAdmin })[t]?.();
   window.scrollTo(0,0);
 }
 $("#tabs").addEventListener("click", e => { if (e.target.dataset.t) tab(e.target.dataset.t); });
 
+/* ---------- activity: what each signed-in pilot did, for the site owner (Admin tab). Counts and formats only:
+   never flights, file names or file contents. Rules in supabase/admin_activity.sql ---------- */
+const ADMIN_EMAIL = "t.d.szucs@gmail.com";
+const isAdmin = () => !!(Auth.live && user && user.id !== "sample" && String(user.email || "").toLowerCase() === ADMIN_EMAIL);
+function logEvent(event, detail = {}){
+  if (!Auth.live || !user || user.id === "sample") return;
+  try { Auth.db()?.from("activity").insert({ user_id: user.id, email: user.email, event, detail }).then(() => {}, () => {}); } catch {}
+}
+// Admin tab
+const AD_EV = {
+  open: d => `Opened the app · ${d.flights ?? 0} flights${d.sims ? `, ${d.sims} sims` : ""}${d.phone ? " · phone" : ""}`,
+  import: d => `Imported ${d.files} file${d.files === 1 ? "" : "s"} (${d.types}) · ${d.added} added${d.updated ? `, ${d.updated} updated` : ""}${d.problems ? ` · ${d.problems} not readable` : ""} · now ${d.flights} flights`,
+  restore_backup: d => `Restored a backup · ${d.lines} lines${d.ok ? "" : " · did not fully match"}${d.gaps ? ` · ${d.gaps} gap(s)` : ""}`,
+  download_pdf: d => `Downloaded PDF logbook · ${d.format}, ${{ all: "full logbook", last10: "last 10 pages", dates: "between dates" }[d.range] || d.range} · ${d.kb} KB`,
+  download_csv: d => `Downloaded CSV · ${d.flights} flights`, download_backup: d => `Downloaded full backup · ${d.flights} flights`,
+  add_flight: () => "Added a flight by hand", add_sim: () => "Added a simulator session by hand", edit_flight: d => `Edited a flight (${d.where})`,
+  fix: d => `Troubleshooting · ${FIX_CHECKS.find(c => c.id === d.check)?.title || d.check} · ${{ mod: "fixed", del: "deleted", move: "moved to previous experience", ok: "marked correct" }[d.action] || d.action}`,
+  start_over: () => "Cleared the logbook (start over)", roster_saved: d => `Saved Crew Base roster · ${d.days} days`, friend_added: d => `Added a Crew Base friend · ${d.friends} in total`,
+  feedback: () => "Sent feedback", profile_saved: d => `Saved profile${d.name ? "" : " (no name)"}`, airport_codes: d => `Airport codes: ${d.style}`
+};
+let adData = null;
+async function renderAdmin(force){
+  if (!isAdmin()) return;
+  const db = Auth.db(), err = $("#adErr"); err.textContent = "";
+  if (!adData || force) {
+    $("#adTiles").innerHTML = '<p class="hint">Loading…</p>';
+    const [u, a] = await Promise.all([db.rpc("cbl_admin_users"), db.from("activity").select("user_id,email,event,detail,created_at").order("created_at", { ascending: false }).limit(2000)]);
+    if (u.error || a.error) { err.textContent = "Couldn't load: " + (u.error || a.error).message + ". Has supabase/admin_activity.sql been run in Supabase (SQL Editor)?"; $("#adTiles").innerHTML = ""; return; }
+    adData = { users: u.data || [], log: a.data || [] };
+  }
+  const { users, log } = adData, ago = d => Date.now() - 864e5 * d, dt = s => s ? new Date(s).toLocaleString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "–";
+  const act7 = new Set(log.filter(e => Date.parse(e.created_at) > ago(7)).map(e => e.user_id));
+  $("#adTiles").innerHTML = [["Registered", users.length], ["Verified", users.filter(u => u.confirmed_at).length], ["New in 7 days", users.filter(u => Date.parse(u.created_at) > ago(7)).length],
+    ["Active in 7 days", act7.size], ["Actions in 7 days", log.filter(e => Date.parse(e.created_at) > ago(7)).length], ["PDFs downloaded", log.filter(e => e.event === "download_pdf").length]]
+    .map(([k, v]) => `<div class="stat"><div class="k">${k}</div><div class="v">${v.toLocaleString()}</div></div>`).join("");
+  $("#adUsers").innerHTML = `<table><thead><tr><th>Email</th><th>Registered</th><th>Verified</th><th>Last sign-in</th><th class="r">Actions</th><th>Last action</th><th>Crew Base</th></tr></thead><tbody>` +
+    users.map(u => `<tr data-aduser="${esc(u.id)}" style="cursor:pointer"><td>${esc(u.email)}${u.provider !== "email" ? ` <span class="tag">${esc(u.provider)}</span>` : ""}</td><td>${dt(u.created_at)}</td><td>${u.confirmed_at ? "✓" : '<span style="color:var(--warn)">not yet</span>'}</td><td>${dt(u.last_sign_in_at)}</td><td class="r">${u.actions}</td><td>${dt(u.last_action_at)}</td><td>${u.roster_days ? `${u.roster_days} days` : ""}${u.friends ? ` · ${u.friends} friend${u.friends == 1 ? "" : "s"}` : ""}</td></tr>`).join("") + "</tbody></table>";
+  const who = $("#adWho"), what = $("#adWhat"), w0 = who.value, e0 = what.value;
+  who.innerHTML = '<option value="">Everyone</option>' + users.map(u => `<option value="${esc(u.id)}">${esc(u.email)}</option>`).join(""); who.value = w0;
+  what.innerHTML = '<option value="">All actions</option>' + [...new Set(log.map(e => e.event))].sort().map(e => `<option>${esc(e)}</option>`).join(""); what.value = e0;
+  const L = log.filter(e => (!who.value || e.user_id === who.value) && (!what.value || e.event === what.value));
+  $("#adLog").innerHTML = L.length ? `<table><thead><tr><th>When</th><th>Who</th><th>What</th></tr></thead><tbody>` + L.slice(0, 500).map(e =>
+    `<tr><td style="white-space:nowrap">${dt(e.created_at)}</td><td>${esc(e.email || "")}</td><td>${esc((AD_EV[e.event] || (() => e.event + " " + JSON.stringify(e.detail)))(e.detail || {}))}</td></tr>`).join("") + "</tbody></table>"
+    : '<p class="hint" style="margin:0">No actions recorded yet. They appear here as pilots use the app.</p>';
+  $("#adMore").textContent = L.length > 500 ? `Showing the latest 500 of ${L.length.toLocaleString()}.` : "";
+}
+$("#adRefresh").addEventListener("click", () => renderAdmin(true));
+$("#adWho").addEventListener("change", () => renderAdmin()); $("#adWhat").addEventListener("change", () => renderAdmin());
+$("#adUsers").addEventListener("click", e => { const r = e.target.closest("[data-aduser]"); if (!r) return; $("#adWho").value = r.dataset.aduser; renderAdmin(); $("#adLog").scrollIntoView({ behavior: "smooth", block: "start" }); });
+const nLines = () => ({ flights: data.flights.filter(f => !isSim(f)).length, sims: data.flights.filter(isSim).length });
 function enterApp(){
   load(); show("#vApp"); $("#whoEmail").textContent = user.email; tab("overview");
+  adData = null; $("#tabAdmin").classList.toggle("hidden", !isAdmin());
+  logEvent("open", { ...nLines(), phone: matchMedia("(max-width:640px)").matches, prev: !!hasPrev() });
   navigator.storage?.persist?.().catch(() => {});   // ask the browser to keep this site's data
 }
 
@@ -1011,7 +1081,7 @@ $("#fbForm").addEventListener("submit", async e => {
       body: JSON.stringify({ _subject: "CrewBase Log feedback", _template: "table", message: msg, email: email || "(not given)", account: user?.email || "", page: location.href }) });
     const j = await r.json().catch(() => ({}));
     if (!r.ok || String(j.success) === "false") throw new Error(j.message || r.status);
-    $("#fbMsg").value = ""; st.textContent = "Thank you, your feedback was sent.";
+    $("#fbMsg").value = ""; st.textContent = "Thank you, your feedback was sent."; logEvent("feedback", { chars: msg.length });
   } catch (x) {
     st.style.color = "var(--bad)";
     st.innerHTML = `Couldn't send it. <a href="mailto:${FEEDBACK_TO}?subject=${encodeURIComponent("CrewBase Log feedback")}&body=${encodeURIComponent(msg)}">Email it instead</a>.`;
@@ -1058,7 +1128,7 @@ function renderProfile(){
 $("#defCard").addEventListener("change", () => { data.profile.role = $("#pRole").value; data.profile.autoIfr = $("#pIfr").checked; data.profile.autoNight = $("#pNight").checked; save(); });
 // choosing the airport-code style converts the logbook straight away
 async function setAptStyle(pref){
-  await loadAirports(); data.profile.apt = pref; data.profile.aptAsked = true;
+  await loadAirports(); data.profile.apt = pref; data.profile.aptAsked = true; logEvent("airport_codes", { style: pref || "as in files" });
   const n = pref ? aptConvert(pref) : 0; save(); renderLogbook(); renderFix(); renderCheck();
   return pref ? (n ? `${n.toLocaleString()} airport code${n === 1 ? "" : "s"} changed to ${pref}.` : `Your logbook already uses ${pref} codes.`) : "Codes stay as they are in your files.";
 }
@@ -1081,7 +1151,7 @@ $("#profForm").addEventListener("submit", e => {
   for (const [id,k] of Object.entries(PF)) if (k !== "email") data.profile[k] = $("#"+id).value.trim();
   for (const k of PF_DROPPED) delete data.profile[k];
   data.profile.base = data.profile.base.toUpperCase(); data.profile.lic = data.profile.lic.toUpperCase();
-  if (save()) { $("#profSaved").textContent = "Saved on this device."; renderProfile(); $("#profSaved").textContent = "Saved on this device."; }
+  if (save()) { logEvent("profile_saved", { name: !!data.profile.name, licence: !!data.profile.lic }); $("#profSaved").textContent = "Saved on this device."; renderProfile(); $("#profSaved").textContent = "Saved on this device."; }
 });
 
 /* ---------- expiries ---------- */
@@ -1820,6 +1890,8 @@ async function nextFile(){
   $("#impDoneLog").innerHTML = impLog.join("<br>") + (nf + ns === 0 ? `<br>Your logbook has no flights yet: nothing in ${impLog.length === 1 ? "this file" : "these files"} has been flown. Planned flights belong in <a href="#" data-go="crewbase">Crew Base</a>.` : `<br>Your logbook now has <b>${nf.toLocaleString()} flight${nf === 1 ? "" : "s"}</b>` + (ns ? ` and <b>${ns} simulator session${ns === 1 ? "" : "s"}</b>` : "") + `` + (restoredView() ? "." : `. <a href="#" data-go="import" data-scroll="#chkBox">Check the totals against your old logbook's last page</a>.`));
   $("#impDone").classList.remove("hidden"); $("#impDone").scrollIntoView({ behavior: "smooth", block: "start" });
   $("#chkUpto").value = ""; renderCheck();
+  if (impBatch) logEvent("import", { files: impBatch.names.length, types: [...new Set(impBatch.names.map(n => (n.match(/\.(\w+)$/)?.[1] || "?").toLowerCase()))].join(","),
+    added: impBatch.added, updated: impBatch.updated, problems: impErrs, ...nLines() });
   const gaps = importGaps(); if (gaps.length) $("#impDoneLog").insertAdjacentHTML("beforeend", `<br>${gapMsg(gaps)}`);
   $("#impDoneLog").insertAdjacentHTML("beforeend", aptAskHTML());
   renderFix().then(n => { if (n) $("#impDoneLog").insertAdjacentHTML("beforeend", `<br><b style="color:var(--warn)">${n} line${n === 1 ? " looks" : "s look"} wrong.</b> <a href="#" data-go="import" data-scroll="#fixBox">Review and fix them</a>.`); });
@@ -1992,7 +2064,7 @@ document.addEventListener("click", e => {
   if (!e.target.closest("[data-csv]")) return; e.preventDefault();
   if (!data.flights.length) return alert("There are no flights to export yet.");
   download(`crewbaselog-logbook-${todayISO()}.csv`, "text/csv", "\ufeff" + logbookCSV());
-  markBackedUp();
+  markBackedUp(); logEvent("download_csv", nLines());
 });
 // a short fingerprint of the flights: a backup reminder shows when it differs from the last download
 const flightsSig = () => { const F = data.flights; let h = 0; const t = JSON.stringify(F); for (let i = 0; i < t.length; i++) h = (h * 31 + t.charCodeAt(i)) | 0; return F.length + ":" + h; };
@@ -2216,7 +2288,7 @@ const FIX_ONE = { bulk: "Move to previous experience", sim: "Make it a sim sessi
 // corrections made in this visit, per check: { kind: mod | del | move | ok, f, copy, msg }
 let fixLog = {}, fixClosed = new Set();
 function fixDone(){ save(); renderCheck(); renderFix(); }
-const logFix = (id, e) => (fixLog[id] ||= []).push(e);
+const logFix = (id, e) => { (fixLog[id] ||= []).push(e); logEvent("fix", { check: id, action: e.kind }); };
 $("#fixCard").addEventListener("click", e => {
   const b = e.target.closest("button"); if (!b) return;
   const d = b.dataset, F = data.flights, C = id => FIX_CHECKS.find(c => c.id === id), copy = f => JSON.parse(JSON.stringify(f));
@@ -2310,6 +2382,7 @@ $("#addForm").addEventListener("submit", e => {
   if (!save()) return;
   addFormReset();
   const ns = data.flights.filter(isSim).length;
+  logEvent(sim ? "add_sim" : "add_flight", {});
   $("#addOk").textContent = `Added ${flightLabel(f)}. Your logbook has ${(data.flights.length - ns).toLocaleString()} flight${data.flights.length - ns === 1 ? "" : "s"}${ns ? ` and ${ns} simulator session${ns === 1 ? "" : "s"}` : ""}.`; renderPrint(); renderLogbook();
 });
 
@@ -2509,12 +2582,12 @@ $("#lbEdit").addEventListener("submit", async e => {
   if (lbPad.inked()) f.remarkSig = await smallSigPNG($("#lbSigPad")); else if (lbSigDrop) delete f.remarkSig;
   if (data.flights.indexOf(lbEditing) !== at) return lbCloseEdit();
   data.flights[at] = f; data.flights.sort((a,b) => (a.date+a.out).localeCompare(b.date+b.out));
-  const ctx = fixEditCtx;
+  const ctx = fixEditCtx; logEvent("edit_flight", { where: ctx ? "troubleshooting" : "logbook" });
   if (save()) { lbCloseEdit(); renderLogbook(); cbMsg("#lbMsg", notes.length ? `Saved. Updated from the new times and route: ${notes.join(", ")}.` : "Saved.");
     // edited from Troubleshooting: listed there as corrected, with what it was and an undo
     if (ctx) { logFix(ctx.id, { kind: "mod", f, copy: ctx.copy, msg: notes.length ? `Edited (${notes.join(", ")})` : "Edited" }); fixDone(); } }
 });
-$("#btnBackup").addEventListener("click", () => { markBackedUp(); download(`crewbaselog-backup-${todayISO()}.json`, "application/json", JSON.stringify({ app: "CrewBase Log", version: 1, exported: new Date().toISOString(), data }, null, 1)); });
+$("#btnBackup").addEventListener("click", () => { markBackedUp(); logEvent("download_backup", nLines()); download(`crewbaselog-backup-${todayISO()}.json`, "application/json", JSON.stringify({ app: "CrewBase Log", version: 1, exported: new Date().toISOString(), data }, null, 1)); });
 $("#restoreFile").addEventListener("change", async e => {
   const f = e.target.files[0]; e.target.value = ""; if (f) restoreBackup(await f.text());
 });
@@ -2543,6 +2616,7 @@ async function restoreBackup(text){
     (gaps.length ? `<br>${gapMsg(gaps)}` : "") +
     (ok ? `<br><a href="#" data-go="import" data-scroll="#aimsCard">Next: add your new flights in step 3</a>` : ""), gaps.length > 0);
   if (ok && !$('[data-p="import"]').classList.contains("hidden")) $("#aimsCard").scrollIntoView({ behavior: "smooth", block: "start" });
+  logEvent("restore_backup", { ok, lines: F.length, gaps: gaps.length });
   $("#impErr").innerHTML = (ok ? `<span style="color:var(--ok)">Backup restored: ${F.length.toLocaleString()} lines, matching the backup file.</span>` : "Backup restored, but it doesn't fully match the file: see the message.") + (gaps.length ? `<br>${gapMsg(gaps)}` : "") + aptAskHTML();
 }
 function restoreToast(ok, html, stay){
@@ -2567,6 +2641,7 @@ $("#soYes").addEventListener("click", () => {
   $("#pdfFrame").removeAttribute("src"); if (pdfUrl) { URL.revokeObjectURL(pdfUrl); pdfUrl = null; }
   $("#prevBox").open = false; $("#chkBox").open = false; $("#fixBox").open = false;
   lbCloseEdit(); save(); renderPrev(); renderCheck(); renderFix(); renderLogbook(); renderOverview(); renderPrint();
+  logEvent("start_over", {});
   $("#soConfirm").classList.add("hidden"); $("#btnStartOver").classList.remove("hidden"); $("#soDone").textContent = "Logbook data cleared. Start again from step 1.";
   window.scrollTo({ top: 0, behavior: "smooth" });
 });
@@ -2879,7 +2954,7 @@ $("#cbFRows").addEventListener("click", e => { const b = e.target.closest("[data
 const cbKeepMe = () => { const C = cb(); C.me.name = $("#cbName").value.trim(); C.me.base = $("#cbBase").value.trim().toUpperCase(); };
 $("#cbSave").addEventListener("click", () => {
   cbKeepMe(); const C = cb();
-  if (save()) { cbPush(); const n = Object.keys(C.me.days).length; cbMsg("#cbMsg", n ? `Saved. Your roster has ${n} days.` : "Saved your name and base. Drop your roster PDF next.", !n); renderCrewBase(); }
+  if (save()) { cbPush(); const n = Object.keys(C.me.days).length; logEvent("roster_saved", { days: n }); cbMsg("#cbMsg", n ? `Saved. Your roster has ${n} days.` : "Saved your name and base. Drop your roster PDF next.", !n); renderCrewBase(); }
 });
 // why a dropped file gave no days
 const cbWhy = meta => meta.notPdf ? "That isn't a PDF. Drop the Personal Crew Schedule Report PDF from AIMS." : meta.noGrid ? "Couldn't find the roster in that PDF. Is it the Personal Crew Schedule Report from AIMS?" : "No days found in that file.";
@@ -2902,7 +2977,7 @@ $("#cbFAdd").addEventListener("click", () => {
   const email = $("#cbFEmail").value.trim().toLowerCase(), F = cb().friends;
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return cbMsg("#cbFMsg", "That doesn't look like an email address.", true);
   if (F.some(f => f.email === email)) return cbMsg("#cbFMsg", "That friend is already on your list.", true);
-  F.push({ email, name: $("#cbFName").value.trim() || email.split("@")[0], base: "", days: {}, show: true });
+  F.push({ email, name: $("#cbFName").value.trim() || email.split("@")[0], base: "", days: {}, show: true }); logEvent("friend_added", { friends: F.length });
   if (save()) { $("#cbFEmail").value = ""; $("#cbFName").value = ""; cbMsg("#cbFMsg", cbOnline() ? "Added. Their roster appears once they have added your email too." : "Added. Load the roster file they send you."); renderCrewBase(); cbSync(); }
 });
 $("#cbFLoadBtn").addEventListener("click", () => $("#cbFLoad").click());
@@ -3417,6 +3492,7 @@ $("#btnMakePdf").addEventListener("click", async () => {
     // preview only where the browser shows PDFs in the page (not Android Chrome: it would download a second copy)
     if (navigator.pdfViewerEnabled !== false) { $("#pdfFrame").src = pdfUrl; $("#pdfCard").classList.remove("hidden"); }
     const a = document.createElement("a"); a.href = pdfUrl; a.download = `crewbaselog-logbook-${prFmt.toLowerCase()}-${todayISO()}.pdf`; a.click();
+    logEvent("download_pdf", { format: prFmt, range: $('input[name="prRange"]:checked')?.value, kb: Math.round(bytes.length / 1024), ...nLines() });
     $("#prMsg").textContent = `Downloaded (${Math.round(bytes.length/1024)} KB)${navigator.pdfViewerEnabled !== false ? ". Preview below." : ": open it from your Downloads."}`;
   } catch (x) { console.error(x); $("#prMsg").textContent = x.message || "Couldn't build the PDF."; $("#prMsg").style.color = "var(--bad)"; }
   btn.disabled = false;
