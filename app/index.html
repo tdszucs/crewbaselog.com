@@ -91,7 +91,11 @@ h2{font-size:24px;letter-spacing:-.02em;margin:0 0 6px}
 .lbline th{font-size:9.5px;font-weight:700;background:var(--bg)}
 .lbline td{font-family:"JetBrains Mono",monospace;height:24px}
 .lbgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:0 12px}
-.lbgrid .field{margin-bottom:10px;min-width:0}.lbgrid .wide{grid-column:1/-1}
+.lbgrid .field{margin-bottom:10px;min-width:0}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;padding:3px;margin:0 0 14px;background:var(--bg)}
+.seg label{display:flex;align-items:center;gap:6px;margin:0;padding:6px 14px;border-radius:7px;font-size:14px;font-weight:500;cursor:pointer;color:var(--muted)}
+.seg input{position:absolute;opacity:0;width:1px;height:1px}
+.seg label:has(input:checked){background:var(--surface);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.12)}.lbgrid .wide{grid-column:1/-1}
 .times{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;max-width:560px}
 .times label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .times input{min-width:0;padding-left:8px;padding-right:8px;text-align:center}
@@ -438,11 +442,12 @@ td.r,th.r{text-align:right}
       </div>
 
       <form class="card" id="addForm">
-        <h3><span class="stepn">3</span>Add a flight by hand</h3>
+        <h3><span class="stepn">3</span>Add a flight or simulator session by hand</h3>
+        <div class="seg" role="radiogroup" aria-label="What to add"><label><input type="radio" name="addKind" value="flight" checked> Flight</label><label><input type="radio" name="addKind" value="sim"> Simulator session</label></div>
         <p class="hint" style="margin:0 0 14px;font-size:14px">For a flight that isn't in any file. Times in UTC. Leave PIC/co-pilot, night and IFR empty to have them filled in from your <a href="#" data-go="profile">profile</a>. The preview shows the line exactly as it will appear in your EASA logbook.</p>
         <div class="lbgrid" id="addFields"></div>
         <div class="field" style="margin-top:4px"><label>Preview: your logbook line</label><div class="tablewrap"><div id="addPreview"></div></div></div>
-        <div class="row-actions" style="margin:0"><button class="btn" type="submit">Add flight to logbook</button><button class="btn ghost" type="button" id="addClear">Clear</button><span class="err" id="addErr" style="margin:0"></span><span class="ok-msg" id="addOk"></span></div>
+        <div class="row-actions" style="margin:0"><button class="btn" type="submit" id="addSubmit">Add flight to logbook</button><button class="btn ghost" type="button" id="addClear">Clear</button><span class="err" id="addErr" style="margin:0"></span><span class="ok-msg" id="addOk"></span></div>
       </form>
 
       <div class="card" id="outCard">
@@ -1301,7 +1306,7 @@ function markBackedUp(){ data.backup = { sig: flightsSig(), date: todayISO() }; 
 /* ---------- your data: airlines, add a flight by hand ---------- */
 function renderYourData(){
   renderPrint(); loadAirports().then(renderAddPreview);
-  if (!$("#addFields").children.length) { $("#addFields").innerHTML = flightFieldsHTML("n_"); renderAddPreview(); }
+  if (!$("#addFields").children.length) addFormReset();
 }
 $("#airlines").addEventListener("click", e => {
   const b = e.target.closest("[data-air]"); if (!b) return;
@@ -1335,24 +1340,32 @@ function easaLineHTML(f){
     ? `<td><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span>${esc(v || "")}</span><img src="${f.remarkSig}" alt="" style="height:20px"></div></td>`
     : `<td>${esc(v || "")}</td>`).join("")}</tr></tbody></table>`;
 }
+const addSim = () => $('[name="addKind"]:checked').value === "sim";
+function addFormReset(){
+  $("#addFields").innerHTML = addSim() ? simFieldsHTML("n_") : flightFieldsHTML("n_");
+  $("#addSubmit").textContent = addSim() ? "Add session to logbook" : "Add flight to logbook";
+  renderAddPreview(); $("#addErr").textContent = "";
+}
 function renderAddPreview(){
-  const { f, err } = readFlightForm("n_");
-  if (!err) autoFill(f);
+  const { f, err } = addSim() ? readSimForm("n_") : readFlightForm("n_");
+  if (!err && !addSim()) autoFill(f);
   $("#addPreview").innerHTML = easaLineHTML(f);
   return err;
 }
 $("#addFields").addEventListener("input", () => { renderAddPreview(); $("#addErr").textContent = ""; $("#addOk").textContent = ""; });
 
-$("#addClear").addEventListener("click", () => { $("#addFields").innerHTML = flightFieldsHTML("n_"); renderAddPreview(); $("#addErr").textContent = ""; });
+$("#addClear").addEventListener("click", addFormReset);
+$("#addForm").addEventListener("change", e => { if (e.target.name === "addKind") { addFormReset(); $("#addOk").textContent = ""; } });
 $("#addForm").addEventListener("submit", e => {
   e.preventDefault(); $("#addOk").textContent = "";
-  const { f, err } = readFlightForm("n_"); if (err) return $("#addErr").textContent = err;
-  autoFill(f);
-  if (data.flights.some(x => dupKey(x) === dupKey(f))) return $("#addErr").textContent = "That flight is already in your logbook.";
+  const sim = addSim(), { f, err } = sim ? readSimForm("n_") : readFlightForm("n_"); if (err) return $("#addErr").textContent = err;
+  if (!sim) autoFill(f);
+  if (data.flights.some(x => dupKey(x) === dupKey(f))) return $("#addErr").textContent = `That ${sim ? "session" : "flight"} is already in your logbook.`;
   data.flights.push(f); data.flights.sort((a,b) => (a.date+a.out).localeCompare(b.date+b.out));
   if (!save()) return;
-  $("#addFields").innerHTML = flightFieldsHTML("n_"); renderAddPreview(); $("#addErr").textContent = "";
-  $("#addOk").textContent = `Added ${flightLabel(f)}. Your logbook has ${data.flights.length.toLocaleString()} flights.`; renderPrint();
+  addFormReset();
+  const ns = data.flights.filter(isSim).length;
+  $("#addOk").textContent = `Added ${flightLabel(f)}. Your logbook has ${(data.flights.length - ns).toLocaleString()} flights${ns ? ` and ${ns} simulator session${ns === 1 ? "" : "s"}` : ""}.`; renderPrint();
 });
 
 /* ---------- statistics (hours for job applications) ---------- */
@@ -1430,7 +1443,7 @@ function renderLogbook(){
 /* one flight at a time: edit or delete */
 const LB_DUR = ["total","pic","copilot","dual","instructor","night","ifr"], LB_TIME = ["out","off","on","in"];
 let lbEditing = null; // the flight object being edited (indices shift when flights are added or sorted)
-const flightLabel = f => `${fmtDate(f.date)} ${f.flightNo || ""} ${f.from || "?"}–${f.to || "?"}`.replace(/\s+/g, " ");
+const flightLabel = f => (isSim(f) ? `${fmtDate(f.date)} simulator ${f.fstdType || ""} ${fmtMin(f.fstdTime)}` : `${fmtDate(f.date)} ${f.flightNo || ""} ${f.from || "?"}–${f.to || "?"}`).replace(/\s+/g, " ").trim();
 // the flight form (edit on the Logbook tab, add on Your data); ids are prefix + field key
 function flightFieldsHTML(pre, f = {}){
   const v = k => LB_DUR.includes(k) ? (f[k] ? fmtMin(f[k]) : "") : k.startsWith("ldg") ? (f[k] || "") : f[k] ?? "";
@@ -1439,6 +1452,21 @@ function flightFieldsHTML(pre, f = {}){
   // off-block, take-off, landing, on-block always side by side in one row, on any screen
   const times = `<div class="field wide"><div class="times">${LB_TIME.map(k => `<div><label for="${pre}${k}">${{ out: "Off-block", off: "Take-off", on: "Landing", in: "On-block" }[k]}</label>${input(k)}</div>`).join("")}</div></div>`;
   return FIELDS.filter(([k]) => !LB_TIME.includes(k)).map(([k, label]) => `<div class="field${k === "remarks" ? " wide" : ""}"><label for="${pre}${k}">${label}</label>${k === "date" ? `<span class="datewrap">${input(k)}</span>` : input(k)}</div>` + (k === "to" ? times : "")).join("");
+}
+// a simulator session: EASA FSTD columns (date, type, session time) and remarks
+function simFieldsHTML(pre, f = {}){
+  return `<div class="field"><label for="${pre}date">Date</label><span class="datewrap"><input id="${pre}date" type="date" required value="${esc(f.date || "")}"></span></div>
+    <div class="field"><label for="${pre}fstdType">FSTD type</label><input id="${pre}fstdType" placeholder="e.g. B787 FFS" value="${esc(f.fstdType || "")}"></div>
+    <div class="field"><label for="${pre}fstdTime">Session time</label><input id="${pre}fstdTime" class="mono" placeholder="H:MM" value="${f.fstdTime ? fmtMin(f.fstdTime) : ""}"></div>
+    <div class="field wide"><label for="${pre}remarks">Remarks</label><input id="${pre}remarks" placeholder="e.g. OPC, LPC, recurrent, type rating" value="${esc(f.remarks || "")}"></div>`;
+}
+function readSimForm(pre, base = {}){
+  const g = k => $("#" + pre + k).value.trim();
+  const f = { ...base, date: g("date"), flightNo: "", from: "", to: "", out: "", off: "", on: "", in: "", acType: "", reg: "", picName: "",
+    total: 0, pic: 0, copilot: 0, dual: 0, instructor: 0, night: 0, ifr: 0, ldgDay: 0, ldgNight: 0,
+    fstdType: g("fstdType").toUpperCase(), fstdTime: parseDur(g("fstdTime")), remarks: g("remarks") };
+  const err = !/^\d{4}-\d{2}-\d{2}$/.test(f.date) ? "Check: Date." : !f.fstdTime ? "Enter the session time as H:MM, e.g. 4:00." : "";
+  return { f, err };
 }
 // -> { f, err } ; f is base plus the form's values
 function readFlightForm(pre, base = {}){
@@ -1464,9 +1492,9 @@ $("#lbSigCur").addEventListener("click", e => { if (e.target.id === "lbSigDel") 
 $("#lbSigClear").addEventListener("click", () => lbPad.reset());
 function lbOpenEdit(i){
   const f = data.flights[i]; if (!f) return; lbEditing = f; lbSigDrop = false;
-  $("#lbEditFields").innerHTML = flightFieldsHTML("e_", f);
+  $("#lbEditFields").innerHTML = isSim(f) ? simFieldsHTML("e_", f) : flightFieldsHTML("e_", f);
   lbShowSig(); requestAnimationFrame(() => lbPad.reset());
-  $("#lbEditTitle").textContent = "Edit flight: " + flightLabel(f); $("#lbEditErr").textContent = "";
+  $("#lbEditTitle").textContent = (isSim(f) ? "Edit simulator session: " : "Edit flight: ") + flightLabel(f); $("#lbEditErr").textContent = "";
   $("#lbEdit").classList.remove("hidden"); $("#lbEdit").scrollIntoView({ behavior: "smooth", block: "start" }); $("#e_date").focus({ preventScroll: true });
 }
 function lbCloseEdit(){ lbEditing = null; $("#lbEdit").classList.add("hidden"); }
@@ -1484,7 +1512,7 @@ $("#lbEditDel").addEventListener("click", () => lbDelete(data.flights.indexOf(lb
 $("#lbEdit").addEventListener("submit", async e => {
   e.preventDefault();
   const at = data.flights.indexOf(lbEditing); if (at < 0) return lbCloseEdit();
-  const { f, err } = readFlightForm("e_", lbEditing); if (err) return $("#lbEditErr").textContent = err;
+  const { f, err } = isSim(lbEditing) ? readSimForm("e_", lbEditing) : readFlightForm("e_", lbEditing); if (err) return $("#lbEditErr").textContent = err;
   if (lbPad.inked()) f.remarkSig = await smallSigPNG($("#lbSigPad")); else if (lbSigDrop) delete f.remarkSig;
   if (data.flights.indexOf(lbEditing) !== at) return lbCloseEdit();
   data.flights[at] = f; data.flights.sort((a,b) => (a.date+a.out).localeCompare(b.date+b.out));
