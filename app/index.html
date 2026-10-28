@@ -425,9 +425,10 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
         <h3><span class="stepn">0</span>Already have a full backup?</h3>
         <p class="hint step-sub">Restore it to get your whole logbook back, then skip to step 3 to add your new flights.</p>
         <div class="drop drop-sm" id="dropBk"><b>Drop your full backup here</b><br><span class="hint">or tap to choose · crewbaselog-backup….json</span></div>
+        <p class="hint hidden" id="bkNote" style="margin:12px 0 0;font-size:14px"></p>
       </div>
 
-      <div class="card">
+      <div class="card" id="prevCard">
         <h3><span class="stepn">1</span>Previous experience</h3>
         <p class="hint step-sub">Hours from before this logbook that you won't import flight by flight, such as a paper logbook.</p>
         <details id="prevBox"><summary class="more">Enter totals <span id="prevNote"></span></summary>
@@ -437,7 +438,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
         </details>
       </div>
 
-      <div class="card">
+      <div class="card" id="pastCard">
         <h3><span class="stepn">2</span>Import your past logbook</h3>
         <p class="hint step-sub">Your last CrewBase Log CSV, or an export from another logbook app.</p>
         <div class="drop" id="drop"><b>Drop your past logbook here</b><br><span class="hint">or tap to choose · .csv, .xlsx, .pdf</span>
@@ -1894,7 +1895,18 @@ function prevFromCSV(f){
   for (const k of ["se","me","mp"]) { const m = (f.remarks || "").match(new RegExp(`\\b${k}\\s+(\\d+:\\d{2})`, "i")); o[k] = m ? parseHM(m[1]) : 0; }
   return o;
 }
+// after a full backup is restored, steps 1 and 2 aren't needed: hide them (a link shows them again)
+let showSteps12 = false;
+function renderSteps(){
+  const r = !!data.restored && !showSteps12;
+  ["prevCard", "pastCard"].forEach(id => $("#" + id).classList.toggle("hidden", r));
+  $("#bkNote").classList.toggle("hidden", !data.restored);
+  if (data.restored) $("#bkNote").innerHTML = `<b style="color:var(--ok)">✓ Restored from your backup of ${fmtDate(data.restored)}.</b> ` +
+    (r ? `Steps 1 and 2 are hidden: your logbook is complete up to the backup. <a href="#" id="showSteps">Show them</a>` : `<a href="#" id="showSteps">Hide steps 1 and 2</a>`);
+}
+document.addEventListener("click", e => { if (e.target.id === "showSteps") { e.preventDefault(); showSteps12 = !showSteps12; renderSteps(); } });
 function renderPrev(){
+  renderSteps();
   const P = data.prev || {};
   $("#prevGrid").innerHTML = ["total","pic","copilot","dual","instructor","night","ifr","se","me","mp","ldgDay","ldgNight","fstd"].map(k =>
     `<div class="field"><label for="pv_${k}">${PREV_LABEL[k]}</label><input id="pv_${k}" data-pv="${k}" class="mono" ${k.startsWith("ldg") ? 'type="number" min="0" step="1" placeholder="0"' : 'placeholder="0:00"'} value="${P[k] ? (k.startsWith("ldg") ? P[k] : fmtMin(P[k])) : ""}"></div>`).join("");
@@ -2385,8 +2397,8 @@ async function restoreBackup(text){
   if (!confirm(`Replace everything on this device with the backup from ${j.exported?.slice(0,10) || "file"} (${j.data.flights.length.toLocaleString()} flights)?`)) return;
   const today = logToday(), want = j.data.flights.filter(f => !(f.date > today)), future = j.data.flights.length - want.length;
   if (!store.set(key(), j.data)) return;
-  load(); save();   // load() also drops future-dated flights
-  fixLog = {}; $("#chkUpto").value = ""; $("#impErr").textContent = "";
+  load(); data.restored = (j.exported || "").slice(0, 10) || todayISO(); save();   // load() also drops future-dated flights
+  showSteps12 = false; fixLog = {}; $("#chkUpto").value = ""; $("#impErr").textContent = "";
   ["impDone", "mapCard", "pdfCard"].forEach(id => $("#" + id).classList.add("hidden")); $("#pdfFrame").removeAttribute("src");
   renderPrev(); renderCheck(); renderFix(); renderLogbook(); renderOverview(); renderPrint();
   // check the result against the file: same lines, same total time, and saved on this device
@@ -2417,7 +2429,7 @@ $("#btnStartOver").addEventListener("click", () => {
 });
 $("#soNo").addEventListener("click", () => { $("#soConfirm").classList.add("hidden"); $("#btnStartOver").classList.remove("hidden"); });
 $("#soYes").addEventListener("click", () => {
-  data.flights = []; delete data.prev; delete data.oldTotals; delete data.lastImport; delete data.fixOk; fixLog = {};
+  data.flights = []; delete data.prev; delete data.oldTotals; delete data.lastImport; delete data.fixOk; delete data.restored; fixLog = {};
   $("#chkUpto").value = ""; ["impDone", "mapCard", "pdfCard"].forEach(id => $("#" + id).classList.add("hidden")); $("#impErr").textContent = "";
   // close the PDF preview of the old logbook
   $("#pdfFrame").removeAttribute("src"); if (pdfUrl) { URL.revokeObjectURL(pdfUrl); pdfUrl = null; }
