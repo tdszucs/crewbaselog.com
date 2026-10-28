@@ -466,17 +466,9 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
         <div class="row-actions" style="margin:0"><button class="btn" type="button" data-csv>Download CSV file</button><button class="btn ghost" type="button" data-go="import" data-scroll="#outCard">Download PDF logbook</button></div>
       </div>
 
-      <form class="card" id="addForm">
-        <h3><span class="stepn">3</span>Add a flight or simulator session by hand</h3>
-        <div class="seg" role="radiogroup" aria-label="What to add"><label><input type="radio" name="addKind" value="flight" checked> Flight</label><label><input type="radio" name="addKind" value="sim"> Simulator session</label></div>
-        <p class="hint" style="margin:0 0 14px;font-size:14px">For a flight that isn't in any file. Times in UTC. Leave PIC/co-pilot, night and IFR empty to have them filled in from your <a href="#" data-go="profile">profile</a>. The preview shows the line exactly as it will appear in your EASA logbook.</p>
-        <div class="lbgrid" id="addFields"></div>
-        <div class="field" style="margin-top:4px"><label>Preview: your logbook line</label><div class="tablewrap"><div id="addPreview"></div></div></div>
-        <div class="row-actions" style="margin:0"><button class="btn" type="submit" id="addSubmit">Add flight to logbook</button><button class="btn ghost" type="button" id="addClear">Clear</button><span class="err" id="addErr" style="margin:0"></span><span class="ok-msg" id="addOk"></span></div>
-      </form>
 
       <div class="card" id="outCard">
-        <h3><span class="stepn">4</span>Download your logbook</h3>
+        <h3><span class="stepn">3</span>Download your logbook</h3>
         <p class="hint" style="margin:0 0 16px;font-size:14px" id="outInfo"></p>
         <div class="grid2" style="gap:18px">
           <div>
@@ -515,12 +507,21 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
       <h2>Logbook</h2>
       <p class="lead">Your flights are kept only in this browser. Download your full logbook CSV after each import and keep it safe: if you clear your browser data or change device, import it again.</p>
       <div class="stats" id="lbStats"></div>
+      <form class="card hidden" id="addForm">
+        <h3>Add a flight or simulator session by hand</h3>
+        <div class="seg" role="radiogroup" aria-label="What to add"><label><input type="radio" name="addKind" value="flight" checked> Flight</label><label><input type="radio" name="addKind" value="sim"> Simulator session</label></div>
+        <p class="hint" style="margin:0 0 14px;font-size:14px">For a flight that isn't in any file. Times in UTC. Leave PIC/co-pilot, night and IFR empty to have them filled in from your <a href="#" data-go="profile">profile</a>. The preview shows the line exactly as it will appear in your EASA logbook.</p>
+        <div class="lbgrid" id="addFields"></div>
+        <div class="field" style="margin-top:4px"><label>Preview: your logbook line</label><div class="tablewrap"><div id="addPreview"></div></div></div>
+        <div class="row-actions" style="margin:0"><button class="btn" type="submit" id="addSubmit">Add flight to logbook</button><button class="btn ghost" type="button" id="addClear">Clear</button><button class="btn ghost" type="button" id="addClose">Close</button><span class="err" id="addErr" style="margin:0"></span><span class="ok-msg" id="addOk"></span></div>
+      </form>
       <div class="card">
         <div class="row-actions" style="margin:0 0 14px">
           <button class="btn small" type="button" data-csv>Download CSV file</button>
           <button class="btn ghost small" type="button" data-go="import" data-scroll="#outCard">Download PDF logbook</button>
           <button class="btn ghost small" id="btnBackup" type="button" title="Includes profile, expiries, signature and rosters">Download full backup</button>
           <label class="btn ghost small" style="margin:0">Restore backup<input type="file" id="restoreFile" accept=".json" class="hidden"></label>
+          <button class="btn ghost small" id="btnAddOpen" type="button">+ Add a flight by hand</button>
           <button class="btn danger small" id="btnClearFlights" type="button">Delete all flights</button>
         </div>
         <form class="notice hidden" id="lbEdit" style="margin:0 0 14px;background:var(--bg);border-color:var(--line)">
@@ -1502,13 +1503,14 @@ $("#btnCancelImp").addEventListener("click", () => { impLog.push(`<b>${esc(imp.n
 function doImport(){
   const fmt = imp.fmt || (imp.own ? "YMD" : $("#mDateFmt").value), existing = new Map(), inFile = new Map();
   for (const f of data.flights) { const k = dupKey(f); existing.set(k, [...(existing.get(k) || []), f]); }
-  let added = 0, dup = 0, bad = 0, bf = "", future = 0, updated = 0;
+  let added = 0, dup = 0, bf = "", future = 0, updated = 0; const badRows = [];
   // flights not flown yet (planned flights in an export that runs into the future) never go in the logbook
   const today = logToday(), stored = new Set(data.flights), renewed = new Set();
   for (const r of imp.flights || imp.rows) {
     if (imp.own && /^brought forward$/i.test(String(r[imp.map.flightNo] || "").trim())) { data.prev = prevFromCSV(rowToFlight(r, imp.map, fmt)); bf = " (and your previous experience)"; continue; }
     const f = imp.flights ? { ...r } : rowToFlight(r, imp.map, fmt);
-    if (!valid(f)) { bad++; continue; }
+    // report lines (pilot name, totals, "Generated on") are not flights: only a dated line or a route counts as left out
+    if (!valid(f)) { if (f.date || (f.from && f.to)) badRows.push(f.date ? fmtDate(f.date) : `${f.from}–${f.to}`); continue; }
     if (!imp.own && !imp.flights) autoFill(f);   // a PDF logbook's own columns are what was logged
     // already there: only pick up an instructor signature the stored copy lacks. A file may hold the same line twice
     // (two identical sim sessions on one day): only as many copies as the logbook already has count as duplicates
@@ -1528,7 +1530,7 @@ function doImport(){
   if (!imp.own && !imp.flights && (added || dup)) data.templates[imp.sig] = Object.fromEntries(Object.entries(imp.map).filter(([,v]) => v !== undefined));
   if (!save()) return false;
   impLog.push(`<b>${esc(imp.name)}</b>: ${added.toLocaleString()} new entr${added===1?"y":"ies"}${bf}` + (updated ? `, ${updated} updated with new times` : "") + (dup ? `, ${dup.toLocaleString()} already in your logbook` : "") +
-    (future ? `, ${future} future flight${future === 1 ? "" : "s"} left out (the logbook only holds flights already flown)` : "") + (bad ? `, ${bad} rows without a date/route ignored` : ""));
+    (future ? `, ${future} future flight${future === 1 ? "" : "s"} left out (the logbook only holds flights already flown)` : "") + (badRows.length ? `, ${badRows.length} line${badRows.length === 1 ? "" : "s"} with no route, flight time or sim time left out (${badRows.slice(0, 5).join(", ")}${badRows.length > 5 ? " …" : ""})` : ""));
   if (imp.pdf) {
     if (imp.pdf.prev) impLog.push(`Brought forward on its first page, from an earlier logbook: <b>${fmtMin(imp.pdf.prev.total)}</b> total time. Saved as your <a href="#" data-go="import" data-scroll="#prevBox">previous experience</a>.`);
     impLog.push(easaCheck(imp.pdf));
@@ -1629,9 +1631,15 @@ $("#chkGo").addEventListener("click", () => $("#aimsCard").scrollIntoView({ beha
 
 /* ---------- your data: airlines, add a flight by hand ---------- */
 function renderYourData(){
-  renderPrint(); renderPrev(); renderCheck(); loadAirports().then(renderAddPreview);
-  if (!$("#addFields").children.length) addFormReset();
+  renderPrint(); renderPrev(); renderCheck();
 }
+// adding a flight by hand lives on the Logbook tab, behind a button: most airline pilots import everything
+function openAddForm(){
+  $("#addForm").classList.remove("hidden"); if (!$("#addFields").children.length) addFormReset();
+  loadAirports().then(renderAddPreview); $("#addForm").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+$("#btnAddOpen").addEventListener("click", openAddForm);
+$("#addClose").addEventListener("click", () => $("#addForm").classList.add("hidden"));
 $("#airlines").addEventListener("click", e => {
   const b = e.target.closest("[data-air]"); if (!b) return;
   const on = !b.classList.contains("on");
@@ -1689,7 +1697,7 @@ $("#addForm").addEventListener("submit", e => {
   if (!save()) return;
   addFormReset();
   const ns = data.flights.filter(isSim).length;
-  $("#addOk").textContent = `Added ${flightLabel(f)}. Your logbook has ${(data.flights.length - ns).toLocaleString()} flights${ns ? ` and ${ns} simulator session${ns === 1 ? "" : "s"}` : ""}.`; renderPrint();
+  $("#addOk").textContent = `Added ${flightLabel(f)}. Your logbook has ${(data.flights.length - ns).toLocaleString()} flights${ns ? ` and ${ns} simulator session${ns === 1 ? "" : "s"}` : ""}.`; renderPrint(); renderLogbook();
 });
 
 /* ---------- statistics (hours for job applications) ---------- */
