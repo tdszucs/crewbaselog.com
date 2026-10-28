@@ -407,7 +407,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
         <p class="hint" style="margin:-6px 0 14px;font-size:13.5px">Read automatically: <b>Flylog</b> CSV and EASA / JAR PDF, <b>CrewLounge PILOTLOG</b> (mccPILOTLOG) CSV and logbook PDF, <b>Safelog</b> CSV, <b>eCrew</b> Pilot LogBook report (CSV, Excel, PDF). Any other CSV or Excel file: you match the columns once.</p>
         <div class="drop" id="drop"><b>Drop your past logbook here</b><br><span class="hint">or click to choose files · .csv, .xlsx, .pdf</span>
           <input type="file" id="impFile" accept=".csv,.txt,.tsv,.xlsx,.xls,.pdf,.json,.zip" multiple class="hidden"></div>
-        <div class="row-actions" style="margin-top:12px;justify-content:space-between"><label style="display:flex;gap:8px;align-items:center;font-weight:400;margin:0;font-size:14px"><input type="checkbox" id="impManual" style="width:auto"> Let me match the columns myself (if a file was read wrongly)</label><a href="#" id="dlSample" class="hint">Download a sample CSV to try</a></div>
+        <div class="row-actions" style="margin-top:12px;justify-content:space-between"><label style="display:flex;gap:8px;align-items:center;font-weight:400;margin:0;font-size:14px"><input type="checkbox" id="impManual" autocomplete="off" style="width:auto"> Let me match the columns myself (if a file was read wrongly)</label><a href="#" id="dlSample" class="hint">Download a sample CSV to try</a></div>
         <details id="prevBox" style="margin-top:14px"><summary style="cursor:pointer;font-size:15px;font-weight:600">Previous experience (brought forward)</summary>
           <p class="hint" style="margin:10px 0 14px;font-size:14px">Hours from logbooks you don't import flight by flight, such as an old paper logbook: copy the totals from its last page. They are added to your statistics and carried into "total from previous pages" on page 1 of your PDF logbook. Times as H:MM. <span id="prevNote"></span></p>
           <div class="pvgrid" id="prevGrid"></div>
@@ -1266,14 +1266,20 @@ function crewloungeFlights(headers, rows){
   }
   return { flights, classes, prev, note };
 }
-function guessMap(headers){
+function guessMap(headers, rows = []){
   const map = {}, used = new Set();
+  // a time column must hold times: "Approaches Instrument" (1, 2 ...) is a count, not instructor time
+  const vals = ix => rows.slice(0, 200).map(r => String(r[ix] ?? "").trim()).filter(Boolean).slice(0, 30);
+  const fits = (k, ix) => { const v = vals(ix); if (!v.length) return true;
+    if ([...LB_DUR, "simTime"].includes(k)) return !v.every(x => /^\d{1,2}$/.test(x));
+    if (k.startsWith("ldg")) return v.every(x => /^\d{1,3}$/.test(x));
+    return true; };
   for (const [k,, syn] of MAP_FIELDS) {
-    const i = headers.findIndex((h,ix) => !used.has(ix) && syn.includes(norm(h)));
+    const i = headers.findIndex((h,ix) => !used.has(ix) && syn.includes(norm(h)) && fits(k, ix));
     if (i >= 0) { map[k] = i; used.add(i); }
   }
   for (const [k,, syn] of MAP_FIELDS) if (map[k] === undefined) {
-    const i = headers.findIndex((h,ix) => !used.has(ix) && syn.some(s => s.length > 3 && norm(h).includes(s)));
+    const i = headers.findIndex((h,ix) => !used.has(ix) && syn.some(s => s.length > 3 && ` ${norm(h).replace(/[()]/g, " ")} `.includes(` ${s} `)) && fits(k, ix));   // whole words: "instr" is not "instrument"
     if (i >= 0) { map[k] = i; used.add(i); }
   }
   return map;
@@ -1663,6 +1669,7 @@ async function nextFile(){
     if (imp?.own || imp?.auto) { doImport(); imp = null; continue; }
     if (imp) return; // waiting for the column check
   }
+  $("#impManual").checked = false;
   if (!impLog.length) return;
   if (impErrs === impLog.length) return $("#impErr").innerHTML = impLog.join("<br>");
   const ns = data.flights.filter(isSim).length, nf = data.flights.length - ns;
@@ -1697,7 +1704,11 @@ async function handleFile(f){
   const sig = headers.map(norm).join("|");
   // our own CSV (older files have fewer of the trailing columns)
   // the pilot asked to match the columns: no format detection, straight to the matching screen
-  if ($("#impManual").checked) { imp = { headers, rows: body, map: guessMap(headers), sig, name: f.name, manual: true }; renderMapping(); return; }
+  if ($("#impManual").checked) {
+    // a format CrewBase Log reads by itself: say so, matching it by hand loses what it adds up (day + night columns ...)
+    const known = flylogFlights(headers, body) ? "Flylog" : crewloungeFlights(headers, body) ? "CrewLounge PILOTLOG" : safelogFlights(headers, body) ? "Safelog" : ecrewListMap(headers) || ecrewMap(headers) ? "eCrew" : "";
+    imp = { headers, rows: body, map: guessMap(headers, body), sig, name: f.name, manual: true, known }; renderMapping(); return;
+  }
   const app = flylogFlights(headers, body) || crewloungeFlights(headers, body);
   if (app) { imp = { name: f.name, flights: app.flights, classes: app.classes, appPrev: app.prev, note: app.note, auto: true }; return; }
   const sl = safelogFlights(headers, body);
@@ -1710,13 +1721,13 @@ async function handleFile(f){
   // a saved matching only wins if it actually produces flights (an earlier failed import may have saved a bad one)
   const saved = works(data.templates[sig]) ? data.templates[sig] : null;
   const ec = saved ? null : ecrewMap(headers);
-  imp = { headers, rows: body, map: saved ? { ...saved } : (ec || guessMap(headers)), sig, name: f.name, fromTemplate: !!saved, ecrew: !!ec };
+  imp = { headers, rows: body, map: saved ? { ...saved } : (ec || guessMap(headers, body)), sig, name: f.name, fromTemplate: !!saved, ecrew: !!ec };
   renderMapping();
 }
 function renderMapping(){
   $("#mapCard").classList.remove("hidden");
   $("#mapInfo").innerHTML = `<b>${esc(imp.name)}</b>: ${imp.rows.length.toLocaleString()} rows, ${imp.headers.length} columns. ` +
-    (imp.manual ? "Choose the column for each item; the example under each choice is the first value in your file." : imp.fromTemplate ? "We've seen this layout before and used your saved matching." : imp.ecrew ? "Recognised as an eCrew Pilot LogBook report. Check the preview, then import." : "We've guessed the matches. Check them, then import. Your choices are remembered for next time.");
+    (imp.manual ? (imp.known ? `<b style="color:var(--warn)">This is a ${imp.known} export, which CrewBase Log reads correctly by itself (adding up its day and night, single and multi-engine columns). Matching it yourself can lose times: cancel, untick “Let me match the columns myself” and drop the file again, unless it was read wrongly.</b> ` : "") + "Choose the column for each item; the example under each choice is the first value in your file." : imp.fromTemplate ? "We've seen this layout before and used your saved matching." : imp.ecrew ? "Recognised as an eCrew Pilot LogBook report. Check the preview, then import." : "We've guessed the matches. Check them, then import. Your choices are remembered for next time.");
   const opts = '<option value="">— not in file —</option>' + imp.headers.map((h,i) => `<option value="${i}">${esc(h || "Column " + (i+1))}</option>`).join("");
   $("#mapGrid").innerHTML = MAP_FIELDS.map(([k,label]) => `<div><label for="m_${k}">${label}</label><select id="m_${k}" data-k="${k}">${opts}</select><div class="hint" id="mx_${k}" style="margin:3px 0 0;min-height:1.2em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div></div>`).join("");
   MAP_FIELDS.forEach(([k]) => { $("#m_"+k).value = imp.map[k] ?? ""; mapExample(k); });
