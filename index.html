@@ -3,8 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>CrewBase Log — The pilot logbook you control</title>
-<meta name="description" content="A free pilot logbook you control. Import your old logbook and your AIMS / eCrew flights, download an EASA, UK CAA, South African CAA or FAA PDF logbook, and share rosters with friends.">
+<title>Free Pilot Logbook App: EASA, UK CAA & FAA PDF | CrewBase Log</title>
+<meta name="description" content="Free pilot logbook you control. Import your old logbook and eCrew / AIMS flights, then download an EASA, UK CAA, SACAA or FAA PDF logbook.">
+<link rel="canonical" href="https://crewbaselog.com/">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://crewbaselog.com/">
 <meta property="og:title" content="CrewBase Log: the pilot logbook you control">
@@ -12,6 +13,7 @@
 <meta property="og:image" content="https://crewbaselog.com/img/hero-logbook.jpg">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="apple-touch-icon" href="/app/icons/apple-touch-icon.png">
+<script type="application/ld+json">[{"@context": "https://schema.org", "@type": "WebSite", "name": "CrewBase Log", "url": "https://crewbaselog.com/"}, {"@context": "https://schema.org", "@type": "SoftwareApplication", "name": "CrewBase Log", "url": "https://crewbaselog.com/", "applicationCategory": "BusinessApplication", "operatingSystem": "Web, iOS, Android, Windows, macOS", "description": "Free pilot logbook: import your old logbook and eCrew / AIMS flights, download an EASA, UK CAA, South African CAA or FAA PDF logbook.", "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"}, "image": "https://crewbaselog.com/img/hero-logbook.jpg"}, {"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "Is CrewBase Log free?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. CrewBase Log is free for pilots, with no subscription and nothing locked. It is supported by airlines posting pilot jobs and by pilots who choose to buy us a coffee."}}, {"@type": "Question", "name": "Where is my logbook stored?", "acceptedAnswer": {"@type": "Answer", "text": "On your own device, in your browser. Your flights, profile and signature are not sent to our servers. Download the full backup after each update to keep a copy and to move to a new phone or browser."}}, {"@type": "Question", "name": "Which logbook formats can I print?", "acceptedAnswer": {"@type": "Answer", "text": "An EASA Part-FCL logbook (FCL.050), UK CAA, South African CAA (SACAA) and FAA (14 CFR 61.51) as a PDF: the full logbook, the last 10 pages or any dates, with page totals and your signature."}}, {"@type": "Question", "name": "Can I import my logbook from Flylog, CrewLounge, LogTen or Safelog?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Flylog CSV and PDF, CrewLounge PILOTLOG (mccPILOTLOG) CSV and PDF, LogTen PDF logbooks and Safelog CSV are read automatically, as are EASA-style PDF logbooks. Any other CSV or Excel file works after you match its columns once."}}, {"@type": "Question", "name": "How do I add flights from eCrew or AIMS?", "acceptedAnswer": {"@type": "Answer", "text": "Export the Pilot LogBook report from eCrew (Reports, Pilot LogBook report, Export as CSV, Excel or PDF) and drop it into CrewBase Log. Several 2-year reports can go in at once; duplicates are skipped and night time is worked out for you."}}, {"@type": "Question", "name": "Does it work on iPhone and Android?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. CrewBase Log runs in the browser on phones, tablets and computers, and can be added to your Home Screen like an app."}}]}]</script>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230b3d5c'/%3E%3Cpath d='M12 38l40-14-10 22-8-6-6 8v-10z' fill='%23f2b544'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -59,6 +61,11 @@ h2{font-size:clamp(26px,3.4vw,36px);letter-spacing:-.02em;margin:0 0 12px}
 .feat p{margin:0;color:var(--muted);font-size:15px}
 .band{background:var(--surface);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
 .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:28px;counter-reset:s}
+#faq{padding-block:56px 8px}
+.faq details{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 18px;margin:0 0 10px}
+.faq summary{cursor:pointer;font-weight:600}
+.faq details p{margin:8px 0 0;color:var(--muted)}
+.guides{margin:18px 0 0;color:var(--muted);font-size:15px}
 .step{counter-increment:s}
 .step:before{content:counter(s,decimal-leading-zero);font:500 13px "JetBrains Mono",monospace;color:var(--accent);display:block;margin-bottom:8px}
 .step h3{margin:0 0 6px;font-size:17px}
@@ -95,7 +102,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
   <div class="wrap hero">
     <div>
       <div class="eyebrow">In command of your aircraft. In control of your data.</div>
-      <h1>The pilot logbook that lives on your device.</h1>
+      <h1>The free pilot logbook that lives on your device.</h1>
       <p class="lede">Bring in your old logbook and your AIMS / eCrew flights, and download a regulation-format PDF logbook and a CSV copy that stays with you. Free for pilots, forever.</p>
       <div class="cta"><a class="btn" href="/app/#signup">Get started free</a><a class="btn ghost" href="/app/#sample">Try the sample logbook</a><small>No subscription. Your logbook stays on your device.</small></div>
     </div>
@@ -132,6 +139,21 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
     </div>
   </section>
 
+  <section id="faq">
+    <div class="wrap">
+      <h2>Questions pilots ask</h2>
+      <div class="faq">
+        <details><summary>Is CrewBase Log free?</summary><p>Yes. CrewBase Log is free for pilots, with no subscription and nothing locked. It is supported by airlines posting pilot jobs and by pilots who choose to buy us a coffee.</p></details>
+        <details><summary>Where is my logbook stored?</summary><p>On your own device, in your browser. Your flights, profile and signature are not sent to our servers. Download the full backup after each update to keep a copy and to move to a new phone or browser.</p></details>
+        <details><summary>Which logbook formats can I print?</summary><p>An EASA Part-FCL logbook (FCL.050), UK CAA, South African CAA (SACAA) and FAA (14 CFR 61.51) as a PDF: the full logbook, the last 10 pages or any dates, with page totals and your signature.</p></details>
+        <details><summary>Can I import my logbook from Flylog, CrewLounge, LogTen or Safelog?</summary><p>Yes. Flylog CSV and PDF, CrewLounge PILOTLOG (mccPILOTLOG) CSV and PDF, LogTen PDF logbooks and Safelog CSV are read automatically, as are EASA-style PDF logbooks. Any other CSV or Excel file works after you match its columns once.</p></details>
+        <details><summary>How do I add flights from eCrew or AIMS?</summary><p>Export the Pilot LogBook report from eCrew (Reports, Pilot LogBook report, Export as CSV, Excel or PDF) and drop it into CrewBase Log. Several 2-year reports can go in at once; duplicates are skipped and night time is worked out for you.</p></details>
+        <details><summary>Does it work on iPhone and Android?</summary><p>Yes. CrewBase Log runs in the browser on phones, tablets and computers, and can be added to your Home Screen like an app.</p></details>
+      </div>
+      <p class="guides">Guides: <a href="/easa-pilot-logbook.html">EASA pilot logbook PDF</a> · <a href="/ecrew-logbook-export.html">Export your logbook from eCrew</a> · <a href="/switch-pilot-logbook-app.html">Move from Flylog, CrewLounge, LogTen or Safelog</a></p>
+    </div>
+  </section>
+
   <section class="final">
     <div class="wrap">
       <h2>Free for pilots, forever</h2>
@@ -144,7 +166,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
 <footer>
   <div class="wrap">
     <span>© 2026 CrewBase Log</span>
-    <span><a href="/privacy.html">Privacy</a> · <a href="https://ko-fi.com/tamas25712" target="_blank" rel="noopener" data-kofi>Buy us a coffee</a> · <a href="mailto:hello@crewbaselog.com">hello@crewbaselog.com</a></span>
+    <span><a href="/easa-pilot-logbook.html">EASA logbook</a> · <a href="/ecrew-logbook-export.html">eCrew export</a> · <a href="/switch-pilot-logbook-app.html">Switch apps</a> · <a href="/privacy.html">Privacy</a> · <a href="https://ko-fi.com/tamas25712" target="_blank" rel="noopener" data-kofi>Buy us a coffee</a> · <a href="mailto:hello@crewbaselog.com">hello@crewbaselog.com</a></span>
   </div>
 </footer>
 <dialog class="kofi" id="kofiDlg" aria-label="Support CrewBase Log">
