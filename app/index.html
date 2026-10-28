@@ -908,15 +908,19 @@ function acFamily(t){
   m = u.match(/^B?7([1-8])7/); if (m) return `Boeing 7${m[1]}7`;
   return "";
 }
+// { type: value } -> [[family, [[type, value] ...]] ...]: families A-Z, "" (no known family) last, variants A-Z inside
+const byName = (a, b) => a.localeCompare(b, "en", { numeric: true });
+function typeGroups(obj){
+  const fam = {};
+  for (const [t, v] of Object.entries(obj)) (fam[acFamily(t)] ||= []).push([t, v]);
+  return Object.keys(fam).sort((a, b) => !a - !b || byName(a, b)).map(g => [g, fam[g].sort((a, b) => byName(a[0], b[0]))]);
+}
 function renderAcTypes(){
   const opts = v => Object.entries(AC_CLASS).map(([k, l]) => `<option value="${k}"${k === v ? " selected" : ""}>${l}</option>`).join("");
-  const byName = (a, b) => a.localeCompare(b, "en", { numeric: true }), fam = {};
-  for (const [t, n] of Object.entries(acTypesFlown())) (fam[acFamily(t)] ||= []).push([t, n]);
-  // families in alphabetical order, types without a known family last; variants listed under their family
-  const groups = Object.keys(fam).sort((a, b) => !a - !b || byName(a, b));
+  const groups = typeGroups(acTypesFlown());
   const row = ([t, n]) => `<tr><td style="padding-left:26px">${esc(t)}</td><td class="r">${n.toLocaleString()}</td><td><select data-ac="${esc(t)}" style="width:auto">${opts(acClass(t))}</select>${!(data.acTypes || {})[t] ? ' <span class="hint" style="margin:0">guessed</span>' : ""}</td></tr>`;
-  $("#acRows").innerHTML = groups.length ? groups.map(g => {
-    const V = fam[g].sort((a, b) => byName(a[0], b[0])), n = V.reduce((s, v) => s + v[1], 0);
+  $("#acRows").innerHTML = groups.length ? groups.map(([g, V]) => {
+    const n = V.reduce((s, v) => s + v[1], 0);
     return `<tr style="background:var(--bg)"><td colspan="3"><b>${g ? esc(g) : "Other types"}</b> <span class="hint" style="margin:0">· ${n.toLocaleString()} flight${n === 1 ? "" : "s"}</span></td></tr>` + V.map(row).join("");
   }).join("") : '<tr><td colspan="3" class="hint">No flights yet. Types appear here once you import or add flights.</td></tr>';
   $("#acDefault").innerHTML = opts(data.profile.crew || "MP");
@@ -1717,8 +1721,12 @@ function renderStats(){
   // simulator sessions have their own tile, not an aircraft type
   const by = {}; F.filter(f => !isSim(f)).forEach(f => (by[f.acType || "No type given"] ||= []).push(f));
   $("#stTypes").innerHTML = `<table><thead><tr><th>Aircraft type</th><th class="r">Sectors</th>${cols.map(c => `<th class="r">${c[0]}</th>`).join("")}<th>Last flown</th></tr></thead><tbody>` +
-    Object.entries(by).map(([t, fl]) => [t, statTotals(fl)]).sort((a, b) => b[1].total - a[1].total)
-      .map(([t, o]) => `<tr><td>${esc(t)}</td><td class="r">${o.n}</td>${cols.map(c => `<td class="r">${h(o[c[1]])}</td>`).join("")}<td>${fmtDate(o.last)}</td></tr>`).join("") + "</tbody></table>";
+    typeGroups(by).map(([g, V]) => {
+      // a family line with its subtotal, then its variants; types without a known family under "Other types"
+      const line = (t, o, head) => `<tr${head ? ' style="background:var(--bg);font-weight:700"' : ""}><td${head ? "" : ' style="padding-left:26px"'}>${esc(t)}</td><td class="r">${o.n}</td>${cols.map(c => `<td class="r">${h(o[c[1]])}</td>`).join("")}<td>${fmtDate(o.last)}</td></tr>`;
+      return (g ? line(g, statTotals(V.flatMap(v => v[1])), true) : `<tr style="background:var(--bg);font-weight:700"><td colspan="${cols.length + 3}">Other types</td></tr>`) +
+        V.map(([t, fl]) => line(t, statTotals(fl))).join("");
+    }).join("") + "</tbody></table>";
   $("#stInfo").textContent = (F.length ? `${T.n.toLocaleString()} flights${T.sims ? ` and ${T.sims} simulator sessions` : ""}, ${fmtDate(F[0].date)} to ${fmtDate(F[F.length-1].date)}.` : "") +
     (hasPrev() ? ` All-time figures include ${h(data.prev.total)} brought forward from earlier logbooks.` : "");
 }
