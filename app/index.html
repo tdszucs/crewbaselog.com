@@ -1170,11 +1170,11 @@ const FIELDS = [
   ["off","Take-off",["off","takeoff","take off","take-off","airborne","t/o"]],
   ["on","Landing",["on","landing","touchdown","ldg time","landed"]],
   ["in","On-block (in)",["in","on block","onblock","on-block","block on","ata","sta","arr time","blocks on","chocks on"]],
-  ["acType","Aircraft type",["type","ac type","a/c type","aircraft type","model","aircraft","actype","fleet"]],
+  ["acType","Aircraft type",["type","ac type","a/c type","a/c","ac","aircraft type","aircraft model","model","aircraft","actype","acft","acft type","fleet","make and model","make/model"]],
   ["reg","Registration",["reg","registration","tail","a/c reg","ac reg","aircraft reg","tail number"]],
   ["picName","Name of PIC",["pic","pic name","captain","commander","name of pic","cmd"]],
   ["total","Total time",["total","block","block time","total time","blk","duration","flight time","total flight time"]],
-  ["pic","PIC time",["pic time","p1","pic hrs","pic hours","command"]],
+  ["pic","PIC time",["pic time","p1","pic hrs","pic hours","command","pic"]],
   ["copilot","Co-pilot time",["co-pilot","copilot","sic","p2","fo time","sic time"]],
   ["dual","Dual time",["dual","dual received"]],
   ["instructor","Instructor time",["instructor","fi","instr"]],
@@ -1364,6 +1364,8 @@ function guessMap(headers, rows = []){
   const fits = (k, ix) => { const v = vals(ix); if (!v.length) return true;
     if ([...LB_DUR, "simTime"].includes(k)) return !v.every(x => /^\d{1,2}$/.test(x));
     if (k.startsWith("ldg")) return v.every(x => /^\d{1,3}$/.test(x));
+    // a name column holds names: a "PIC" column of hours is PIC time
+    if (k === "picName") return !v.every(x => /^\d{1,5}([:.]\d{1,2})?$/.test(x));
     return true; };
   for (const [k,, syn] of MAP_FIELDS) {
     const i = headers.findIndex((h,ix) => !used.has(ix) && syn.includes(norm(h)) && fits(k, ix));
@@ -3341,6 +3343,8 @@ async function makeZaPdf(F, before){
 async function makePdf(){
   const tpl = prFmt === "UK" || prFmt === "FAA" || prFmt === "ZA", rows = prFmt === "ZA" ? 24 : tpl ? 20 : +$("#prRows").value;
   const { F, before, pageOffset } = pdfSelection(rows);
+  const rg = $('input[name="prRange"]:checked')?.value, fr = $("#prFrom").value, to = $("#prTo").value;
+  if (rg === "dates" && fr && to && fr > to) throw new Error("The From date is after the To date.");
   if (!F.length) throw new Error(data.flights.length ? "No flights in that date range." : "Import or add some flights first.");
   if (!window.PDFLib) await loadScript("https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js");
   return prFmt === "ZA" ? makeZaPdf(F, before) : tpl ? makeTplPdf(prFmt, F, before) : makeEasaPdf(F, rows, before, pageOffset);
