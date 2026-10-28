@@ -519,6 +519,11 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
             <button class="btn" type="button" data-csv>Download CSV file</button>
           </div>
         </div>
+        <div style="margin-top:22px;padding-top:18px;border-top:1px solid var(--line)">
+          <h4 style="margin:0 0 10px">Full backup</h4>
+          <p class="hint" style="margin:0 0 14px;font-size:14px">Everything in one file: flights, profile, expiries, signature and rosters. Use it to move to a new phone or browser.</p>
+          <div class="row-actions" style="margin:0"><button class="btn ghost" type="button" data-backup>Download full backup</button><button class="btn ghost" type="button" data-restore>Restore backup</button></div>
+        </div>
       </div>
       <div class="card hidden" id="pdfCard" style="padding:0;overflow:hidden"><iframe id="pdfFrame" title="Logbook preview" style="width:100%;height:78vh;border:0;display:block;background:#fff"></iframe></div>
       <div class="card">
@@ -547,7 +552,6 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
       <div class="card">
         <div class="row-actions" style="margin:0 0 14px">
           <button class="btn small" type="button" data-csv>Download CSV file</button>
-          <button class="btn ghost small" type="button" data-go="import" data-scroll="#outCard">Download PDF logbook</button>
           <button class="btn ghost small" id="btnBackup" type="button" title="Includes profile, expiries, signature and rosters">Download full backup</button>
           <label class="btn ghost small" style="margin:0">Restore backup<input type="file" id="restoreFile" accept=".json" class="hidden"></label>
           <button class="btn danger small" id="btnClearFlights" type="button">Delete all flights</button>
@@ -915,6 +919,7 @@ function renderOverview(){
 $("#ovBackup").addEventListener("click", () => $("#btnBackup").click());
 document.addEventListener("click", e => { if (e.target.closest("[data-backup]")) { e.preventDefault(); $("#btnBackup").click(); } });
 $("#ovRestore").addEventListener("click", () => $("#restoreFile").click());
+document.addEventListener("click", e => { if (e.target.closest("[data-restore]")) { e.preventDefault(); $("#restoreFile").click(); } });
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 $("#fbForm").addEventListener("submit", async e => {
