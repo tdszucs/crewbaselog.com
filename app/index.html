@@ -412,7 +412,18 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
         </details>
       </div>
 
-      <div class="card">
+      <div class="card hidden" id="chkCard">
+        <h3>Check: compare with the last page of your old logbook</h3>
+        <p class="hint" style="margin:0 0 14px;font-size:14px">Open your old logbook app (or the PDF) at its last page and copy its <b>totals to date</b> into the right-hand column. Each line shows whether CrewBase Log adds up to the same. Previous experience (brought forward) is included, as on the old last page.</p>
+        <div class="field" style="max-width:240px"><label for="chkUpto">Totals up to and including</label><span class="datewrap"><input type="date" id="chkUpto"></span><div class="hint">The date of the last line on that page.</div></div>
+        <div class="tablewrap"><table><thead><tr><th>Column</th><th class="r">CrewBase Log</th><th style="width:150px">Your old logbook</th><th>Check</th></tr></thead><tbody id="chkRows"></tbody></table></div>
+        <p id="chkSum" style="margin:12px 0 4px;font-size:14px"></p>
+        <h4 style="margin:18px 0 8px">The last lines, to compare with the same page</h4>
+        <div class="tablewrap" id="chkLast"></div>
+        <div class="row-actions" style="margin:16px 0 0"><button class="btn" type="button" id="chkGo">Everything matches: continue with step 2</button><button class="btn ghost" type="button" data-go="logbook">Find and fix a flight</button></div>
+      </div>
+
+      <div class="card" id="aimsCard">
         <h3><span class="stepn">2</span>Import new flights from AIMS</h3>
         <p class="hint" style="margin:0 0 12px;font-size:14px">Choose your airline. Each airline's crew system exports flights a little differently.</p>
         <div class="airlines" id="airlines"><button type="button" class="airline" data-air="etihad"><b>Etihad Airways</b><span>eCrew · Pilot LogBook report</span></button></div>
@@ -1174,7 +1185,7 @@ function parseTime(s){ s = String(s||"").trim(); const m = s.match(/(\d{1,2}):?(
 function parseDur(s){
   s = String(s||"").trim(); if (!s) return 0;
   let m = s.match(/^(\d{1,5}):(\d{2})(?::\d{2})?$/); if (m) return +m[1]*60 + +m[2];
-  m = s.match(/^(\d{1,4})\.(\d+)$/); if (m) return Math.round(parseFloat(s)*60);
+  m = s.match(/^(\d{1,5})\.(\d+)$/); if (m) return Math.round(parseFloat(s)*60);
   m = s.match(/^\d{3,4}$/); if (m) return Math.floor(+s/100)*60 + (+s%100);
   if (/^\d{1,2}$/.test(s)) return +s*60;
   return 0;
@@ -1409,8 +1420,9 @@ async function nextFile(){
   if (!impLog.length) return;
   if (impErrs === impLog.length) return $("#impErr").innerHTML = impLog.join("<br>");
   const ns = data.flights.filter(isSim).length, nf = data.flights.length - ns;
-  $("#impDoneLog").innerHTML = impLog.join("<br>") + `<br>Your logbook now has <b>${nf.toLocaleString()} flight${nf === 1 ? "" : "s"}</b>` + (ns ? ` and <b>${ns} simulator session${ns === 1 ? "" : "s"}</b>` : "") + ".";
+  $("#impDoneLog").innerHTML = impLog.join("<br>") + `<br>Your logbook now has <b>${nf.toLocaleString()} flight${nf === 1 ? "" : "s"}</b>` + (ns ? ` and <b>${ns} simulator session${ns === 1 ? "" : "s"}</b>` : "") + `. <a href="#" data-go="import" data-scroll="#chkCard">Check the totals against your old logbook's last page</a>.`;
   $("#impDone").classList.remove("hidden"); $("#impDone").scrollIntoView({ behavior: "smooth", block: "start" });
+  $("#chkUpto").value = ""; renderCheck();
 }
 async function handleFile(f){
   await loadAirports();
@@ -1545,9 +1557,40 @@ $("#prevClear").addEventListener("click", () => {
   if (hasPrev() && !confirm("Clear your previous experience (brought forward)?")) return;
   delete data.prev; save(); renderPrev();
 });
+/* ---------- check an imported logbook against the last page of the old one ---------- */
+const CHK_ROWS = [["total","Total time"],["se","SE (single-pilot, single-engine)"],["me","ME (single-pilot, multi-engine)"],["mp","Multi-pilot"],["pic","PIC"],["copilot","Co-pilot"],
+  ["dual","Dual"],["instructor","Instructor"],["night","Night"],["ifr","IFR"],["ldgDay","Landings day"],["ldgNight","Landings night"],["fstd","FSTD (simulator)"]];
+function renderCheck(){
+  const F = data.flights, show = F.length > 0 || hasPrev();
+  $("#chkCard").classList.toggle("hidden", !show); if (!show) return;
+  if (!$("#chkUpto").value && F.length) $("#chkUpto").value = F[F.length - 1].date;
+  const upto = $("#chkUpto").value || "9999", L = F.filter(f => f.date <= upto), T = withPrev(statTotals(L));
+  const here = { ...T, me: T.me - T.mp, ldgDay: T.ldg - T.ldgNight }, old = data.oldTotals ||= {}, cnt = k => k.startsWith("ldg");
+  let ok = 0, off = 0;
+  $("#chkRows").innerHTML = CHK_ROWS.map(([k, label]) => {
+    const raw = old[k] ?? "", o = raw === "" ? null : cnt(k) ? parseInt(raw) : parseDur(raw.replace(/,(?=\d{3}\b)/g, ""));
+    let res = '<span class="hint" style="margin:0">enter to check</span>';
+    if (o !== null && !isNaN(o)) {
+      // an old logbook in decimal hours (1234.5): compare in tenths
+      const d = !cnt(k) && /\.\d$/.test(raw) ? (Math.round(here[k] / 6) - Math.round(o / 6)) * 6 : here[k] - o, v = m => cnt(k) ? Math.abs(m).toLocaleString() : fmtMin(Math.abs(m));
+      if (!d) { ok++; res = '<b style="color:var(--ok)">✓ matches</b>'; } else { off++; res = `<b style="color:var(--bad)">${v(d)} ${d > 0 ? "more" : "less"} here</b>`; }
+    }
+    return `<tr><td>${label}</td><td class="r mono">${cnt(k) ? here[k].toLocaleString() : fmtMin(here[k])}</td><td><input class="mono" data-chk="${k}" value="${esc(raw)}" placeholder="${cnt(k) ? "0" : "0:00"}" style="padding:6px 8px"></td><td>${res}</td></tr>`;
+  }).join("");
+  $("#chkSum").innerHTML = !ok && !off ? "" : off ? `<b style="color:var(--bad)">${off} of ${ok + off} checked column${ok + off === 1 ? "" : "s"} differ.</b> Look for a flight imported twice, a missing line, or a time in the wrong column, then fix it on the Logbook tab.`
+    : `<b style="color:var(--ok)">All ${ok} checked column${ok === 1 ? "" : "s"} match your old logbook.</b>`;
+  const last = L.slice(-6);
+  $("#chkLast").innerHTML = last.length ? `<table><thead><tr><th>Date</th><th>Route</th><th>Type</th><th class="r">Total</th><th class="r">Night</th><th class="r">Ldg</th><th>Remarks</th></tr></thead><tbody>` +
+    last.map(f => `<tr><td>${fmtDate(f.date)}</td><td>${isSim(f) ? `<span class="tag">FSTD</span>` : `${esc(f.from)}–${esc(f.to)}`}</td><td>${esc(isSim(f) ? f.fstdType : f.acType)}</td><td class="r">${fmtMin(isSim(f) ? f.fstdTime : f.total)}</td><td class="r">${f.night ? fmtMin(f.night) : ""}</td><td class="r">${(f.ldgDay + f.ldgNight) || ""}</td><td>${esc(f.remarks || "")}</td></tr>`).join("") + "</tbody></table>"
+    : '<p class="hint" style="margin:0">No lines up to that date.</p>';
+}
+$("#chkRows").addEventListener("change", e => { const k = e.target.dataset.chk; if (!k) return; (data.oldTotals ||= {})[k] = e.target.value.trim(); save(); renderCheck(); });
+$("#chkUpto").addEventListener("change", renderCheck);
+$("#chkGo").addEventListener("click", () => $("#aimsCard").scrollIntoView({ behavior: "smooth", block: "start" }));
+
 /* ---------- your data: airlines, add a flight by hand ---------- */
 function renderYourData(){
-  renderPrint(); renderPrev(); loadAirports().then(renderAddPreview);
+  renderPrint(); renderPrev(); renderCheck(); loadAirports().then(renderAddPreview);
   if (!$("#addFields").children.length) addFormReset();
 }
 $("#airlines").addEventListener("click", e => {
