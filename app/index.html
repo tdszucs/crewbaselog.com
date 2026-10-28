@@ -257,13 +257,27 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
     <form id="authForm" novalidate>
       <div class="field"><label for="aEmail">Email</label><input id="aEmail" type="email" autocomplete="email" required></div>
       <div class="field"><label for="aPass">Password</label><input id="aPass" type="password" autocomplete="current-password" minlength="8" required>
-        <div class="hint hidden" id="passHint">At least 8 characters.</div></div>
+        <div class="hint hidden" id="passHint">At least 8 characters.</div><a href="#" id="forgotPw" class="hint" style="display:inline-block;margin-top:6px">Forgot your password?</a></div>
       <button class="btn block" id="btnAuth" type="submit">Log in</button>
       <p class="err" id="authErr"></p>
     </form>
     <p class="switch" id="switchLine">New here? <a id="toSignup">Create an account</a></p>
     <div class="sample" id="sampleBox">Just looking? <a href="#" id="btnSample"><b>Open the sample profile</b></a> to click around.</div>
     <p class="hint" style="text-align:center;margin-top:14px"><a href="/privacy.html">Privacy policy</a></p>
+  </div>
+</section>
+
+<!-- ============ NEW PASSWORD (from the reset email) ============ -->
+<section id="vReset" class="auth-wrap hidden">
+  <div class="auth-card">
+    <a class="logo" href="/"><svg viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#0b3d5c"/><path d="M12 38l40-14-10 22-8-6-6 8v-10z" fill="#f2b544"/></svg>CrewBase Log</a>
+    <h1>Choose a new password</h1>
+    <p class="sub">Your logbook on this device is not affected.</p>
+    <form id="resetForm" novalidate>
+      <div class="field"><label for="newPass">New password</label><input id="newPass" type="password" autocomplete="new-password" minlength="8" required><div class="hint">At least 8 characters.</div></div>
+      <button class="btn block" type="submit">Save new password</button>
+      <p class="err" id="resetErr"></p>
+    </form>
   </div>
 </section>
 
@@ -307,18 +321,18 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
       <div id="setupNotice" class="notice hidden"></div>
       <div class="card flow">
         <h3>How CrewBase Log works</h3>
-        <a class="fbox fstart" href="#" data-go="profile"><span class="fn">0</span><svg class="fic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg><div><b>First, set up your profile</b><small>Name, licence, signature and expiry dates. They go on the cover and every page of your PDF logbook.</small></div></a>
+        <a class="fbox fstart" href="#" data-go="profile"><svg class="fic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg><div><b>First, set up your profile</b><small>Name, licence, signature and expiry dates. They go on the cover and every page of your PDF logbook.</small></div></a>
         <div class="flowgrid">
           <div class="fcol">
-            <div class="fbox"><span class="fn">1</span><svg class="fic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v17H6.5A2.5 2.5 0 0 0 4 21.5z"/><path d="M4 21.5A2.5 2.5 0 0 1 6.5 19H20v3H6.5A2.5 2.5 0 0 1 4 21.5zM9 7h7M9 11h5"/></svg><div><b>Add your old logbook</b><small>CSV or Excel from another app or your own sheet, an EASA PDF logbook, or the CrewBase Log CSV you saved last time</small></div></div>
-            <div class="fbox"><span class="fn">2</span><svg class="fic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 16l20-7-6 13-4-5-5 3v-5z"/></svg><div><b>Add your AIMS / eCrew file</b><small>The Pilot LogBook report you download from your airline's crew system</small></div></div>
+            <div class="fbox"><span class="fn">2</span><svg class="fic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v17H6.5A2.5 2.5 0 0 0 4 21.5z"/><path d="M4 21.5A2.5 2.5 0 0 1 6.5 19H20v3H6.5A2.5 2.5 0 0 1 4 21.5zM9 7h7M9 11h5"/></svg><div><b>Add your old logbook</b><small>First time only: an export from another logbook app, a PDF logbook or your own spreadsheet. Have a full backup? Restore it instead (step 0).</small></div></div>
+            <div class="fbox"><span class="fn">3</span><svg class="fic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 16l20-7-6 13-4-5-5 3v-5z"/></svg><div><b>Add your eCrew reports</b><small>The Pilot LogBook report from your airline's crew system, up to 2 years per file; drop several at once</small></div></div>
           </div>
           <div class="farr" aria-hidden="true"><svg viewBox="0 0 40 16"><path d="M2 8h32M28 2l7 6-7 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
           <div class="fhub"><svg viewBox="0 0 64 64" class="fhublogo" aria-hidden="true"><rect width="64" height="64" rx="14" fill="#0b3d5c"/><path d="M12 38l40-14-10 22-8-6-6 8v-10z" fill="#f2b544"/></svg><b>CrewBase Log</b><small>Merges both, skips duplicates, fills in night and IFR time. All in your browser.</small></div>
           <div class="farr" aria-hidden="true"><svg viewBox="0 0 40 16"><path d="M2 8h32M28 2l7 6-7 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
           <div class="fcol">
-            <div class="fbox out"><span class="fn">3</span><svg class="fic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><div><b>Your full logbook as CSV</b><small>Your private copy to keep. Next time it is step 2.</small></div></div>
-            <div class="fbox out"><svg class="fic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 15h1.5a1.5 1.5 0 0 0 0-3H8v5M13 12v5h1a2 2 0 0 0 2-2.5v0A2 2 0 0 0 14 12z"/></svg><div><b>PDF logbook</b><small>EASA, UK CAA or FAA layout: full logbook, last 10 pages or between dates</small></div></div>
+            <div class="fbox out"><span class="fn">4</span><svg class="fic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><div><b>Full backup</b><small>Your private copy of everything. Next time, restore it in step 0 and add only your new flights.</small></div></div>
+            <div class="fbox out"><svg class="fic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 15h1.5a1.5 1.5 0 0 0 0-3H8v5M13 12v5h1a2 2 0 0 0 2-2.5v0A2 2 0 0 0 14 12z"/></svg><div><b>PDF logbook</b><small>EASA, UK CAA, South African CAA or FAA layout: full logbook, last 10 pages or between dates</small></div></div>
           </div>
         </div>
         <div class="row-actions" style="margin:16px 0 0"><button class="btn" type="button" data-go="import">Go to Your data</button></div>
@@ -331,7 +345,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
           <li>The files you download are yours and stay on your device: the <b>CSV file</b> brings back all your flights; the <b>full backup</b> brings back everything, including profile and signature. Download them after each update.</li>
           <li>Only a Crew Base roster you add is saved to your account, for the friends you choose.</li>
         </ul>
-        <div class="row-actions" style="margin:0"><button class="btn" type="button" data-csv>Download CSV file</button><button class="btn ghost" type="button" id="ovBackup">Download full backup</button><button class="btn ghost" type="button" id="ovRestore">Restore a backup</button></div>
+        <div class="row-actions" style="margin:0"><button class="btn" type="button" id="ovBackup">Download full backup</button><button class="btn ghost" type="button" id="ovRestore">Restore a backup</button><button class="btn ghost" type="button" data-csv>Download CSV file</button></div>
       </div>
       <div class="card flow">
         <h3>Crew Base: share your roster with friends</h3>
@@ -723,6 +737,8 @@ const store = {
 };
 async function sha256(t){ const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(t)); return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,"0")).join(""); }
 const fmtMin = m => { m = Math.round(m||0); return Math.floor(m/60) + ":" + String(m%60).padStart(2,"0"); };
+// for reading on screen: 13,034:52 (fmtMin stays plain for fields and files)
+const fmtHrs = m => { m = Math.round(m||0); return Math.floor(m/60).toLocaleString("en-US") + ":" + String(m%60).padStart(2,"0"); };
 const todayISO = () => new Date().toISOString().slice(0,10);
 /* The logbook holds flights already flown: dated today or earlier, never in the future (planned flights belong in Crew Base).
    "Today" is the later of the UTC and the local date, so a flight dated in local time is never refused. */
@@ -769,7 +785,7 @@ const Auth = (() => {
     async init(){
       await loadScript("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js");
       sb = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
-      sb.auth.onAuthStateChange((_e, s) => emit(s?.user ? { id: s.user.id, email: s.user.email } : null));
+      sb.auth.onAuthStateChange((e, s) => { emit(s?.user ? { id: s.user.id, email: s.user.email } : null); if (e === "PASSWORD_RECOVERY") setTimeout(showReset, 0); });
     },
     async signUp(email, pw){
       const { data, error } = await sb.auth.signUp({ email, password: pw, options: { emailRedirectTo: REDIRECT } });
@@ -783,6 +799,8 @@ const Auth = (() => {
     },
     async google(){ if (!CONFIG.GOOGLE_ENABLED) throw new Error("Google sign-in is coming soon. Please use email for now."); const { error } = await sb.auth.signInWithOAuth({ provider: "google", options: { redirectTo: REDIRECT } }); if (error) throw error; },
     async googleIdToken(token, nonce){ const { error } = await sb.auth.signInWithIdToken({ provider: "google", token, nonce }); if (error) throw error; },
+    async resetPw(email){ const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: REDIRECT }); if (error) throw error; },
+    async updatePw(pw){ const { error } = await sb.auth.updateUser({ password: pw }); if (error) throw error; },
     async resend(email){ const { error } = await sb.auth.resend({ type: "signup", email, options: { emailRedirectTo: REDIRECT } }); if (error) throw error; },
     async signOut(){ await sb.auth.signOut(); emit(null); },
     async current(){ const { data } = await sb.auth.getSession(); const u = data.session?.user; return u ? { id: u.id, email: u.email } : null; }
@@ -793,6 +811,7 @@ const Auth = (() => {
     init: () => LIVE ? L.init() : Promise.resolve(),
     onChange: f => listeners.push(f),
     signUp: (e,p) => impl.signUp(e,p), signIn: (e,p) => impl.signIn(e,p), google: () => impl.google(), googleIdToken: (t,n) => L.googleIdToken(t,n),
+    resetPw: e => LIVE ? L.resetPw(e) : Promise.reject(new Error("Password reset works once the sign-in service is connected.")), updatePw: p => L.updatePw(p),
     resend: e => impl.resend(e), signOut: () => impl.signOut(), current: () => impl.current(),
     demoVerify: e => D.verify(e.toLowerCase()),
     demoSession: u => { store.set("cbl_demo_session", u); emit(u); },
@@ -829,14 +848,14 @@ function save(){ return store.set(key(), data); }
 
 /* ================= VIEWS ================= */
 let mode = "login", pendingEmail = "";
-function show(v){ ["#vAuth","#vVerify","#vApp"].forEach(id => $(id).classList.toggle("hidden", id !== v)); if (v === "#vAuth") setupGIS(); }
+function show(v){ ["#vAuth","#vVerify","#vApp","#vReset"].forEach(id => $(id).classList.toggle("hidden", id !== v)); if (v === "#vAuth") setupGIS(); }
 function setMode(m){
   mode = m; const s = m === "signup";
   $("#authTitle").textContent = s ? "Create your account" : "Log in";
   $("#authSub").textContent = s ? "Free for pilots. Your logbook stays on your device." : "Welcome back. Your logbook stays on your device.";
   $("#btnAuth").textContent = s ? "Create account" : "Log in";
   $("#aPass").autocomplete = s ? "new-password" : "current-password";
-  $("#passHint").classList.toggle("hidden", !s);
+  $("#passHint").classList.toggle("hidden", !s); $("#forgotPw").classList.toggle("hidden", s);
   $("#switchLine").innerHTML = s ? 'Already have an account? <a id="toLogin">Log in</a>' : 'New here? <a id="toSignup">Create an account</a>';
   $("#authErr").textContent = "";
 }
@@ -852,10 +871,31 @@ $("#authForm").addEventListener("submit", async e => {
   try {
     if (mode === "signup") { const r = await Auth.signUp(email, pw); if (r.needsVerify) toVerify(email); }
     else await Auth.signIn(email, pw);
-  } catch (x) { if (x.needsVerify) toVerify(email); else err.textContent = x.message || "Something went wrong."; }
+  } catch (x) { if (x.needsVerify) toVerify(email); else err.textContent = authMsg(x); }
   $("#btnAuth").disabled = false;
 });
-$("#btnGoogle").addEventListener("click", async () => { try { await Auth.google(); } catch (x) { $("#authErr").textContent = x.message; } });
+$("#btnGoogle").addEventListener("click", async () => { try { await Auth.google(); } catch (x) { $("#authErr").textContent = authMsg(x); } });
+$("#forgotPw").addEventListener("click", async e => {
+  e.preventDefault(); const email = $("#aEmail").value.trim(), err = $("#authErr");
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { err.textContent = "Enter your email above first, then tap Forgot your password? again."; return $("#aEmail").focus(); }
+  try { await Auth.resetPw(email); err.innerHTML = `<span style="color:var(--ok)">We sent a link to <b>${esc(email)}</b>. Open it to choose a new password.</span>`; }
+  catch (x) { err.textContent = authMsg(x); }
+});
+function showReset(){ show("#vReset"); $("#newPass").focus(); }
+$("#resetForm").addEventListener("submit", async e => {
+  e.preventDefault(); const pw = $("#newPass").value, err = $("#resetErr");
+  if (pw.length < 8) return err.textContent = "At least 8 characters.";
+  try { await Auth.updatePw(pw); location.replace(REDIRECT); } catch (x) { err.textContent = authMsg(x); }
+});
+// sign-in errors in plain words
+function authMsg(x){
+  const m = String(x?.message || "");
+  if (!navigator.onLine || /failed to fetch|network|load failed|fetch/i.test(m)) return "Couldn't reach the sign-in service. Check your internet connection and try again.";
+  if (/invalid login credentials/i.test(m)) return "Wrong email or password. Forgot it? Tap Forgot your password? below the password.";
+  if (/already registered|already exists/i.test(m)) return "There is already an account with this email. Log in instead.";
+  if (/rate limit|too many/i.test(m)) return "Too many tries. Wait a minute and try again.";
+  return m || "Something went wrong. Please try again.";
+}
 
 /* Google's own button (shows "crewbaselog.com" instead of the Supabase address).
    Only on HTTPS, which Google requires; on plain HTTP the redirect button above is used. */
@@ -938,7 +978,7 @@ function renderOverview(){
   if (due.length) lines.push(`<b>Expiry dates:</b> ${due.map(e => `${esc(e.name)} ${expStatus(e.date).c === "bad" ? "has expired" : "is due " + fmtDate(e.date)}`).join(", ")}. <a href="#" data-go="profile" data-scroll="#expSection">Check them</a>.`);
   if (futureRemoved) lines.push(`<b>${futureRemoved} flight${futureRemoved === 1 ? " was" : "s were"} dated in the future and ${futureRemoved === 1 ? "has" : "have"} been taken out of your logbook.</b> The logbook only holds flights already flown; planned flights belong in <a href="#" data-go="crewbase">Crew Base</a>.`);
   if (data.flights.length && user.id !== "sample" && data.backup?.sig !== flightsSig())
-    lines.push(`<b>Back up your logbook:</b> it has changed since ${data.backup?.date ? "your last download on " + fmtDate(data.backup.date) : "you added it"}. <a href="#" data-csv>Download CSV file</a> · <a href="#" data-backup>full backup</a>`);
+    lines.push(`<b>Back up your logbook:</b> it has changed since ${data.backup?.date ? "your last download on " + fmtDate(data.backup.date) : "you added it"}. <a href="#" data-backup>Download full backup</a>`);
   const ios = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   if (ios && !navigator.standalone && !matchMedia("(display-mode: standalone)").matches)
     lines.push("<b>On iPhone:</b> tap Share → <b>Add to Home Screen</b>. Safari can delete a website's data after 7 days without a visit; the Home Screen app keeps your logbook.");
@@ -953,7 +993,7 @@ const FEEDBACK_TO = "t.d.szucs@gmail.com";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
-  if (!msg) return;
+  if (!msg) { st.style.color = "var(--bad)"; st.textContent = "Write your feedback in the box first."; return $("#fbMsg").focus(); }
   $("#fbSend").disabled = true; st.style.color = ""; st.textContent = "Sending…";
   try {
     const r = await fetch("https://formsubmit.co/ajax/" + FEEDBACK_TO, { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" },
@@ -1738,7 +1778,7 @@ async function nextFile(){
   if (!impLog.length) return;
   if (impErrs === impLog.length) return $("#impErr").innerHTML = impLog.join("<br>");
   const ns = data.flights.filter(isSim).length, nf = data.flights.length - ns;
-  $("#impDoneLog").innerHTML = impLog.join("<br>") + `<br>Your logbook now has <b>${nf.toLocaleString()} flight${nf === 1 ? "" : "s"}</b>` + (ns ? ` and <b>${ns} simulator session${ns === 1 ? "" : "s"}</b>` : "") + `` + (restoredView() ? "." : `. <a href="#" data-go="import" data-scroll="#chkBox">Check the totals against your old logbook's last page</a>.`);
+  $("#impDoneLog").innerHTML = impLog.join("<br>") + (nf + ns === 0 ? `<br>Your logbook has no flights yet: nothing in ${impLog.length === 1 ? "this file" : "these files"} has been flown. Planned flights belong in <a href="#" data-go="crewbase">Crew Base</a>.` : `<br>Your logbook now has <b>${nf.toLocaleString()} flight${nf === 1 ? "" : "s"}</b>` + (ns ? ` and <b>${ns} simulator session${ns === 1 ? "" : "s"}</b>` : "") + `` + (restoredView() ? "." : `. <a href="#" data-go="import" data-scroll="#chkBox">Check the totals against your old logbook's last page</a>.`));
   $("#impDone").classList.remove("hidden"); $("#impDone").scrollIntoView({ behavior: "smooth", block: "start" });
   $("#chkUpto").value = ""; renderCheck();
   const gaps = importGaps(); if (gaps.length) $("#impDoneLog").insertAdjacentHTML("beforeend", `<br>${gapMsg(gaps)}`);
@@ -1750,7 +1790,7 @@ function importGaps(){
   const B = impBatch && data.flights.filter(f => f._b === impBatch.id); if (!B?.length) return [];
   return logGaps(B.reduce((m, f) => f.date < m ? f.date : m, B[0].date), B.reduce((m, f) => f.date > m ? f.date : m, B[0].date));
 }
-const gapMsg = gaps => `<b style="color:var(--warn)">No flights ${gaps.map(([a, b, n]) => `from ${fmtDate(a)} to ${fmtDate(b)} (${n} days)`).join(", ")}.</b> If you flew then, drop that period's report in step 3.`;
+const gapMsg = gaps => `<b style="color:var(--warn)">No flights ${gaps.map(([a, b, n]) => `from ${fmtDate(a)} to ${fmtDate(b)} (${n} days)`).join(", ")}.</b> If you flew then, that period is missing: import it too.`;
 // stretches of more than 60 days without a flight between lo and hi (and from the last flight before lo)
 function logGaps(lo, hi){
   const before = data.flights.filter(f => f.date < lo).map(f => f.date).sort().pop();
@@ -1762,6 +1802,9 @@ async function handleFile(f){
   await loadAirports();
   $("#impResult").textContent = "";
   if (f.size > 20e6) return "That file is over 20 MB. Try exporting a smaller date range.";
+  if (/\.(png|jpe?g|heic|heif|gif|webp|bmp|tiff?)$/i.test(f.name) || /^image\//.test(f.type))
+    return "This is a picture. Photos and scans of logbook pages can't be read: enter the totals from the last page under Previous experience (step 1), or export your logbook as CSV, Excel or PDF from the app you use.";
+  if (/\.(docx?|pages|odt|rtf)$/i.test(f.name)) return "This is a text document, not a logbook export. Export your logbook as CSV, Excel or PDF from the app you use.";
   let rows;
   const head = new Uint8Array(await f.slice(0, 4).arrayBuffer());
   if (/\.(zip|mdb|accdb|db|sqlite)$/i.test(f.name) || (head[0] === 0x50 && head[1] === 0x4B && /\.zip$/i.test(f.name)))
@@ -1801,7 +1844,12 @@ async function handleFile(f){
   // a saved matching only wins if it actually produces flights (an earlier failed import may have saved a bad one)
   const saved = works(data.templates[sig]) ? data.templates[sig] : null;
   const ec = saved ? null : ecrewMap(headers);
-  imp = { headers, rows: body, map: saved ? { ...saved } : (ec || guessMap(headers, body)), sig, name: f.name, fromTemplate: !!saved, ecrew: !!ec };
+  // a recognised eCrew report that reads: imported straight away, like the other known formats
+  if (ec && works(ec)) { imp = { headers, rows: body, map: ec, sig, name: f.name, auto: true }; return; }
+  const map = saved ? { ...saved } : (ec || guessMap(headers, body));
+  // nothing in the file reads as a flight (no dates): not a logbook, so no matching screen
+  if (!saved && !works(map)) return "This doesn't look like a logbook: no flight dates were found in it. Drop a logbook export (CSV, Excel or PDF) or the eCrew Pilot LogBook report. If it is a logbook, tick “Let me match the columns myself” under Which files work? and drop it again.";
+  imp = { headers, rows: body, map, sig, name: f.name, fromTemplate: !!saved, ecrew: !!ec };
   renderMapping();
 }
 function renderMapping(){
@@ -1932,14 +1980,14 @@ function renderPrev(){
   const P = data.prev || {};
   $("#prevGrid").innerHTML = ["total","pic","copilot","dual","instructor","night","ifr","se","me","mp","ldgDay","ldgNight","fstd"].map(k =>
     `<div class="field"><label for="pv_${k}">${PREV_LABEL[k]}</label><input id="pv_${k}" data-pv="${k}" class="mono" ${k.startsWith("ldg") ? 'type="number" min="0" step="1" placeholder="0"' : 'placeholder="0:00"'} value="${P[k] ? (k.startsWith("ldg") ? P[k] : fmtMin(P[k])) : ""}"></div>`).join("");
-  $("#prevNote").textContent = hasPrev() ? `· ${fmtMin(P.total)} total brought forward` : "";
+  $("#prevNote").textContent = hasPrev() ? `· ${fmtHrs(P.total)} total brought forward` : "";
 }
 $("#prevGrid").addEventListener("change", e => {
   const k = e.target.dataset.pv; if (!k) return;
   const v = k.startsWith("ldg") ? Math.max(0, Math.round(+e.target.value || 0)) : parseHM(e.target.value);
   if (isNaN(v)) return $("#prevErr").textContent = `${PREV_LABEL[k]}: enter hours as H:MM, e.g. 3250:15.`;
   $("#prevErr").textContent = ""; (data.prev ||= {})[k] = v; save();
-  $("#prevNote").textContent = hasPrev() ? `· ${fmtMin(data.prev.total)} total brought forward` : "";
+  $("#prevNote").textContent = hasPrev() ? `· ${fmtHrs(data.prev.total)} total brought forward` : "";
   $("#prevMsg").textContent = "Saved"; setTimeout(() => $("#prevMsg").textContent = "", 1200);
 });
 $("#prevClear").addEventListener("click", () => {
@@ -2220,7 +2268,7 @@ $("#addForm").addEventListener("submit", e => {
   if (!save()) return;
   addFormReset();
   const ns = data.flights.filter(isSim).length;
-  $("#addOk").textContent = `Added ${flightLabel(f)}. Your logbook has ${(data.flights.length - ns).toLocaleString()} flights${ns ? ` and ${ns} simulator session${ns === 1 ? "" : "s"}` : ""}.`; renderPrint(); renderLogbook();
+  $("#addOk").textContent = `Added ${flightLabel(f)}. Your logbook has ${(data.flights.length - ns).toLocaleString()} flight${data.flights.length - ns === 1 ? "" : "s"}${ns ? ` and ${ns} simulator session${ns === 1 ? "" : "s"}` : ""}.`; renderPrint(); renderLogbook();
 });
 
 /* ---------- statistics (hours for job applications) ---------- */
@@ -2261,7 +2309,7 @@ function renderStats(){
   const any = F.length || hasPrev();
   $("#stEmpty").classList.toggle("hidden", !!any); $("#stBody").classList.toggle("hidden", !any);
   if (!any) return;
-  const T = withPrev(statTotals(F)), h = fmtMin;
+  const T = withPrev(statTotals(F)), h = fmtHrs;
   const tiles = [["Total time", h(T.total)], ["PIC", h(T.pic)], ["Co-pilot (SIC)", h(T.copilot)], ["Multi-crew (multi-pilot)", h(T.mp)], ["Multi-engine", h(T.me)],
     ["Single-engine", h(T.se)], ["IFR", h(T.ifr)], ["Night", h(T.night)], ["Instructor", h(T.instructor)], ["Dual received", h(T.dual)], ["Sectors", T.n.toLocaleString()], ["Landings", `${T.ldg.toLocaleString()}${T.ldgNight ? ` (${T.ldgNight} night)` : ""}`],
     ["Simulator (FSTD)", `${h(T.fstd)}${T.sims ? ` · ${T.sims} session${T.sims === 1 ? "" : "s"}` : ""}`]];
@@ -2281,7 +2329,7 @@ function renderStats(){
       return (g ? line(g, statTotals(V.flatMap(v => v[1])), true) : `<tr style="background:var(--bg);font-weight:700"><td colspan="${cols.length + 3}">Other types</td></tr>`) +
         V.map(([t, fl]) => line(t, statTotals(fl))).join("");
     }).join("") + "</tbody></table>";
-  $("#stInfo").textContent = (F.length ? `${T.n.toLocaleString()} flights${T.sims ? ` and ${T.sims} simulator sessions` : ""}, ${fmtDate(F[0].date)} to ${fmtDate(F[F.length-1].date)}.` : "") +
+  $("#stInfo").textContent = (F.length ? `${T.n.toLocaleString()} flight${T.n === 1 ? "" : "s"}${T.sims ? ` and ${T.sims} simulator session${T.sims === 1 ? "" : "s"}` : ""}, ${fmtDate(F[0].date)} to ${fmtDate(F[F.length-1].date)}.` : "") +
     (hasPrev() ? ` All-time figures include ${h(data.prev.total)} brought forward from earlier logbooks.` : "");
 }
 $("#stCopy").addEventListener("click", async () => {
@@ -2299,7 +2347,7 @@ function download(name, type, text){ const a = document.createElement("a"); a.hr
 /* ---------- logbook ---------- */
 function renderLogbook(){
   const F = data.flights, sum = k => F.reduce((s,f) => s + (f[k]||0), 0);
-  $("#lbStats").innerHTML = [["Flights", F.filter(f => !isSim(f)).length.toLocaleString()], ["Total", fmtMin(sum("total"))], ["PIC", fmtMin(sum("pic"))], ["Night", fmtMin(sum("night"))]]
+  $("#lbStats").innerHTML = [["Flights", F.filter(f => !isSim(f)).length.toLocaleString()], ["Total", fmtHrs(sum("total"))], ["PIC", fmtHrs(sum("pic"))], ["Night", fmtHrs(sum("night"))]]
     .map(([k,v]) => `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`).join("");
   const q = $("#lbSearch").value.trim().toLowerCase();
   const hits = F.map((f, i) => ({ f, i })).filter(({ f }) => !q || [fmtDate(f.date), f.date, f.flightNo, f.from, f.to, f.acType, f.reg, f.picName, f.remarks].join(" ").toLowerCase().includes(q));
@@ -2427,10 +2475,10 @@ async function restoreBackup(text){
   const F = data.flights, sum = L => L.reduce((s, f) => s + (f.total || 0), 0), sims = F.filter(isSim).length;
   const saved = store.get(key(), {}).flights?.length === F.length, ok = F.length === want.length && sum(F) === sum(want) && saved;
   const range = F.length ? `${fmtDate(F[0].date)} to ${fmtDate(F[F.length - 1].date)}` : "", gaps = F.length ? logGaps(F[0].date, F[F.length - 1].date) : [];
-  restoreToast(ok, `<b>${(F.length - sims).toLocaleString()} flight${F.length - sims === 1 ? "" : "s"}</b>${sims ? ` and <b>${sims} simulator session${sims === 1 ? "" : "s"}</b>` : ""}${range ? `, ${range}` : ""}. Total time <b>${fmtMin(sum(F))}</b>.` +
+  restoreToast(ok, `<b>${(F.length - sims).toLocaleString()} flight${F.length - sims === 1 ? "" : "s"}</b>${sims ? ` and <b>${sims} simulator session${sims === 1 ? "" : "s"}</b>` : ""}${range ? `, ${range}` : ""}. Total time <b>${fmtHrs(sum(F))}</b>.` +
     (ok ? `<br>✓ Matches the backup file and is saved on this device.` : `<br>The backup has ${want.length.toLocaleString()} lines (${fmtMin(sum(want))}); ${F.length.toLocaleString()} were restored${saved ? "" : " and they could not be saved on this device"}. Try again, or email us the file.`) +
     (future ? `<br>${future} flight${future === 1 ? " that hasn't" : "s that haven't"} flown yet ${future === 1 ? "was" : "were"} left out: planned flights belong in Crew Base.` : "") +
-    (j.data.prev?.total ? `<br>Previous experience: ${fmtMin(j.data.prev.total)}.` : "") +
+    (j.data.prev?.total ? `<br>Previous experience: ${fmtHrs(j.data.prev.total)}.` : "") +
     (gaps.length ? `<br>${gapMsg(gaps)}` : "") +
     (ok ? `<br><a href="#" data-go="import" data-scroll="#aimsCard">Next: add your new flights in step 3</a>` : ""), gaps.length > 0);
   if (ok && !$('[data-p="import"]').classList.contains("hidden")) $("#aimsCard").scrollIntoView({ behavior: "smooth", block: "start" });
@@ -2600,6 +2648,7 @@ function cbAskTz(days, meta, then){
   const opts = []; for (let h = -12; h <= 14; h += 0.5) opts.push(h);
   $("#cbTzOff").innerHTML = opts.map(h => `<option value="${h * 60}"${h === guess ? " selected" : ""}>UTC${h < 0 ? "−" : "+"}${Math.floor(Math.abs(h))}${h % 1 ? ":30" : ""}</option>`).join("");
   $("#cbTzTitle").textContent = `This roster is in ${meta.tzLabel || "local time"}, not UTC.`;
+  $("#cbMsg").textContent = "Almost there: choose this roster's time difference below."; $("#cbMsg").style.color = "";
   $("#cbTzBox").classList.remove("hidden"); $("#cbTzBox").scrollIntoView({ behavior: "smooth", block: "center" });
   cbTzPending = () => then(cbToUTC(days, +$("#cbTzOff").value));
 }
@@ -3302,9 +3351,10 @@ $("#btnMakePdf").addEventListener("click", async () => {
     const bytes = await makePdf();
     if (pdfUrl) URL.revokeObjectURL(pdfUrl);
     pdfUrl = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
-    $("#pdfFrame").src = pdfUrl; $("#pdfCard").classList.remove("hidden");
+    // preview only where the browser shows PDFs in the page (not Android Chrome: it would download a second copy)
+    if (navigator.pdfViewerEnabled !== false) { $("#pdfFrame").src = pdfUrl; $("#pdfCard").classList.remove("hidden"); }
     const a = document.createElement("a"); a.href = pdfUrl; a.download = `crewbaselog-logbook-${prFmt.toLowerCase()}-${todayISO()}.pdf`; a.click();
-    $("#prMsg").textContent = `Downloaded (${Math.round(bytes.length/1024)} KB). Preview below.`;
+    $("#prMsg").textContent = `Downloaded (${Math.round(bytes.length/1024)} KB)${navigator.pdfViewerEnabled !== false ? ". Preview below." : ": open it from your Downloads."}`;
   } catch (x) { console.error(x); $("#prMsg").textContent = x.message || "Couldn't build the PDF."; $("#prMsg").style.color = "var(--bad)"; }
   btn.disabled = false;
 });
