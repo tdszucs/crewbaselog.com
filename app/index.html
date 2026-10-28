@@ -1691,8 +1691,14 @@ async function readLogbookPDF(f){
 /* several files in one go (e.g. last time's CrewBase Log CSV + a new eCrew export):
    our own CSV imports straight away, other files go through the column check one by one */
 let impQueue = [], impLog = [], impErrs = 0, impBatch = null;
-function handleFiles(list){
-  const files = [...(list || [])]; if (!files.length) return;
+async function handleFiles(list){
+  let files = [...(list || [])]; if (!files.length) return;
+  // a CrewBase Log full backup dropped here: restore it instead of importing
+  for (const f of files.filter(f => /\.json$/i.test(f.name) && f.size < 50e6)) {
+    const t = await f.text().catch(() => "");
+    if (/^\s*\{\s*"app"\s*:\s*"CrewBase Log"/.test(t)) { files = files.filter(x => x !== f); await restoreBackup(t); }
+  }
+  if (!files.length) return;
   // our own CSV first, so a new export's duplicates are counted against it
   impQueue = files.sort((a, b) => (/crewbaselog/i.test(b.name) ? 1 : 0) - (/crewbaselog/i.test(a.name) ? 1 : 0));
   impLog = []; impErrs = 0; $("#impErr").textContent = ""; $("#impDone").classList.add("hidden");
@@ -1727,7 +1733,7 @@ async function handleFile(f){
   if (/\.json$/i.test(f.name)) {
     const t = decodeText(await f.arrayBuffer());
     if (/"table"\s*:\s*"Flight"|\\"table\\"\s*:\s*\\"Flight/.test(t)) return "This is a CrewLounge / mccPILOTLOG database file: it stores airports as internal numbers, so the routes can't be read. In CrewLounge PILOTLOG, export your flights as CSV (or print the logbook as PDF) and drop that file instead.";
-    if (/"app"\s*:\s*"CrewBase Log"/.test(t)) return "This is a CrewBase Log full backup: use Restore backup on the Logbook tab.";
+    if (/"app"\s*:\s*"CrewBase Log"/.test(t)) return "This is a CrewBase Log full backup: use Restore backup in step 4.";
     return "JSON files can't be imported. Export your logbook as CSV, Excel or PDF and drop that file.";
   }
   if (new TextDecoder().decode(await f.slice(0, 5).arrayBuffer()) === "%PDF-") {
@@ -2352,12 +2358,17 @@ $("#lbEdit").addEventListener("submit", async e => {
 });
 $("#btnBackup").addEventListener("click", () => { markBackedUp(); download(`crewbaselog-backup-${todayISO()}.json`, "application/json", JSON.stringify({ app: "CrewBase Log", version: 1, exported: new Date().toISOString(), data }, null, 1)); });
 $("#restoreFile").addEventListener("change", async e => {
-  const f = e.target.files[0]; e.target.value = ""; if (!f) return;
-  try { const j = JSON.parse(await f.text()); if (!j.data?.flights) throw 0;
-    if (!confirm(`Replace everything on this device with the backup from ${j.exported?.slice(0,10) || "file"} (${j.data.flights.length} flights)?`)) return;
-    store.set(key(), j.data); load(); save(); renderLogbook(); renderOverview();   // load() also drops future-dated flights
-  } catch { alert("That isn't a CrewBase Log backup file."); }
+  const f = e.target.files[0]; e.target.value = ""; if (f) restoreBackup(await f.text());
 });
+async function restoreBackup(text){
+  let j; try { j = JSON.parse(text); if (!j.data?.flights) throw 0; } catch { return alert("That isn't a CrewBase Log backup file."); }
+  if (!confirm(`Replace everything on this device with the backup from ${j.exported?.slice(0,10) || "file"} (${j.data.flights.length.toLocaleString()} flights)?`)) return;
+  store.set(key(), j.data); load(); save();   // load() also drops future-dated flights
+  fixLog = {}; $("#chkUpto").value = ""; $("#impErr").textContent = "";
+  ["impDone", "mapCard", "pdfCard"].forEach(id => $("#" + id).classList.add("hidden")); $("#pdfFrame").removeAttribute("src");
+  renderPrev(); renderCheck(); renderFix(); renderLogbook(); renderOverview(); renderPrint();
+  $("#impErr").innerHTML = `<span style="color:var(--ok)">Backup restored: ${data.flights.length.toLocaleString()} flights.</span>`;
+}
 $("#btnStartOver").addEventListener("click", () => {
   const n = data.flights.length, P = data.prev?.total;
   $("#soWhat").innerHTML = `This deletes <b>${n.toLocaleString()} flight${n === 1 ? "" : "s"}</b>${P ? `, <b>${fmtMin(P)}</b> of previous experience` : ""} and your import checks from this device. It can't be undone; download a full backup first if you might need them.`;
