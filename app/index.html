@@ -3,6 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0b3d5c">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="CrewBase">
 <title>CrewBase Log — Pilot area</title>
 <meta name="robots" content="noindex">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230b3d5c'/%3E%3Cpath d='M12 38l40-14-10 22-8-6-6 8v-10z' fill='%23f2b544'/%3E%3C/svg%3E">
@@ -68,6 +73,7 @@ input:focus,select:focus{outline:2px solid color-mix(in srgb,var(--brand) 40%,tr
 .tabs{max-width:1120px;margin:0 auto;padding:0 16px;display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
 .tabs button{flex:none;background:none;border:0;border-bottom:2px solid transparent;padding:10px 12px;font:500 14px Inter,sans-serif;color:var(--muted);cursor:pointer}
 .tabs button.on{color:var(--ink);border-bottom-color:var(--accent)}
+@media (max-width:640px){ .tabs{flex-wrap:wrap;overflow:visible;gap:0;padding:0 8px} .tabs button{padding:9px 9px;font-size:13.5px} }
 main{max-width:1120px;margin:0 auto;padding:28px 16px 64px}
 h2{font-size:24px;letter-spacing:-.02em;margin:0 0 6px}
 .lead{color:var(--muted);margin:0 0 24px}
@@ -776,6 +782,7 @@ $("#tabs").addEventListener("click", e => { if (e.target.dataset.t) tab(e.target
 
 function enterApp(){
   load(); show("#vApp"); $("#whoEmail").textContent = user.email; tab("overview");
+  navigator.storage?.persist?.().catch(() => {});   // ask the browser to keep this site's data
 }
 
 /* ---------- expiry status ---------- */
@@ -803,9 +810,15 @@ function renderOverview(){
   if (!data.flights.length) missing.push('<a href="#" data-go="import">import your flights</a>');
   if (missing.length) lines.push("<b>Finish setting up:</b> " + missing.join(", ") + ".");
   if (due.length) lines.push(`<b>Expiry dates:</b> ${due.map(e => `${esc(e.name)} ${expStatus(e.date).c === "bad" ? "has expired" : "is due " + fmtDate(e.date)}`).join(", ")}. <a href="#" data-go="profile" data-scroll="#expSection">Check them</a>.`);
+  if (data.flights.length && user.id !== "sample" && data.backup?.sig !== flightsSig())
+    lines.push(`<b>Back up your logbook:</b> it has changed since ${data.backup?.date ? "your last download on " + fmtDate(data.backup.date) : "you added it"}. <a href="#" data-csv>Download CSV file</a> · <a href="#" data-backup>full backup</a>`);
+  const ios = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  if (ios && !navigator.standalone && !matchMedia("(display-mode: standalone)").matches)
+    lines.push("<b>On iPhone:</b> tap Share → <b>Add to Home Screen</b>. Safari can delete a website's data after 7 days without a visit; the Home Screen app keeps your logbook.");
   $("#setupNotice").innerHTML = lines.join("<br>"); $("#setupNotice").classList.toggle("hidden", !lines.length);
 }
 $("#ovBackup").addEventListener("click", () => $("#btnBackup").click());
+document.addEventListener("click", e => { if (e.target.closest("[data-backup]")) { e.preventDefault(); $("#btnBackup").click(); } });
 $("#ovRestore").addEventListener("click", () => $("#restoreFile").click());
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
@@ -1261,10 +1274,14 @@ function logbookCSV(){
   return [LOG_COLS.map(c => c[1]), ...data.flights.map(f => LOG_COLS.map(([k]) => val(f, k)))].map(r => r.map(cell).join(",")).join("\r\n") + "\r\n";
 }
 document.addEventListener("click", e => {
-  if (!e.target.closest("[data-csv]")) return;
+  if (!e.target.closest("[data-csv]")) return; e.preventDefault();
   if (!data.flights.length) return alert("There are no flights to export yet.");
   download(`crewbaselog-logbook-${todayISO()}.csv`, "text/csv", "\ufeff" + logbookCSV());
+  markBackedUp();
 });
+// a short fingerprint of the flights: a backup reminder shows when it differs from the last download
+const flightsSig = () => { const F = data.flights; let h = 0; const t = JSON.stringify(F); for (let i = 0; i < t.length; i++) h = (h * 31 + t.charCodeAt(i)) | 0; return F.length + ":" + h; };
+function markBackedUp(){ data.backup = { sig: flightsSig(), date: todayISO() }; save(); if (!$("[data-p=overview]").classList.contains("hidden")) renderOverview(); }
 /* ---------- your data: airlines, add a flight by hand ---------- */
 function renderYourData(){
   renderPrint(); loadAirports().then(renderAddPreview);
@@ -1448,7 +1465,7 @@ $("#lbEdit").addEventListener("submit", async e => {
   data.flights[at] = f; data.flights.sort((a,b) => (a.date+a.out).localeCompare(b.date+b.out));
   if (save()) { lbCloseEdit(); renderLogbook(); }
 });
-$("#btnBackup").addEventListener("click", () => download(`crewbaselog-backup-${todayISO()}.json`, "application/json", JSON.stringify({ app: "CrewBase Log", version: 1, exported: new Date().toISOString(), data }, null, 1)));
+$("#btnBackup").addEventListener("click", () => { markBackedUp(); download(`crewbaselog-backup-${todayISO()}.json`, "application/json", JSON.stringify({ app: "CrewBase Log", version: 1, exported: new Date().toISOString(), data }, null, 1)); });
 $("#restoreFile").addEventListener("change", async e => {
   const f = e.target.files[0]; e.target.value = ""; if (!f) return;
   try { const j = JSON.parse(await f.text()); if (!j.data?.flights) throw 0;
@@ -2277,7 +2294,10 @@ $("#btnSample").addEventListener("click", e => {
   try { await Auth.init(); } catch (x) { console.error(x); }
   Auth.onChange(u => { user = u; if (u) enterApp(); else { setMode("login"); show("#vAuth"); } });
   try { user = await Auth.current(); } catch (x) { user = null; $("#authErr").textContent = "Couldn't reach the sign-in service. Check your connection and reload."; }
-  if (user) enterApp(); else { setMode("login"); show("#vAuth"); }
+  if (user) enterApp();
+  else if (location.hash === "#sample") $("#btnSample").click();
+  else { setMode(location.hash === "#signup" ? "signup" : "login"); show("#vAuth"); }
+  if ("serviceWorker" in navigator && (location.protocol === "https:" || ["localhost", "127.0.0.1"].includes(location.hostname))) navigator.serviceWorker.register("sw.js").catch(e => console.warn("service worker", e));
 })();
 </script>
 </body>
