@@ -137,6 +137,12 @@ h2{font-size:24px;letter-spacing:-.02em;margin:0 0 6px}
 .opt h4{margin:0 0 4px;font-size:15px}
 .opt p{margin:0;color:var(--muted);font-size:13.5px}
 .drop{border:2px dashed var(--line);border-radius:14px;padding:28px;text-align:center;color:var(--muted);cursor:pointer}
+.step-sub{margin:-4px 0 14px;font-size:14px}
+summary.cardsum{cursor:pointer}
+summary.cardsum h3{display:inline;margin:0}
+summary.more{cursor:pointer;font-size:14px;font-weight:600;color:var(--accent)}
+summary.more #prevNote{font-weight:400;color:var(--muted)}
+@media (max-width:640px){ .drop{padding:22px 14px} }
 .drop.over{border-color:var(--accent);background:var(--accent-soft)}
 .mapgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px}
 .tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px}
@@ -298,7 +304,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
           <div class="fhub"><svg viewBox="0 0 64 64" class="fhublogo" aria-hidden="true"><rect width="64" height="64" rx="14" fill="#0b3d5c"/><path d="M12 38l40-14-10 22-8-6-6 8v-10z" fill="#f2b544"/></svg><b>CrewBase Log</b><small>Merges both, skips duplicates, fills in night and IFR time. All in your browser.</small></div>
           <div class="farr" aria-hidden="true"><svg viewBox="0 0 40 16"><path d="M2 8h32M28 2l7 6-7 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
           <div class="fcol">
-            <div class="fbox out"><span class="fn">3</span><svg class="fic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><div><b>Your full logbook as CSV</b><small>Your private copy to keep. Next time it is step 1.</small></div></div>
+            <div class="fbox out"><span class="fn">3</span><svg class="fic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><div><b>Your full logbook as CSV</b><small>Your private copy to keep. Next time it is step 2.</small></div></div>
             <div class="fbox out"><svg class="fic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 15h1.5a1.5 1.5 0 0 0 0-3H8v5M13 12v5h1a2 2 0 0 0 2-2.5v0A2 2 0 0 0 14 12z"/></svg><div><b>PDF logbook</b><small>EASA, UK CAA or FAA layout: full logbook, last 10 pages or between dates</small></div></div>
           </div>
         </div>
@@ -400,61 +406,67 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
     <!-- your data: import + export -->
     <div data-p="import" class="hidden">
       <h2>Your data</h2>
-      <p class="lead">Bring your flights in, then download your logbook. Files are read inside your browser; nothing is uploaded to our servers.</p>
-      <div class="notice"><b>Next time:</b> upload the CrewBase Log CSV you downloaded here, together with your new AIMS file. They are merged and duplicates are skipped. Then download your new CSV and PDF.</div>
+      <p class="lead">Add your hours, drop your files, download your logbook. Everything is read in your browser; nothing is uploaded.</p>
 
       <div class="card">
-        <h3><span class="stepn">1</span>Import your past logbook</h3>
-        <p class="hint" style="margin:0 0 14px;font-size:14px">Most pilots start with a logbook from before. Upload the CrewBase Log CSV you downloaded last time, an export from another logbook app or your own spreadsheet (CSV or Excel), or a PDF logbook in the EASA or JAR layout made by a logbook app. Scanned paper pages can't be read; enter their totals under previous experience instead.</p>
-        <p class="hint" style="margin:-6px 0 14px;font-size:13.5px">Read automatically: <b>Flylog</b> CSV and EASA / JAR PDF, <b>CrewLounge PILOTLOG</b> (mccPILOTLOG) CSV and logbook PDF, <b>Safelog</b> CSV, <b>eCrew</b> Pilot LogBook report (CSV, Excel, PDF). Any other CSV or Excel file: you match the columns once.</p>
-        <div class="drop" id="drop"><b>Drop your past logbook here</b><br><span class="hint">or click to choose files · .csv, .xlsx, .pdf</span>
-          <input type="file" id="impFile" accept=".csv,.txt,.tsv,.xlsx,.xls,.pdf,.json,.zip" multiple class="hidden"></div>
-        <div class="row-actions" style="margin-top:12px;justify-content:space-between"><label style="display:flex;gap:8px;align-items:center;font-weight:400;margin:0;font-size:14px"><input type="checkbox" id="impManual" autocomplete="off" style="width:auto"> Let me match the columns myself (if a file was read wrongly)</label><a href="#" id="dlSample" class="hint">Download a sample CSV to try</a></div>
-        <details id="prevBox" style="margin-top:14px"><summary style="cursor:pointer;font-size:15px;font-weight:600">Previous experience (brought forward)</summary>
-          <p class="hint" style="margin:10px 0 14px;font-size:14px">Hours from logbooks you don't import flight by flight, such as an old paper logbook: copy the totals from its last page. They are added to your statistics and carried into "total from previous pages" on page 1 of your PDF logbook. Times as H:MM. <span id="prevNote"></span></p>
+        <h3><span class="stepn">1</span>Previous experience</h3>
+        <p class="hint step-sub">Hours from before this logbook that you won't import flight by flight, such as a paper logbook.</p>
+        <details id="prevBox"><summary class="more">Enter totals <span id="prevNote"></span></summary>
+          <p class="hint" style="margin:10px 0 14px;font-size:14px">Copy the totals from the last page of the old logbook, times as H:MM. They are added to your statistics and carried into "total from previous pages" on page 1 of your PDF logbook.</p>
           <div class="pvgrid" id="prevGrid"></div>
           <div class="row-actions" style="margin:4px 0 0"><button class="btn ghost small" type="button" id="prevClear">Clear</button><span class="ok-msg" id="prevMsg"></span><span class="err" id="prevErr" style="margin:0"></span></div>
         </details>
       </div>
 
+      <div class="card">
+        <h3><span class="stepn">2</span>Import your past logbook</h3>
+        <p class="hint step-sub">Your last CrewBase Log CSV, or an export from another logbook app.</p>
+        <div class="drop" id="drop"><b>Drop your past logbook here</b><br><span class="hint">or tap to choose · .csv, .xlsx, .pdf</span>
+          <input type="file" id="impFile" accept=".csv,.txt,.tsv,.xlsx,.xls,.pdf,.json,.zip" multiple class="hidden"></div>
+        <details style="margin-top:12px"><summary class="more">Which files work?</summary>
+          <div class="hint" style="margin-top:10px;font-size:14px;line-height:1.6">
+            <p style="margin:0 0 8px">Read automatically: <b>CrewBase Log</b> CSV, <b>Flylog</b> CSV and EASA / JAR PDF, <b>CrewLounge PILOTLOG</b> (mccPILOTLOG) CSV and PDF, <b>Safelog</b> CSV, <b>eCrew</b> Pilot LogBook report. Any other CSV or Excel file: you match the columns once.</p>
+            <p style="margin:0 0 8px">Scanned paper pages can't be read: enter their totals in step 1.</p>
+            <p style="margin:0 0 10px"><b>Next time:</b> drop the CrewBase Log CSV you downloaded here, then your new eCrew file. Duplicates are skipped.</p>
+            <label style="display:flex;gap:8px;align-items:center;font-weight:400;margin:0 0 8px;font-size:14px"><input type="checkbox" id="impManual" autocomplete="off" style="width:auto"> Let me match the columns myself (if a file was read wrongly)</label>
+            <a href="#" id="dlSample">Download a sample CSV to try</a>
+          </div>
+        </details>
+      </div>
+
       <div class="card hidden" id="chkCard">
-        <h3>Check: compare with the last page of your old logbook</h3>
-        <p class="hint" style="margin:0 0 14px;font-size:14px">Open your old logbook app (or the PDF) at its last page and copy its <b>totals to date</b> into the right-hand column. Each line shows whether CrewBase Log adds up to the same. Previous experience (brought forward) is included, as on the old last page.</p>
+        <details id="chkBox"><summary class="cardsum"><h3>Check your totals</h3> <span class="hint" id="chkState">against the last page of your old logbook</span></summary>
+        <p class="hint" style="margin:12px 0 14px;font-size:14px">Open your old logbook app (or the PDF) at its last page and copy its <b>totals to date</b> into the right-hand column. Each line shows whether CrewBase Log adds up to the same. Previous experience (brought forward) is included, as on the old last page.</p>
         <div class="field" style="max-width:240px"><label for="chkUpto">Totals up to and including</label><span class="datewrap"><input type="date" id="chkUpto"></span><div class="hint">The date of the last line on that page.</div></div>
         <div class="tablewrap"><table><thead><tr><th>Column</th><th class="r">CrewBase Log</th><th style="width:150px">Your old logbook</th><th>Check</th></tr></thead><tbody id="chkRows"></tbody></table></div>
         <p id="chkSum" style="margin:12px 0 4px;font-size:14px"></p>
         <h4 style="margin:18px 0 8px">The last lines, to compare with the same page</h4>
         <div class="tablewrap" id="chkLast"></div>
-        <div class="row-actions" style="margin:16px 0 0"><button class="btn" type="button" id="chkGo">Everything matches: continue with step 2</button><button class="btn ghost" type="button" data-go="logbook">Find and fix a flight</button></div>
+        <div class="row-actions" style="margin:16px 0 0"><button class="btn" type="button" id="chkGo">Everything matches: continue with step 3</button><button class="btn ghost" type="button" data-go="logbook">Find and fix a flight</button></div>
+        </details>
       </div>
 
       <div class="card hidden" id="fixCard">
-        <h3>Troubleshooting: fix import problems</h3>
-        <p class="hint" style="margin:0 0 14px;font-size:14px">Every line of your logbook is checked for the usual import mistakes. Fix a whole group in one click, or open the lines and edit, delete or mark them as correct one by one. A file read completely wrongly: undo the import, tick <b>Let me match the columns myself</b> in step 1 and drop it again.</p>
+        <details id="fixBox"><summary class="cardsum"><h3>Troubleshooting</h3> <span class="hint" id="fixState"></span></summary>
+        <p class="hint" style="margin:12px 0 14px;font-size:14px">Every line of your logbook is checked for the usual import mistakes. Edit, delete or mark each line as correct. A file read completely wrongly: undo the import, tick <b>Let me match the columns myself</b> under "Which files work?" in step 2 and drop it again.</p>
         <div class="notice hidden" id="undoBox" style="margin:0 0 14px"></div>
         <div id="fixList"></div>
-        <p class="hint" style="margin:14px 0 0;font-size:14px">Still not right? <a href="#" id="fixMail">Email us the file</a> and we'll make CrewBase Log read it correctly.</p>
+        </details>
       </div>
 
       <div class="card" id="aimsCard">
-        <h3><span class="stepn">2</span>Import new flights from eCrew: Pilot LogBook report</h3>
-        <div>
-          <ol style="margin:0 0 14px;padding-left:20px;line-height:1.8">
-            <li>Log in to <b>eCrew</b>.</li>
-            <li>In the left menu open <b>Reports</b> → <b>Pilot LogBook report</b>.</li>
-            <li>Set the <b>Period</b> (for example 01/09/2026 – 30/09/2026, or a whole year) and press <b>Go</b>.</li>
-            <li>Click the <b>Export</b> button in the report toolbar (the save icon with a small ▾ arrow, next to the print icons).</li>
-            <li>Choose <b>CSV</b>, <b>Excel (XLSX)</b> or <b>PDF</b>; all work. On iPhone, save the file to Files.</li>
-            <li>Drop the file below, or tap the box and pick it from Files. It is read automatically. eCrew times are in UTC and are imported as UTC.</li>
+        <h3><span class="stepn">3</span>Import new flights from eCrew</h3>
+        <p class="hint step-sub">The eCrew Pilot LogBook report. Flights already in your logbook are skipped.</p>
+        <div class="drop" id="dropAims"><b>Drop your eCrew report here</b><br><span class="hint">or tap to choose · .csv, .xlsx, .pdf</span>
+          <input type="file" id="aimsFile" accept=".csv,.txt,.tsv,.xlsx,.xls,.pdf" multiple class="hidden"></div>
+        <details style="margin-top:12px"><summary class="more">How to get the report from eCrew</summary>
+          <ol class="hint" style="margin:10px 0 0;padding-left:20px;line-height:1.7;font-size:14px">
+            <li>Log in to <b>eCrew</b> and open <b>Reports</b> → <b>Pilot LogBook report</b>.</li>
+            <li>Set the <b>Period</b> (a month or a whole year) and press <b>Go</b>.</li>
+            <li>Press <b>Export</b> (the save icon with ▾) and choose <b>CSV</b>, <b>Excel</b> or <b>PDF</b>. On iPhone, save it to Files.</li>
+            <li>Drop the file above. Times are in UTC; overlapping periods are fine; simulator sessions go into the FSTD columns.</li>
           </ol>
-          <div class="drop" id="dropAims"><b>Drop your eCrew Pilot LogBook report here</b><br><span class="hint">or click to choose files · .csv, .xlsx, .pdf</span>
-            <input type="file" id="aimsFile" accept=".csv,.txt,.tsv,.xlsx,.xls,.pdf" multiple class="hidden"></div>
-          <p class="hint" style="margin:12px 0 0">Overlapping periods are fine: flights already in your logbook are skipped. Simulator sessions go into the FSTD columns of your logbook.</p>
-        </div>
-        <div class="notice" style="margin:16px 0 0;background:var(--bg);border-color:var(--line)">
-          <b>Doesn't seem to work correctly?</b> Send us your logbook, your roster and your flights exported from AIMS, eCrew or your airline's online system, and we'll make sure it works.
-          <div style="margin-top:10px"><a class="btn ghost small" id="airMail" href="#">Email us your files</a> <span class="hint">Attach the files to the email before sending.</span></div>
-        </div>
+        </details>
       </div>
       <p class="err" id="impErr"></p>
       <div class="card hidden" id="mapCard">
@@ -472,13 +484,12 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
       </div>
       <div class="card hidden" id="impDone">
         <h3>Your logbook is up to date</h3>
-        <div id="impDoneLog" class="hint" style="font-size:14px;margin:0 0 14px"></div>
-        <div class="row-actions" style="margin:0"><button class="btn" type="button" data-csv>Download CSV file</button><button class="btn ghost" type="button" data-go="import" data-scroll="#outCard">Download PDF logbook</button></div>
+        <div id="impDoneLog" class="hint" style="font-size:14px;margin:0"></div>
       </div>
 
 
       <div class="card" id="outCard">
-        <h3><span class="stepn">3</span>Download your logbook</h3>
+        <h3><span class="stepn">4</span>Download your logbook</h3>
         <p class="hint" style="margin:0 0 16px;font-size:14px" id="outInfo"></p>
         <div class="grid2" style="gap:18px">
           <div>
@@ -504,12 +515,17 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
           </div>
           <div>
             <h4 style="margin:0 0 10px">CSV file</h4>
-            <p class="hint" style="margin:0 0 14px;font-size:14px">Your full logbook in one file. Keep it safe (email, cloud drive): next time, upload it in step 1 together with your new AIMS file.</p>
+            <p class="hint" style="margin:0 0 14px;font-size:14px">Your full logbook in one file. Keep it safe (email, cloud drive): next time, drop it in step 2 before your new eCrew file.</p>
             <button class="btn" type="button" data-csv>Download CSV file</button>
           </div>
         </div>
       </div>
       <div class="card hidden" id="pdfCard" style="padding:0;overflow:hidden"><iframe id="pdfFrame" title="Logbook preview" style="width:100%;height:78vh;border:0;display:block;background:#fff"></iframe></div>
+      <div class="card">
+        <h3>Doesn't look right?</h3>
+        <p class="hint step-sub">Send us your logbook, roster or eCrew file and we'll make CrewBase Log read it correctly.</p>
+        <a class="btn ghost small" id="airMail" href="#">Email us your files</a> <span class="hint">Attach the files before sending.</span>
+      </div>
     </div>
 
     <!-- logbook -->
@@ -918,7 +934,7 @@ $("#fbForm").addEventListener("submit", async e => {
   }
   $("#fbSend").disabled = false;
 });
-document.addEventListener("click", e => { const g = e.target.closest("[data-go]"); if (!g) return; e.preventDefault(); tab(g.dataset.go); if (g.dataset.scroll) $(g.dataset.scroll)?.scrollIntoView({ behavior: "smooth", block: "start" }); });
+document.addEventListener("click", e => { const g = e.target.closest("[data-go]"); if (!g) return; e.preventDefault(); tab(g.dataset.go); const t = g.dataset.scroll && $(g.dataset.scroll); if (t?.tagName === "DETAILS") t.open = true; if (t) t.scrollIntoView({ behavior: "smooth", block: "start" }); });
 
 /* ---------- profile ---------- */
 const PF = { pName: "name", pEmail: "email", pLic: "lic", pType: "type", pBase: "base" };
@@ -1681,10 +1697,10 @@ async function nextFile(){
   if (!impLog.length) return;
   if (impErrs === impLog.length) return $("#impErr").innerHTML = impLog.join("<br>");
   const ns = data.flights.filter(isSim).length, nf = data.flights.length - ns;
-  $("#impDoneLog").innerHTML = impLog.join("<br>") + `<br>Your logbook now has <b>${nf.toLocaleString()} flight${nf === 1 ? "" : "s"}</b>` + (ns ? ` and <b>${ns} simulator session${ns === 1 ? "" : "s"}</b>` : "") + `. <a href="#" data-go="import" data-scroll="#chkCard">Check the totals against your old logbook's last page</a>.`;
+  $("#impDoneLog").innerHTML = impLog.join("<br>") + `<br>Your logbook now has <b>${nf.toLocaleString()} flight${nf === 1 ? "" : "s"}</b>` + (ns ? ` and <b>${ns} simulator session${ns === 1 ? "" : "s"}</b>` : "") + `. <a href="#" data-go="import" data-scroll="#chkBox">Check the totals against your old logbook's last page</a>.`;
   $("#impDone").classList.remove("hidden"); $("#impDone").scrollIntoView({ behavior: "smooth", block: "start" });
   $("#chkUpto").value = ""; renderCheck();
-  renderFix().then(n => { if (n) $("#impDoneLog").insertAdjacentHTML("beforeend", `<br><b style="color:var(--warn)">${n} line${n === 1 ? " looks" : "s look"} wrong.</b> <a href="#" data-go="import" data-scroll="#fixCard">Review and fix them</a>.`); });
+  renderFix().then(n => { if (n) $("#impDoneLog").insertAdjacentHTML("beforeend", `<br><b style="color:var(--warn)">${n} line${n === 1 ? " looks" : "s look"} wrong.</b> <a href="#" data-go="import" data-scroll="#fixBox">Review and fix them</a>.`); });
 }
 async function handleFile(f){
   await loadAirports();
@@ -1847,15 +1863,14 @@ function renderPrev(){
   const P = data.prev || {};
   $("#prevGrid").innerHTML = ["total","pic","copilot","dual","instructor","night","ifr","se","me","mp","ldgDay","ldgNight","fstd"].map(k =>
     `<div class="field"><label for="pv_${k}">${PREV_LABEL[k]}</label><input id="pv_${k}" data-pv="${k}" class="mono" ${k.startsWith("ldg") ? 'type="number" min="0" step="1" placeholder="0"' : 'placeholder="0:00"'} value="${P[k] ? (k.startsWith("ldg") ? P[k] : fmtMin(P[k])) : ""}"></div>`).join("");
-  $("#prevNote").textContent = hasPrev() ? `Now: ${fmtMin(P.total)} total time brought forward.` : "";
-  if (hasPrev()) $("#prevBox").open = true;
+  $("#prevNote").textContent = hasPrev() ? `· ${fmtMin(P.total)} total brought forward` : "";
 }
 $("#prevGrid").addEventListener("change", e => {
   const k = e.target.dataset.pv; if (!k) return;
   const v = k.startsWith("ldg") ? Math.max(0, Math.round(+e.target.value || 0)) : parseHM(e.target.value);
   if (isNaN(v)) return $("#prevErr").textContent = `${PREV_LABEL[k]}: enter hours as H:MM, e.g. 3250:15.`;
   $("#prevErr").textContent = ""; (data.prev ||= {})[k] = v; save();
-  $("#prevNote").textContent = hasPrev() ? `Now: ${fmtMin(data.prev.total)} total time brought forward.` : "";
+  $("#prevNote").textContent = hasPrev() ? `· ${fmtMin(data.prev.total)} total brought forward` : "";
   $("#prevMsg").textContent = "Saved"; setTimeout(() => $("#prevMsg").textContent = "", 1200);
 });
 $("#prevClear").addEventListener("click", () => {
@@ -1884,6 +1899,7 @@ function renderCheck(){
   }).join("");
   $("#chkSum").innerHTML = !ok && !off ? "" : off ? `<b style="color:var(--bad)">${off} of ${ok + off} checked column${ok + off === 1 ? "" : "s"} differ.</b> Look for a flight imported twice, a missing line, or a time in the wrong column, then fix it on the Logbook tab.`
     : `<b style="color:var(--ok)">All ${ok} checked column${ok === 1 ? "" : "s"} match your old logbook.</b>`;
+  $("#chkState").innerHTML = off ? `<b style="color:var(--bad)">· ${off} column${off === 1 ? "" : "s"} differ</b>` : ok ? `<b style="color:var(--ok)">· all ${ok} match</b>` : "against the last page of your old logbook";
   const last = L.slice(-6);
   $("#chkLast").innerHTML = last.length ? `<table><thead><tr><th>Date</th><th>Route</th><th>Type</th><th class="r">Total</th><th class="r">Night</th><th class="r">Ldg</th><th>Remarks</th></tr></thead><tbody>` +
     last.map(f => `<tr><td>${fmtDate(f.date)}</td><td>${isSim(f) ? `<span class="tag">FSTD</span>` : `${esc(f.from)}–${esc(f.to)}`}</td><td>${esc(isSim(f) ? f.fstdType : f.acType)}</td><td class="r">${fmtMin(isSim(f) ? f.fstdTime : f.total)}</td><td class="r">${f.night ? fmtMin(f.night) : ""}</td><td class="r">${(f.ldgDay + f.ldgNight) || ""}</td><td>${esc(f.remarks || "")}</td></tr>`).join("") + "</tbody></table>"
@@ -2009,6 +2025,9 @@ async function renderFix(){
   const groups = FIX_CHECKS.map(c => [c, fixHits(c), fixLog[c.id] || []]).filter(([, h, g]) => h.length || g.length);
   const okMsg = total0 => total0 ? "" : `<p style="margin:0 0 10px;color:var(--ok);font-weight:600">✓ No problems left in ${data.flights.length.toLocaleString()} lines.</p>`;
   const left = groups.reduce((s, [, H]) => s + H.length, 0);
+  $("#fixState").innerHTML = left ? `<b style="color:var(--warn)">· ${left} line${left === 1 ? "" : "s"} to check</b>` : `<span style="color:var(--ok)">· no problems found</span>`;
+  // open by itself the first time there is something to fix
+  if (left && !$("#fixBox").dataset.seen) { $("#fixBox").open = true; $("#fixBox").dataset.seen = 1; }
   $("#fixList").innerHTML = okMsg(left) + groups.map(([c, H, G]) => {
     total += H.length;
     const rows = H.slice(0, 200).map(f => {
@@ -2068,7 +2087,6 @@ $("#fixCard").addEventListener("click", e => {
     delete data.lastImport; fixLog = {}; renderPrev(); return fixDone();
   }
 });
-$("#fixMail").addEventListener("click", e => { e.preventDefault(); $("#airMail").click(); });
 
 /* ---------- your data: eCrew import, add a flight by hand ---------- */
 function renderYourData(){
