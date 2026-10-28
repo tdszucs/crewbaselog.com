@@ -104,6 +104,7 @@ h2{font-size:24px;letter-spacing:-.02em;margin:0 0 6px}
 .times label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .times input{min-width:0;padding-left:8px;padding-right:8px;text-align:center}
 .rowbtn{background:none;border:0;padding:2px 6px;cursor:pointer;color:var(--muted);font:inherit;font-size:13px}
+.rowbtn.sug{color:var(--accent);font-weight:700;border:1px solid var(--accent);border-radius:6px}
 .rowbtn:hover{color:var(--ink);text-decoration:underline}.rowbtn.del:hover{color:var(--bad)}
 .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px}
 .stat{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px}
@@ -1894,6 +1895,17 @@ const FIX_SLACK = 5;
 // function-time problems are settled flight by flight: the pilot says what they were on that flight
 const roleDetail = f => ["pic","copilot","dual","instructor"].filter(k => f[k]).map(k => `${ROLE_LABEL[k]} ${fmtMin(f[k])}`).join(", ") + ` · total ${fmtMin(f.total)}${f.picName ? " · PIC " + f.picName : ""}`;
 const ROLE_PICK = [["pic", "PIC"], ["picus", "PICUS"], ["copilot", "Co-pilot"], ["dual", "Dual"], ["instructor", "Instructor"]];
+// what the line itself says about the pilot's function: the PIC's name, PICUS or training in the remarks -> [role, reason]
+function suggestRole(f){
+  const me = String(data.profile.name || "").trim().toLowerCase(), pn = String(f.picName || "").trim(), rem = f.remarks || "";
+  const self = /^self$/i.test(pn) || (me && pn.toLowerCase() === me);
+  if (/\bPIC\s*\(?\s*US\s*\)?|\bPICUS\b|\bP1\s*u\/?s\b/i.test(rem)) return ["picus", "PICUS in the remarks"];
+  if (self && /\b(instruct\w*|TRI|TRE|LTC|line train(ing|er)\b.*\b(given|as trainer)|trainer)\b/i.test(rem)) return ["instructor", "you were PIC on a training flight"];
+  if (self) return ["pic", "you are the PIC on this line"];
+  if (pn && /\b(dual|student|lesson|solo check|flight school|ab.?initio|T\d{3})\b/i.test(rem)) return ["dual", `${pn} was PIC on a training flight`];
+  if (pn) return ["copilot", `${pn} was PIC`];
+  return null;
+}
 function setRole(f, r){
   f.pic = f.copilot = f.dual = 0; f.instructor = 0;
   f.remarks = (f.remarks || "").replace(/\s*\bPIC\s*\(?\s*US\s*\)?/gi, "").trim();
@@ -1918,11 +1930,11 @@ const FIX_CHECKS = [
   { id: "block", title: "Total time longer than the block time", why: "The total time is more than 10 minutes longer than off-block to on-block, which can't be right: usually a time or the total column was matched wrongly. (Shorter is normal: augmented crews log only their own share.)",
     test: f => !isSim(f) && f.total && f.out && f.in && f.total - tdiff(f.out, f.in) > 10, detail: f => `total ${fmtMin(f.total)}, block ${f.out}–${f.in} = ${fmtMin(tdiff(f.out, f.in))}`,
     fixLabel: "Use the block time", fix: f => { const o = f.total, n = tdiff(f.out, f.in); for (const k of ["pic","copilot","dual","instructor","ifr"]) if (f[k] === o) f[k] = n; f.total = n; f.night = Math.min(f.night || 0, n); f.ifr = Math.min(f.ifr || 0, n); } },
-  { id: "noRole", title: "No PIC or co-pilot time", why: "None of PIC, co-pilot, dual or instructor time was in the file.",
+  { id: "noRole", title: "No PIC or co-pilot time", why: "None of PIC, co-pilot, dual or instructor time was in the file. Check each flight and press what you were on it; the highlighted choice is a suggestion from the PIC's name and the remarks.",
     test: f => !isSim(f) && f.total && !roleSum(f), detail: f => `total ${fmtMin(f.total)}${f.picName ? " · PIC " + f.picName : ""}${f.remarks ? " · " + f.remarks : ""}`, roles: true },
-  { id: "roleOver", title: "Function times add up to more than the total", why: "PIC, co-pilot, dual and instructor together are longer than the flight: usually two columns matched to the same time.",
+  { id: "roleOver", title: "Function times add up to more than the total", why: "PIC, co-pilot, dual and instructor together are longer than the flight: usually two columns matched to the same time. Check each flight and press what you were on it.",
     test: f => !isSim(f) && f.total && roleSum(f) > f.total + FIX_SLACK, detail: f => roleDetail(f), roles: true },
-  { id: "roleUnder", title: "Function times cover only part of the flight", why: "PIC, co-pilot, dual and instructor together are shorter than the total time.",
+  { id: "roleUnder", title: "Function times cover only part of the flight", why: "PIC, co-pilot, dual and instructor together are shorter than the total time. Check each flight and press what you were on it (or It's correct, e.g. for a relief-crew flight).",
     test: f => !isSim(f) && f.total && roleSum(f) && roleSum(f) < f.total - FIX_SLACK, detail: f => roleDetail(f), roles: true },
   { id: "night", title: "Night time longer than the flight", test: f => !isSim(f) && f.night > f.total + FIX_SLACK, detail: f => `night ${fmtMin(f.night)}, total ${fmtMin(f.total)}`,
     why: "Usually the night take-offs or landings column matched as night time.", fixLabel: "Work night time out again from the route and times",
@@ -1951,7 +1963,7 @@ function fixHits(c){
   else hits = F.filter(c.test);
   return hits.filter(f => !ok.has(dupKey(f)));
 }
-let fixOpen = new Set();
+let fixOpen = new Set(["noRole", "roleOver", "roleUnder"]);   // function-time lines are judged one by one, so they show straight away
 async function renderFix(){
   await loadAirports();
   const any = data.flights.length > 0;
@@ -1964,8 +1976,12 @@ async function renderFix(){
   $("#fixList").innerHTML = !groups.length ? `<p style="margin:0;color:var(--ok);font-weight:600">✓ No problems found in ${data.flights.length.toLocaleString()} lines.</p>` : groups.map(([c, H]) => {
     total += H.length;
     const label = typeof c.fixLabel === "function" ? c.fixLabel() : c.fixLabel, canAll = (c.fix || c.del) && H.some(f => !c.can || c.can(f));
-    const rows = H.slice(0, 200).map(f => { const i = data.flights.indexOf(f); return `<tr><td>${fmtDate(f.date)}</td><td>${esc(flightLabel(f).replace(fmtDate(f.date), "").trim())}</td><td>${esc(c.detail ? c.detail(f, data.flights) : "")}</td><td class="r" style="white-space:nowrap">` +
-      (c.roles ? `<span class="hint" style="margin:0 4px 0 0">Was:</span>` + ROLE_PICK.map(([r, l]) => `<button class="rowbtn" type="button" data-role="${r}" data-i="${i}">${l}</button>`).join("") + " · " : "") +
+    const rows = H.slice(0, 200).map(f => {
+      const i = data.flights.indexOf(f), sg = c.roles ? suggestRole(f) : null;
+      // function-time lines: what the line says, the suggestion and its reason, then one button per function
+      const why = c.roles ? `<div class="hint" style="margin:3px 0 0;font-size:12.5px">${sg ? `Suggested: <b>${ROLE_PICK.find(x => x[0] === sg[0])[1]}</b> (${esc(sg[1])})` : "No PIC name or remarks to go by: check this flight."}</div>` : "";
+      const roleBtns = c.roles ? `<span class="hint" style="margin:0 2px 0 0">You were:</span>` + ROLE_PICK.map(([r, l]) => `<button class="rowbtn${sg && sg[0] === r ? " sug" : ""}" type="button" data-role="${r}" data-i="${i}">${l}</button>`).join("") + "<br>" : "";
+      return `<tr><td style="white-space:nowrap">${fmtDate(f.date)}</td><td>${esc(flightLabel(f).replace(fmtDate(f.date), "").trim())}</td><td>${esc(c.detail ? c.detail(f, data.flights) : "")}${why}</td><td class="r" style="white-space:${c.roles ? "normal;min-width:330px" : "nowrap"}">` + roleBtns +
       ((c.fix && (!c.can || c.can(f))) ? `<button class="rowbtn" type="button" data-fix1="${c.id}" data-i="${i}">Fix</button>` : "") + `<button class="rowbtn" type="button" data-fixedit="${i}">Edit</button>` +
       (c.del ? `<button class="rowbtn del" type="button" data-fixdel="${i}">Delete</button>` : "") + `<button class="rowbtn" type="button" data-fixok="${c.id}" data-i="${i}" title="Stop flagging this line">It's correct</button></td></tr>`; }).join("");
     return `<div class="fixgrp"><div class="fixhd"><b>${c.title}</b><span class="tag">${H.length.toLocaleString()} line${H.length === 1 ? "" : "s"}</span>` +
