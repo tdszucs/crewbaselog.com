@@ -535,6 +535,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
           </div>
           <div class="row-actions" style="margin:4px 0 0"><button class="btn small" type="submit">Save flight</button><button class="btn ghost small" type="button" id="lbEditCancel">Cancel</button><button class="btn danger small" type="button" id="lbEditDel">Delete flight</button><span class="err" id="lbEditErr" style="margin:0"></span></div>
         </form>
+        <div class="notice hidden" id="lbFuture"></div>
         <p id="lbMsg" class="hint" style="margin:0 0 8px"></p>
         <div class="field" style="max-width:340px"><input id="lbSearch" type="search" placeholder="Search date, flight, airport, registration…" aria-label="Search flights"></div>
         <div class="tablewrap" id="lbTable"></div>
@@ -1284,6 +1285,10 @@ function autoFill(f){
 }
 const valid = f => f.date && (f.from || f.to || f.total || f.fstdTime);
 const aptKey = c => (AIRPORTS && AIRPORTS[c] ? AIRPORTS[c].join(",") : c);   // AUH and OMAA: same position, same airport
+// one flight logged twice with different times: same day and route, and the same flight number, or (without numbers) off-blocks within 90 minutes
+const hm2m = t => { const [h, m] = String(t).split(":").map(Number); return h * 60 + m; };
+const sameFlight = (a, b) => !isSim(a) && !isSim(b) && a.date === b.date && aptKey(a.from) === aptKey(b.from) && aptKey(a.to) === aptKey(b.to) &&
+  (a.flightNo && b.flightNo ? a.flightNo.replace(/^([A-Z]{2,3})0+/, "$1") === b.flightNo.replace(/^([A-Z]{2,3})0+/, "$1") : !!(a.out && b.out) && Math.abs(hm2m(a.out) - hm2m(b.out)) <= 90);
 const dupKey = f => [f.date, aptKey(f.from), aptKey(f.to), f.out || f.flightNo, f.fstdTime || ""].join("|");
 
 /* A past logbook printed in the EASA (FCL.050) layout, as a PDF with text (not a scan): each spread is a left page
@@ -1488,7 +1493,9 @@ $("#btnCancelImp").addEventListener("click", () => { impLog.push(`<b>${esc(imp.n
 function doImport(){
   const fmt = imp.fmt || (imp.own ? "YMD" : $("#mDateFmt").value), existing = new Map(), inFile = new Map();
   for (const f of data.flights) { const k = dupKey(f); existing.set(k, [...(existing.get(k) || []), f]); }
-  let added = 0, dup = 0, bad = 0, bf = "";
+  let added = 0, dup = 0, bad = 0, bf = "", future = 0, updated = 0;
+  // flights not flown yet (planned flights in an export that runs into the future) are not logged; UTC dates may run a day ahead
+  const tomorrow = new Date(Date.now() + 864e5).toISOString().slice(0, 10), stored = new Set(data.flights), renewed = new Set();
   for (const r of imp.flights || imp.rows) {
     if (imp.own && /^brought forward$/i.test(String(r[imp.map.flightNo] || "").trim())) { data.prev = prevFromCSV(rowToFlight(r, imp.map, fmt)); bf = " (and your previous experience)"; continue; }
     const f = imp.flights ? { ...r } : rowToFlight(r, imp.map, fmt);
@@ -1498,6 +1505,10 @@ function doImport(){
     // (two identical sim sessions on one day): only as many copies as the logbook already has count as duplicates
     const k = dupKey(f), n = inFile.get(k) || 0, had = existing.get(k)?.[n]; inFile.set(k, n + 1);
     if (had) { if (f.remarkSig && !had.remarkSig) had.remarkSig = f.remarkSig; dup++; continue; }
+    if (f.date > tomorrow) { future++; continue; }
+    // the same flight already logged with other times (planned vs actual, or corrected in the crew system): the new file wins
+    const old = !imp.own && data.flights.find(x => stored.has(x) && !renewed.has(x) && sameFlight(x, f));
+    if (old) { Object.assign(old, f, { remarks: f.remarks || old.remarks, remarkSig: f.remarkSig || old.remarkSig }); if (!old.remarkSig) delete old.remarkSig; renewed.add(old); updated++; continue; }
     data.flights.push(f); added++;
   }
   data.flights.sort((a,b) => (a.date+a.out).localeCompare(b.date+b.out));
@@ -1507,7 +1518,8 @@ function doImport(){
   }
   if (!imp.own && !imp.flights && (added || dup)) data.templates[imp.sig] = Object.fromEntries(Object.entries(imp.map).filter(([,v]) => v !== undefined));
   if (!save()) return false;
-  impLog.push(`<b>${esc(imp.name)}</b>: ${added.toLocaleString()} new entr${added===1?"y":"ies"}${bf}` + (dup ? `, ${dup.toLocaleString()} already in your logbook` : "") + (bad ? `, ${bad} rows without a date/route ignored` : ""));
+  impLog.push(`<b>${esc(imp.name)}</b>: ${added.toLocaleString()} new entr${added===1?"y":"ies"}${bf}` + (updated ? `, ${updated} updated with new times` : "") + (dup ? `, ${dup.toLocaleString()} already in your logbook` : "") +
+    (future ? `, ${future} not flown yet (dated after today) left out` : "") + (bad ? `, ${bad} rows without a date/route ignored` : ""));
   if (imp.pdf) {
     if (imp.pdf.prev) impLog.push(`Brought forward on its first page, from an earlier logbook: <b>${fmtMin(imp.pdf.prev.total)}</b> total time. Saved as your <a href="#" data-go="import" data-scroll="#prevBox">previous experience</a>.`);
     impLog.push(easaCheck(imp.pdf));
@@ -1744,6 +1756,9 @@ function download(name, type, text){ const a = document.createElement("a"); a.hr
 
 /* ---------- logbook ---------- */
 function renderLogbook(){
+  const tomorrow = new Date(Date.now() + 864e5).toISOString().slice(0, 10), fut = data.flights.filter(f => f.date > tomorrow);
+  $("#lbFuture").classList.toggle("hidden", !fut.length);
+  if (fut.length) $("#lbFuture").innerHTML = `<b>${fut.length} flight${fut.length === 1 ? " is" : "s are"} dated after today</b> (${fmtDate(fut[0].date)}${fut.length > 1 ? " to " + fmtDate(fut[fut.length - 1].date) : ""}). These were not flown yet: probably planned flights from an export or an earlier test. They are in your totals and PDF until removed. <button class="btn ghost small" type="button" id="lbFutureDel">Remove them</button>`;
   const F = data.flights, sum = k => F.reduce((s,f) => s + (f[k]||0), 0);
   $("#lbStats").innerHTML = [["Flights", F.filter(f => !isSim(f)).length.toLocaleString()], ["Total", fmtMin(sum("total"))], ["PIC", fmtMin(sum("pic"))], ["Night", fmtMin(sum("night"))]]
     .map(([k,v]) => `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`).join("");
@@ -1858,6 +1873,12 @@ $("#restoreFile").addEventListener("change", async e => {
     if (!confirm(`Replace everything on this device with the backup from ${j.exported?.slice(0,10) || "file"} (${j.data.flights.length} flights)?`)) return;
     data = j.data; data.profile.email = user.email; migrateExpiries(); save(); renderLogbook(); renderOverview();
   } catch { alert("That isn't a CrewBase Log backup file."); }
+});
+document.addEventListener("click", e => {
+  if (e.target.id !== "lbFutureDel") return;
+  const tomorrow = new Date(Date.now() + 864e5).toISOString().slice(0, 10), n = data.flights.filter(f => f.date > tomorrow).length;
+  if (!confirm(`Remove ${n} flight${n === 1 ? "" : "s"} dated after today from your logbook?`)) return;
+  data.flights = data.flights.filter(f => f.date <= tomorrow); lbCloseEdit(); save(); renderLogbook(); cbMsg("#lbMsg", `Removed ${n} future flight${n === 1 ? "" : "s"}.`);
 });
 $("#btnClearFlights").addEventListener("click", () => { if (data.flights.length && confirm(`Delete all ${data.flights.length} flights from this device? Download a backup first if unsure.`)) { data.flights = []; lbCloseEdit(); save(); renderLogbook(); } });
 
