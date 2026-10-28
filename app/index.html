@@ -900,11 +900,25 @@ document.addEventListener("click", e => { const g = e.target.closest("[data-go]"
 /* ---------- profile ---------- */
 const PF = { pName: "name", pEmail: "email", pLic: "lic", pType: "type", pBase: "base" };
 const PF_DROPPED = ["auth", "phone", "employer", "location", "lic2", "auth2", "type2"];
+// the type family (one type rating) each variant belongs to: A319 and A320 -> Airbus A320 family, B787-10 -> Boeing 787
+function acFamily(t){
+  const u = String(t || "").toUpperCase().replace(/^AIRBUS\s*/, "A").replace(/^BOEING\s*/, "B");
+  if (/^A?(31[89]|32\d|A?32N)|^A(1[89]|2[01])N/.test(u)) return "Airbus A320 family";
+  let m = u.match(/^A?(3[3-8])\d/); if (m) return `Airbus A${m[1]}0`;
+  m = u.match(/^B?7([1-8])7/); if (m) return `Boeing 7${m[1]}7`;
+  return "";
+}
 function renderAcTypes(){
   const opts = v => Object.entries(AC_CLASS).map(([k, l]) => `<option value="${k}"${k === v ? " selected" : ""}>${l}</option>`).join("");
-  const T = Object.entries(acTypesFlown()).sort((a, b) => a[0].localeCompare(b[0], "en", { numeric: true }));
-  $("#acRows").innerHTML = T.length ? T.map(([t, n]) => `<tr><td><b>${esc(t)}</b></td><td class="r">${n.toLocaleString()}</td><td><select data-ac="${esc(t)}" style="width:auto">${opts(acClass(t))}</select>${!(data.acTypes || {})[t] ? ' <span class="hint" style="margin:0">guessed</span>' : ""}</td></tr>`).join("")
-    : '<tr><td colspan="3" class="hint">No flights yet. Types appear here once you import or add flights.</td></tr>';
+  const byName = (a, b) => a.localeCompare(b, "en", { numeric: true }), fam = {};
+  for (const [t, n] of Object.entries(acTypesFlown())) (fam[acFamily(t)] ||= []).push([t, n]);
+  // families in alphabetical order, types without a known family last; variants listed under their family
+  const groups = Object.keys(fam).sort((a, b) => !a - !b || byName(a, b));
+  const row = ([t, n]) => `<tr><td style="padding-left:26px">${esc(t)}</td><td class="r">${n.toLocaleString()}</td><td><select data-ac="${esc(t)}" style="width:auto">${opts(acClass(t))}</select>${!(data.acTypes || {})[t] ? ' <span class="hint" style="margin:0">guessed</span>' : ""}</td></tr>`;
+  $("#acRows").innerHTML = groups.length ? groups.map(g => {
+    const V = fam[g].sort((a, b) => byName(a[0], b[0])), n = V.reduce((s, v) => s + v[1], 0);
+    return `<tr style="background:var(--bg)"><td colspan="3"><b>${g ? esc(g) : "Other types"}</b> <span class="hint" style="margin:0">· ${n.toLocaleString()} flight${n === 1 ? "" : "s"}</span></td></tr>` + V.map(row).join("");
+  }).join("") : '<tr><td colspan="3" class="hint">No flights yet. Types appear here once you import or add flights.</td></tr>';
   $("#acDefault").innerHTML = opts(data.profile.crew || "MP");
 }
 $("#acRows").addEventListener("change", e => { const t = e.target.dataset.ac; if (t === undefined) return; (data.acTypes ||= {})[t] = e.target.value; save(); renderAcTypes(); });
