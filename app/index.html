@@ -522,10 +522,15 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
         <div style="margin-top:22px;padding-top:18px;border-top:1px solid var(--line)">
           <h4 style="margin:0 0 10px">Full backup</h4>
           <p class="hint" style="margin:0 0 14px;font-size:14px">Everything in one file: flights, profile, expiries, signature and rosters. Use it to move to a new phone or browser.</p>
-          <div class="row-actions" style="margin:0"><button class="btn ghost" type="button" data-backup>Download full backup</button><button class="btn ghost" type="button" data-restore>Restore backup</button></div>
+          <div class="row-actions" style="margin:0"><button class="btn ghost" type="button" id="btnBackup">Download full backup</button><label class="btn ghost" style="margin:0">Restore backup<input type="file" id="restoreFile" accept=".json" class="hidden"></label></div>
         </div>
       </div>
       <div class="card hidden" id="pdfCard" style="padding:0;overflow:hidden"><iframe id="pdfFrame" title="Logbook preview" style="width:100%;height:78vh;border:0;display:block;background:#fff"></iframe></div>
+      <div class="card">
+        <h3>Start over</h3>
+        <p class="hint step-sub">Clears your flights, previous experience and import checks so you can import again from step 1. Your profile, signature, expiries and Crew Base rosters stay.</p>
+        <button class="btn danger small" type="button" id="btnStartOver">Clear logbook data</button>
+      </div>
       <div class="card">
         <h3>Doesn't look right?</h3>
         <p class="hint step-sub">Send us your logbook, roster or eCrew file and we'll make CrewBase Log read it correctly.</p>
@@ -552,8 +557,6 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
       <div class="card">
         <div class="row-actions" style="margin:0 0 14px">
           <button class="btn small" type="button" data-csv>Download CSV file</button>
-          <button class="btn ghost small" id="btnBackup" type="button" title="Includes profile, expiries, signature and rosters">Download full backup</button>
-          <label class="btn ghost small" style="margin:0">Restore backup<input type="file" id="restoreFile" accept=".json" class="hidden"></label>
           <button class="btn danger small" id="btnClearFlights" type="button">Delete all flights</button>
         </div>
         <form class="notice hidden" id="lbEdit" style="margin:0 0 14px;background:var(--bg);border-color:var(--line)">
@@ -919,7 +922,6 @@ function renderOverview(){
 $("#ovBackup").addEventListener("click", () => $("#btnBackup").click());
 document.addEventListener("click", e => { if (e.target.closest("[data-backup]")) { e.preventDefault(); $("#btnBackup").click(); } });
 $("#ovRestore").addEventListener("click", () => $("#restoreFile").click());
-document.addEventListener("click", e => { if (e.target.closest("[data-restore]")) { e.preventDefault(); $("#restoreFile").click(); } });
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 $("#fbForm").addEventListener("submit", async e => {
@@ -2348,6 +2350,13 @@ $("#restoreFile").addEventListener("change", async e => {
     if (!confirm(`Replace everything on this device with the backup from ${j.exported?.slice(0,10) || "file"} (${j.data.flights.length} flights)?`)) return;
     store.set(key(), j.data); load(); save(); renderLogbook(); renderOverview();   // load() also drops future-dated flights
   } catch { alert("That isn't a CrewBase Log backup file."); }
+});
+$("#btnStartOver").addEventListener("click", () => {
+  if (!confirm("Clear all flights, previous experience and import checks from this device and start the import again? Download a full backup first if unsure.")) return;
+  data.flights = []; delete data.prev; delete data.oldTotals; delete data.lastImport; delete data.fixOk; fixLog = {};
+  $("#chkUpto").value = ""; ["impDone", "mapCard"].forEach(id => $("#" + id).classList.add("hidden")); $("#impErr").textContent = "";
+  lbCloseEdit(); save(); renderPrev(); renderCheck(); renderFix(); renderLogbook(); renderOverview(); renderPrint();
+  window.scrollTo({ top: 0, behavior: "smooth" });
 });
 $("#btnClearFlights").addEventListener("click", () => { if (data.flights.length && confirm(`Delete all ${data.flights.length} flights from this device? Download a backup first if unsure.`)) { data.flights = []; lbCloseEdit(); save(); renderLogbook(); } });
 
