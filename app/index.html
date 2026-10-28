@@ -1898,12 +1898,40 @@ const FIX_SLACK = 5;
 const roleDetail = f => ["pic","copilot","dual","instructor"].filter(k => f[k]).map(k => `${ROLE_LABEL[k]} ${fmtMin(f[k])}`).join(", ") + ` · total ${fmtMin(f.total)}${f.picName ? " · PIC " + f.picName : ""}`;
 const ROLE_PICK = [["pic", "PIC"], ["picus", "PICUS"], ["copilot", "Co-pilot"], ["dual", "Dual"], ["instructor", "Instructor"]];
 // what the line itself says about the pilot's function: the PIC's name, PICUS or training in the remarks -> [role, reason]
+/* Is this PIC name the pilot who owns the logbook? Many pilots write their own name instead of SELF.
+   1. the profile name, in any order or with initials: "Cameron Williams", "WILLIAMS Cameron", "C. Williams", "Williams, C"
+   2. the logbook itself: a name logged as PIC on many lines where PIC time was logged is the owner */
+const nameTokens = n => String(n || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z\s'-]/g, " ").split(/\s+/).filter(Boolean);
+function sameName(a, b){
+  const A = nameTokens(a), B = nameTokens(b); if (!A.length || !B.length) return false;
+  const full = x => x.filter(t => t.length > 1), Af = full(A), Bf = full(B);
+  if (Af.length > 1 && Bf.length > 1 && Af.every(t => Bf.includes(t)) || Bf.length > 1 && Af.length > 1 && Bf.every(t => Af.includes(t))) return true;
+  // a shared surname, and the other part matches as a name or an initial
+  const [S, L] = Af.length >= Bf.length ? [Bf, Af] : [Af, Bf], init = [...A, ...B].filter(t => t.length === 1);
+  return S.some(sur => L.includes(sur) && (S.length > 1 ? S.filter(t => t !== sur).some(t => L.includes(t)) : init.some(i => L.some(t => t !== sur && t[0] === i))));
+}
+let ownerCache = null;
+function logOwners(){
+  if (ownerCache && ownerCache.n === data.flights.length) return ownerCache.names;
+  const c = {};
+  for (const f of data.flights) { const n = String(f.picName || "").trim(); if (!n || /^self$/i.test(n) || isSim(f)) continue; const x = (c[n] ||= [0, 0]); x[1]++; if (f.pic && f.pic >= f.total * 0.9) x[0]++; }
+  const names = new Set(Object.entries(c).filter(([, [p, t]]) => t >= 5 && p / t >= 0.8).map(([n]) => n));
+  ownerCache = { n: data.flights.length, names }; return names;
+}
+// -> "" (someone else) or why this PIC name is the logbook owner
+function isOwner(pn){
+  if (!pn) return "";
+  if (/^self$/i.test(pn)) return "you are the PIC on this line";
+  if (data.profile.name && sameName(pn, data.profile.name)) return `${pn} is you (your profile name)`;
+  if (logOwners().has(pn)) return `${pn} is you: logged as PIC with PIC time on most lines`;
+  return "";
+}
+// what the line itself says about the pilot's function: the PIC's name, PICUS or training in the remarks -> [role, reason]
 function suggestRole(f){
-  const me = String(data.profile.name || "").trim().toLowerCase(), pn = String(f.picName || "").trim(), rem = f.remarks || "";
-  const self = /^self$/i.test(pn) || (me && pn.toLowerCase() === me);
+  const pn = String(f.picName || "").trim(), rem = f.remarks || "", own = isOwner(pn);
   if (/\bPIC\s*\(?\s*US\s*\)?|\bPICUS\b|\bP1\s*u\/?s\b/i.test(rem)) return ["picus", "PICUS in the remarks"];
-  if (self && /\b(instruct\w*|TRI|TRE|LTC|line train(ing|er)\b.*\b(given|as trainer)|trainer)\b/i.test(rem)) return ["instructor", "you were PIC on a training flight"];
-  if (self) return ["pic", "you are the PIC on this line"];
+  if (own && /\b(instruct\w*|TRI|TRE|LTC|line train(ing|er)\b.*\b(given|as trainer)|trainer)\b/i.test(rem)) return ["instructor", own + ", on a training flight"];
+  if (own) return ["pic", own];
   if (pn && /\b(dual|student|lesson|solo check|flight school|ab.?initio|T\d{3})\b/i.test(rem)) return ["dual", `${pn} was PIC on a training flight`];
   if (pn) return ["copilot", `${pn} was PIC`];
   return null;
