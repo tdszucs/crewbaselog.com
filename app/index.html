@@ -1741,14 +1741,18 @@ async function nextFile(){
   $("#impDoneLog").innerHTML = impLog.join("<br>") + `<br>Your logbook now has <b>${nf.toLocaleString()} flight${nf === 1 ? "" : "s"}</b>` + (ns ? ` and <b>${ns} simulator session${ns === 1 ? "" : "s"}</b>` : "") + `` + (restoredView() ? "." : `. <a href="#" data-go="import" data-scroll="#chkBox">Check the totals against your old logbook's last page</a>.`);
   $("#impDone").classList.remove("hidden"); $("#impDone").scrollIntoView({ behavior: "smooth", block: "start" });
   $("#chkUpto").value = ""; renderCheck();
-  const gaps = importGaps(); if (gaps.length) $("#impDoneLog").insertAdjacentHTML("beforeend", `<br><b style="color:var(--warn)">No flights ${gaps.map(([a, b, n]) => `from ${fmtDate(a)} to ${fmtDate(b)} (${n} days)`).join(", ")}.</b> If you flew then, drop that period's report too.`);
+  const gaps = importGaps(); if (gaps.length) $("#impDoneLog").insertAdjacentHTML("beforeend", `<br>${gapMsg(gaps)}`);
   renderFix().then(n => { if (n) $("#impDoneLog").insertAdjacentHTML("beforeend", `<br><b style="color:var(--warn)">${n} line${n === 1 ? " looks" : "s look"} wrong.</b> <a href="#" data-go="import" data-scroll="#fixBox">Review and fix them</a>.`); });
 }
 // long stretches without a flight inside the period just imported (or between it and the flights before it):
 // a 2-year eCrew export that was missed, or leave. Shown as a hint, never changed.
 function importGaps(){
   const B = impBatch && data.flights.filter(f => f._b === impBatch.id); if (!B?.length) return [];
-  const lo = B.reduce((m, f) => f.date < m ? f.date : m, B[0].date), hi = B.reduce((m, f) => f.date > m ? f.date : m, B[0].date);
+  return logGaps(B.reduce((m, f) => f.date < m ? f.date : m, B[0].date), B.reduce((m, f) => f.date > m ? f.date : m, B[0].date));
+}
+const gapMsg = gaps => `<b style="color:var(--warn)">No flights ${gaps.map(([a, b, n]) => `from ${fmtDate(a)} to ${fmtDate(b)} (${n} days)`).join(", ")}.</b> If you flew then, drop that period's report in step 3.`;
+// stretches of more than 60 days without a flight between lo and hi (and from the last flight before lo)
+function logGaps(lo, hi){
   const before = data.flights.filter(f => f.date < lo).map(f => f.date).sort().pop();
   const D = [...new Set(data.flights.filter(f => f.date >= (before || lo) && f.date <= hi).map(f => f.date))].sort(), out = [];
   for (let i = 1; i < D.length; i++) { const n = Math.round((Date.parse(D[i]) - Date.parse(D[i - 1])) / 864e5); if (n > 60) out.push([D[i - 1], D[i], n]); }
@@ -2422,22 +2426,23 @@ async function restoreBackup(text){
   // check the result against the file: same lines, same total time, and saved on this device
   const F = data.flights, sum = L => L.reduce((s, f) => s + (f.total || 0), 0), sims = F.filter(isSim).length;
   const saved = store.get(key(), {}).flights?.length === F.length, ok = F.length === want.length && sum(F) === sum(want) && saved;
-  const range = F.length ? `${fmtDate(F[0].date)} to ${fmtDate(F[F.length - 1].date)}` : "";
+  const range = F.length ? `${fmtDate(F[0].date)} to ${fmtDate(F[F.length - 1].date)}` : "", gaps = F.length ? logGaps(F[0].date, F[F.length - 1].date) : [];
   restoreToast(ok, `<b>${(F.length - sims).toLocaleString()} flight${F.length - sims === 1 ? "" : "s"}</b>${sims ? ` and <b>${sims} simulator session${sims === 1 ? "" : "s"}</b>` : ""}${range ? `, ${range}` : ""}. Total time <b>${fmtMin(sum(F))}</b>.` +
     (ok ? `<br>✓ Matches the backup file and is saved on this device.` : `<br>The backup has ${want.length.toLocaleString()} lines (${fmtMin(sum(want))}); ${F.length.toLocaleString()} were restored${saved ? "" : " and they could not be saved on this device"}. Try again, or email us the file.`) +
     (future ? `<br>${future} flight${future === 1 ? " that hasn't" : "s that haven't"} flown yet ${future === 1 ? "was" : "were"} left out: planned flights belong in Crew Base.` : "") +
     (j.data.prev?.total ? `<br>Previous experience: ${fmtMin(j.data.prev.total)}.` : "") +
-    (ok ? `<br><a href="#" data-go="import" data-scroll="#aimsCard">Next: add your new flights in step 3</a>` : ""));
+    (gaps.length ? `<br>${gapMsg(gaps)}` : "") +
+    (ok ? `<br><a href="#" data-go="import" data-scroll="#aimsCard">Next: add your new flights in step 3</a>` : ""), gaps.length > 0);
   if (ok && !$('[data-p="import"]').classList.contains("hidden")) $("#aimsCard").scrollIntoView({ behavior: "smooth", block: "start" });
-  $("#impErr").innerHTML = ok ? `<span style="color:var(--ok)">Backup restored: ${F.length.toLocaleString()} lines, matching the backup file.</span>` : "Backup restored, but it doesn't fully match the file: see the message.";
+  $("#impErr").innerHTML = (ok ? `<span style="color:var(--ok)">Backup restored: ${F.length.toLocaleString()} lines, matching the backup file.</span>` : "Backup restored, but it doesn't fully match the file: see the message.") + (gaps.length ? `<br>${gapMsg(gaps)}` : "");
 }
-function restoreToast(ok, html){
+function restoreToast(ok, html, stay){
   let t = $("#restToast");
   if (!t) { t = document.createElement("div"); t.id = "restToast"; t.setAttribute("role", "status"); document.body.appendChild(t); }
   t.className = "toast " + (ok ? "good" : "bad");
   t.innerHTML = `<div class="toast-ic" aria-hidden="true">${ok ? "✓" : "!"}</div><div><div class="toast-h">${ok ? "Backup restored" : "Backup restored, please check"}</div><div class="toast-b">${html}</div></div><button type="button" class="toast-x" aria-label="Close">×</button>`;
   t.querySelector(".toast-x").onclick = () => t.remove();
-  clearTimeout(t._t); if (ok) t._t = setTimeout(() => t.remove(), 12000);
+  clearTimeout(t._t); if (ok && !stay) t._t = setTimeout(() => t.remove(), 12000);
 }
 $("#btnStartOver").addEventListener("click", () => {
   const n = data.flights.length, P = data.prev?.total;
