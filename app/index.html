@@ -139,6 +139,13 @@ h2{font-size:24px;letter-spacing:-.02em;margin:0 0 6px}
 .drop{border:2px dashed var(--line);border-radius:14px;padding:28px;text-align:center;color:var(--muted);cursor:pointer}
 .step-sub{margin:-4px 0 14px;font-size:14px}
 summary.cardsum{cursor:pointer}
+.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:100;width:min(520px,calc(100vw - 32px));display:flex;gap:12px;align-items:flex-start;padding:14px 16px;border-radius:14px;background:var(--surface);color:var(--ink);border:1.5px solid var(--ok);box-shadow:0 18px 40px -12px rgba(0,0,0,.45);font-size:14px;line-height:1.5;animation:toastIn .25s ease-out}
+.toast.bad{border-color:var(--warn)}
+.toast-ic{flex:none;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-weight:700;color:#fff;background:var(--ok)}
+.toast.bad .toast-ic{background:var(--warn)}
+.toast-h{font-weight:700;font-size:15px;margin-bottom:2px}
+.toast-x{flex:none;margin-left:auto;background:none;border:0;font-size:22px;line-height:1;cursor:pointer;color:var(--muted);padding:0 2px}
+@keyframes toastIn{from{opacity:0;transform:translate(-50%,12px)}to{opacity:1;transform:translate(-50%,0)}}
 .danger-zone{border:1.5px solid var(--bad);background:linear-gradient(90deg,var(--bad-soft),transparent 60%)}
 .dz-title{display:flex;align-items:center;gap:10px}
 .dz-ic{width:26px;height:26px;flex:none}
@@ -2364,11 +2371,29 @@ $("#restoreFile").addEventListener("change", async e => {
 async function restoreBackup(text){
   let j; try { j = JSON.parse(text); if (!j.data?.flights) throw 0; } catch { return alert("That isn't a CrewBase Log backup file."); }
   if (!confirm(`Replace everything on this device with the backup from ${j.exported?.slice(0,10) || "file"} (${j.data.flights.length.toLocaleString()} flights)?`)) return;
-  store.set(key(), j.data); load(); save();   // load() also drops future-dated flights
+  const today = logToday(), want = j.data.flights.filter(f => !(f.date > today)), future = j.data.flights.length - want.length;
+  if (!store.set(key(), j.data)) return;
+  load(); save();   // load() also drops future-dated flights
   fixLog = {}; $("#chkUpto").value = ""; $("#impErr").textContent = "";
   ["impDone", "mapCard", "pdfCard"].forEach(id => $("#" + id).classList.add("hidden")); $("#pdfFrame").removeAttribute("src");
   renderPrev(); renderCheck(); renderFix(); renderLogbook(); renderOverview(); renderPrint();
-  $("#impErr").innerHTML = `<span style="color:var(--ok)">Backup restored: ${data.flights.length.toLocaleString()} flights.</span>`;
+  // check the result against the file: same lines, same total time, and saved on this device
+  const F = data.flights, sum = L => L.reduce((s, f) => s + (f.total || 0), 0), sims = F.filter(isSim).length;
+  const saved = store.get(key(), {}).flights?.length === F.length, ok = F.length === want.length && sum(F) === sum(want) && saved;
+  const range = F.length ? `${fmtDate(F[0].date)} to ${fmtDate(F[F.length - 1].date)}` : "";
+  restoreToast(ok, `<b>${(F.length - sims).toLocaleString()} flight${F.length - sims === 1 ? "" : "s"}</b>${sims ? ` and <b>${sims} simulator session${sims === 1 ? "" : "s"}</b>` : ""}${range ? `, ${range}` : ""}. Total time <b>${fmtMin(sum(F))}</b>.` +
+    (ok ? `<br>✓ Matches the backup file and is saved on this device.` : `<br>The backup has ${want.length.toLocaleString()} lines (${fmtMin(sum(want))}); ${F.length.toLocaleString()} were restored${saved ? "" : " and they could not be saved on this device"}. Try again, or email us the file.`) +
+    (future ? `<br>${future} future flight${future === 1 ? " was" : "s were"} left out: planned flights belong in Crew Base.` : "") +
+    (j.data.prev?.total ? `<br>Previous experience: ${fmtMin(j.data.prev.total)}.` : ""));
+  $("#impErr").innerHTML = ok ? `<span style="color:var(--ok)">Backup restored: ${F.length.toLocaleString()} lines, matching the backup file.</span>` : "Backup restored, but it doesn't fully match the file: see the message.";
+}
+function restoreToast(ok, html){
+  let t = $("#restToast");
+  if (!t) { t = document.createElement("div"); t.id = "restToast"; t.setAttribute("role", "status"); document.body.appendChild(t); }
+  t.className = "toast " + (ok ? "good" : "bad");
+  t.innerHTML = `<div class="toast-ic" aria-hidden="true">${ok ? "✓" : "!"}</div><div><div class="toast-h">${ok ? "Backup restored" : "Backup restored, please check"}</div><div class="toast-b">${html}</div></div><button type="button" class="toast-x" aria-label="Close">×</button>`;
+  t.querySelector(".toast-x").onclick = () => t.remove();
+  clearTimeout(t._t); if (ok) t._t = setTimeout(() => t.remove(), 12000);
 }
 $("#btnStartOver").addEventListener("click", () => {
   const n = data.flights.length, P = data.prev?.total;
