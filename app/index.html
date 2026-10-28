@@ -727,7 +727,10 @@ const todayISO = () => new Date().toISOString().slice(0,10);
 /* The logbook holds flights already flown: dated today or earlier, never in the future (planned flights belong in Crew Base).
    "Today" is the later of the UTC and the local date, so a flight dated in local time is never refused. */
 const logToday = () => { const u = todayISO(), l = new Date(Date.now() - new Date().getTimezoneOffset() * 6e4).toISOString().slice(0, 10); return u > l ? u : l; };
+// not flown yet: dated after today, or dated today (UTC) with an off-block time (UTC, as eCrew / AIMS and this app log it) still to come
+const notFlown = f => f.date > logToday() || (f.date === todayISO() && /^\d{2}:\d{2}$/.test(f.out || "") && Date.parse(`${f.date}T${f.out}:00Z`) > Date.now());
 const FUTURE_MSG = "That date is in the future. Your logbook holds flights already flown; planned flights go in Crew Base.";
+const NOT_YET_MSG = "That flight hasn't departed yet (off-block time in UTC). Add it once it has flown.";
 function loadScript(src){ return new Promise((ok, no) => { const s = document.createElement("script"); s.src = src; s.onload = ok; s.onerror = no; document.head.appendChild(s); }); }
 
 /* ================= AUTH LAYER ================= */
@@ -809,7 +812,7 @@ function blank(){ return { profile: { name: "", email: user.email, lic: "", type
 let futureRemoved = 0;
 function load(){
   data = store.get(key(), null) || blank(); data.profile.email = user.email; migrateExpiries();
-  const t = logToday(), n = data.flights.length; data.flights = data.flights.filter(f => !(f.date > t));
+  const n = data.flights.length; data.flights = data.flights.filter(f => !notFlown(f));
   futureRemoved = n - data.flights.length; if (futureRemoved) save();
 }
 function migrateExpiries(){
@@ -1823,7 +1826,7 @@ function doImport(){
     // (two identical sim sessions on one day): only as many copies as the logbook already has count as duplicates
     const k = dupKey(f), n = inFile.get(k) || 0, had = existing.get(k)?.[n]; inFile.set(k, n + 1);
     if (had) { if (f.remarkSig && !had.remarkSig) had.remarkSig = f.remarkSig; dup++; continue; }
-    if (f.date > today) { future++; continue; }
+    if (notFlown(f)) { future++; continue; }
     // the same flight already logged with other times (planned vs actual, or corrected in the crew system): the new file wins
     const old = !imp.own && data.flights.find(x => stored.has(x) && !renewed.has(x) && sameFlight(x, f));
     if (old) { impBatch?.prev.push(JSON.parse(JSON.stringify(old)));
@@ -1845,7 +1848,7 @@ function doImport(){
   if (impBatch && (added || updated || bf || imp.pdf?.prev || imp.appPrev)) { impBatch.names.push(imp.name); impBatch.added += added; impBatch.updated += updated; data.lastImport = impBatch; }
   if (!save()) return false;
   impLog.push(`<b>${esc(imp.name)}</b>: ${added.toLocaleString()} new entr${added===1?"y":"ies"}${bf}` + (updated ? `, ${updated} updated with new times` : "") + (dup ? `, ${dup.toLocaleString()} already in your logbook` : "") +
-    (future ? `, ${future} future flight${future === 1 ? "" : "s"} left out (the logbook only holds flights already flown)` : "") + (badRows.length ? `, ${badRows.length} line${badRows.length === 1 ? "" : "s"} with no route, flight time or sim time left out (${badRows.slice(0, 5).join(", ")}${badRows.length > 5 ? " …" : ""})` : ""));
+    (future ? `, ${future} flight${future === 1 ? "" : "s"} not flown yet left out (the logbook only holds flights already flown)` : "") + (badRows.length ? `, ${badRows.length} line${badRows.length === 1 ? "" : "s"} with no route, flight time or sim time left out (${badRows.slice(0, 5).join(", ")}${badRows.length > 5 ? " …" : ""})` : ""));
   if (mpFixed.length) impLog.push(`<span style="color:var(--warn)">${mpFixed.map(esc).join(", ")} ${mpFixed.length === 1 ? "was" : "were"} logged as single-pilot in the file. ${mpFixed.length === 1 ? "It is an airliner, so it counts" : "They are airliners, so they count"} as multi-pilot here (change it in <a href="#" data-go="profile" data-scroll="#acSection">Profile</a> if that's wrong).</span>`);
   if (imp.appPrev) impLog.push(`Previous experience from the file: <b>${fmtMin(imp.appPrev.total)}</b> total time. Saved as your <a href="#" data-go="import" data-scroll="#prevBox">previous experience</a>.`);
   if (imp.note) impLog.push(`<span style="color:var(--warn)">${esc(imp.note)}</span>`);
@@ -2317,7 +2320,7 @@ function readSimForm(pre, base = {}){
   const f = { ...base, date: g("date"), flightNo: "", from: "", to: "", out: "", off: "", on: "", in: "", acType: "", reg: "", picName: "",
     total: 0, pic: 0, copilot: 0, dual: 0, instructor: 0, night: 0, ifr: 0, ldgDay: 0, ldgNight: 0,
     fstdType: g("fstdType").toUpperCase(), fstdTime: parseDur(g("fstdTime")), remarks: g("remarks") };
-  const err = !/^\d{4}-\d{2}-\d{2}$/.test(f.date) ? "Check: Date." : f.date > logToday() ? FUTURE_MSG : !f.fstdTime ? "Enter the session time as H:MM, e.g. 4:00." : "";
+  const err = !/^\d{4}-\d{2}-\d{2}$/.test(f.date) ? "Check: Date." : f.date > logToday() ? FUTURE_MSG : notFlown(f) ? NOT_YET_MSG : !f.fstdTime ? "Enter the session time as H:MM, e.g. 4:00." : "";
   return { f, err };
 }
 // -> { f, err } ; f is base plus the form's values
@@ -2331,7 +2334,7 @@ function readFlightForm(pre, base = {}){
   for (const k of ["ldgDay","ldgNight"]) f[k] = Math.max(0, parseInt(g(k)) || 0);
   if (!f.total && f.out && f.in) f.total = tdiff(f.out, f.in);
   const err = bad.length ? "Check: " + bad.map(k => FIELDS.find(x => x[0] === k)[1]).join(", ") + ". Times as HH:MM, durations as H:MM."
-    : f.date > logToday() ? FUTURE_MSG : !valid(f) ? "A flight needs a date and a route or total time." : "";
+    : f.date > logToday() ? FUTURE_MSG : notFlown(f) ? NOT_YET_MSG : !valid(f) ? "A flight needs a date and a route or total time." : "";
   return { f, err };
 }
 const lbPad = makePad($("#lbSigPad")); let lbSigDrop = false;
@@ -2399,7 +2402,7 @@ dropBk.addEventListener("drop", async e => { const f = e.dataTransfer.files[0]; 
 async function restoreBackup(text){
   let j; try { j = JSON.parse(text); if (!j.data?.flights) throw 0; } catch { return alert("That isn't a CrewBase Log backup file."); }
   if (!confirm(`Replace everything on this device with the backup from ${j.exported?.slice(0,10) || "file"} (${j.data.flights.length.toLocaleString()} flights)?`)) return;
-  const today = logToday(), want = j.data.flights.filter(f => !(f.date > today)), future = j.data.flights.length - want.length;
+  const today = logToday(), want = j.data.flights.filter(f => !notFlown(f)), future = j.data.flights.length - want.length;
   if (!store.set(key(), j.data)) return;
   load(); data.restored = (j.exported || "").slice(0, 10) || todayISO(); delete data.lastImport; save();   // load() also drops future-dated flights
   showSteps12 = false; fixLog = {}; $("#chkUpto").value = ""; $("#impErr").textContent = "";
@@ -2411,7 +2414,7 @@ async function restoreBackup(text){
   const range = F.length ? `${fmtDate(F[0].date)} to ${fmtDate(F[F.length - 1].date)}` : "";
   restoreToast(ok, `<b>${(F.length - sims).toLocaleString()} flight${F.length - sims === 1 ? "" : "s"}</b>${sims ? ` and <b>${sims} simulator session${sims === 1 ? "" : "s"}</b>` : ""}${range ? `, ${range}` : ""}. Total time <b>${fmtMin(sum(F))}</b>.` +
     (ok ? `<br>✓ Matches the backup file and is saved on this device.` : `<br>The backup has ${want.length.toLocaleString()} lines (${fmtMin(sum(want))}); ${F.length.toLocaleString()} were restored${saved ? "" : " and they could not be saved on this device"}. Try again, or email us the file.`) +
-    (future ? `<br>${future} future flight${future === 1 ? " was" : "s were"} left out: planned flights belong in Crew Base.` : "") +
+    (future ? `<br>${future} flight${future === 1 ? " that hasn't" : "s that haven't"} flown yet ${future === 1 ? "was" : "were"} left out: planned flights belong in Crew Base.` : "") +
     (j.data.prev?.total ? `<br>Previous experience: ${fmtMin(j.data.prev.total)}.` : "") +
     (ok ? `<br><a href="#" data-go="import" data-scroll="#aimsCard">Next: add your new flights in step 3</a>` : ""));
   if (ok && !$('[data-p="import"]').classList.contains("hidden")) $("#aimsCard").scrollIntoView({ behavior: "smooth", block: "start" });
