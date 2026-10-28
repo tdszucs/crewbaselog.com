@@ -155,6 +155,7 @@ summary.cardsum h3{display:inline;margin:0}
 summary.more{cursor:pointer;font-size:14px;font-weight:600;color:var(--accent)}
 summary.more #prevNote{font-weight:400;color:var(--muted)}
 @media (max-width:640px){ .drop{padding:22px 14px} }
+.drop.drop-sm{padding:16px}
 .drop.over{border-color:var(--accent);background:var(--accent-soft)}
 .mapgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px}
 .tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px}
@@ -419,6 +420,12 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
     <div data-p="import" class="hidden">
       <h2>Your data</h2>
       <p class="lead">Add your hours, drop your files, download your logbook. Everything is read in your browser; nothing is uploaded.</p>
+
+      <div class="card" id="bkCard">
+        <h3><span class="stepn">0</span>Already have a full backup?</h3>
+        <p class="hint step-sub">Restore it to get your whole logbook back, then skip to step 3 to add your new flights.</p>
+        <div class="drop drop-sm" id="dropBk"><b>Drop your full backup here</b><br><span class="hint">or tap to choose · crewbaselog-backup….json</span></div>
+      </div>
 
       <div class="card">
         <h3><span class="stepn">1</span>Previous experience</h3>
@@ -2368,6 +2375,11 @@ $("#btnBackup").addEventListener("click", () => { markBackedUp(); download(`crew
 $("#restoreFile").addEventListener("change", async e => {
   const f = e.target.files[0]; e.target.value = ""; if (f) restoreBackup(await f.text());
 });
+const dropBk = $("#dropBk");
+dropBk.addEventListener("click", () => $("#restoreFile").click());
+["dragenter","dragover"].forEach(ev => dropBk.addEventListener(ev, e => { e.preventDefault(); dropBk.classList.add("over"); }));
+["dragleave","drop"].forEach(ev => dropBk.addEventListener(ev, e => { e.preventDefault(); dropBk.classList.remove("over"); }));
+dropBk.addEventListener("drop", async e => { const f = e.dataTransfer.files[0]; if (f) restoreBackup(await f.text()); });
 async function restoreBackup(text){
   let j; try { j = JSON.parse(text); if (!j.data?.flights) throw 0; } catch { return alert("That isn't a CrewBase Log backup file."); }
   if (!confirm(`Replace everything on this device with the backup from ${j.exported?.slice(0,10) || "file"} (${j.data.flights.length.toLocaleString()} flights)?`)) return;
@@ -2384,7 +2396,9 @@ async function restoreBackup(text){
   restoreToast(ok, `<b>${(F.length - sims).toLocaleString()} flight${F.length - sims === 1 ? "" : "s"}</b>${sims ? ` and <b>${sims} simulator session${sims === 1 ? "" : "s"}</b>` : ""}${range ? `, ${range}` : ""}. Total time <b>${fmtMin(sum(F))}</b>.` +
     (ok ? `<br>✓ Matches the backup file and is saved on this device.` : `<br>The backup has ${want.length.toLocaleString()} lines (${fmtMin(sum(want))}); ${F.length.toLocaleString()} were restored${saved ? "" : " and they could not be saved on this device"}. Try again, or email us the file.`) +
     (future ? `<br>${future} future flight${future === 1 ? " was" : "s were"} left out: planned flights belong in Crew Base.` : "") +
-    (j.data.prev?.total ? `<br>Previous experience: ${fmtMin(j.data.prev.total)}.` : ""));
+    (j.data.prev?.total ? `<br>Previous experience: ${fmtMin(j.data.prev.total)}.` : "") +
+    (ok ? `<br><a href="#" data-go="import" data-scroll="#aimsCard">Next: add your new flights in step 3</a>` : ""));
+  if (ok && !$('[data-p="import"]').classList.contains("hidden")) $("#aimsCard").scrollIntoView({ behavior: "smooth", block: "start" });
   $("#impErr").innerHTML = ok ? `<span style="color:var(--ok)">Backup restored: ${F.length.toLocaleString()} lines, matching the backup file.</span>` : "Backup restored, but it doesn't fully match the file: see the message.";
 }
 function restoreToast(ok, html){
