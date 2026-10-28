@@ -535,7 +535,6 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
           </div>
           <div class="row-actions" style="margin:4px 0 0"><button class="btn small" type="submit">Save flight</button><button class="btn ghost small" type="button" id="lbEditCancel">Cancel</button><button class="btn danger small" type="button" id="lbEditDel">Delete flight</button><span class="err" id="lbEditErr" style="margin:0"></span></div>
         </form>
-        <div class="notice hidden" id="lbFuture"></div>
         <p id="lbMsg" class="hint" style="margin:0 0 8px"></p>
         <div class="field" style="max-width:340px"><input id="lbSearch" type="search" placeholder="Search date, flight, airport, registration…" aria-label="Search flights"></div>
         <div class="tablewrap" id="lbTable"></div>
@@ -667,6 +666,10 @@ const store = {
 async function sha256(t){ const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(t)); return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,"0")).join(""); }
 const fmtMin = m => { m = Math.round(m||0); return Math.floor(m/60) + ":" + String(m%60).padStart(2,"0"); };
 const todayISO = () => new Date().toISOString().slice(0,10);
+/* The logbook holds flights already flown: dated today or earlier, never in the future (planned flights belong in Crew Base).
+   "Today" is the later of the UTC and the local date, so a flight dated in local time is never refused. */
+const logToday = () => { const u = todayISO(), l = new Date(Date.now() - new Date().getTimezoneOffset() * 6e4).toISOString().slice(0, 10); return u > l ? u : l; };
+const FUTURE_MSG = "That date is in the future. Your logbook holds flights already flown; planned flights go in Crew Base.";
 function loadScript(src){ return new Promise((ok, no) => { const s = document.createElement("script"); s.src = src; s.onload = ok; s.onerror = no; document.head.appendChild(s); }); }
 
 /* ================= AUTH LAYER ================= */
@@ -745,7 +748,12 @@ const OLD_DEFAULT_EXPIRIES = ["Medical certificate (Class 1)", "Type rating / LP
 let user = null, data = null;
 const key = () => "cbl_data_" + user.id;
 function blank(){ return { profile: { name: "", email: user.email, lic: "", type: "", format: "EASA", base: "", dateFmt: "DMY" }, signature: "", expiries: structuredClone(DEFAULT_EXPIRIES), expV: 3, flights: [], templates: {} }; }
-function load(){ data = store.get(key(), null) || blank(); data.profile.email = user.email; migrateExpiries(); }
+let futureRemoved = 0;
+function load(){
+  data = store.get(key(), null) || blank(); data.profile.email = user.email; migrateExpiries();
+  const t = logToday(), n = data.flights.length; data.flights = data.flights.filter(f => !(f.date > t));
+  futureRemoved = n - data.flights.length; if (futureRemoved) save();
+}
 function migrateExpiries(){
   if (data.expV >= 3) return;
   const old = data.expiries || [];
@@ -867,6 +875,7 @@ function renderOverview(){
   if (!data.flights.length) missing.push('<a href="#" data-go="import">import your flights</a>');
   if (missing.length) lines.push("<b>Finish setting up:</b> " + missing.join(", ") + ".");
   if (due.length) lines.push(`<b>Expiry dates:</b> ${due.map(e => `${esc(e.name)} ${expStatus(e.date).c === "bad" ? "has expired" : "is due " + fmtDate(e.date)}`).join(", ")}. <a href="#" data-go="profile" data-scroll="#expSection">Check them</a>.`);
+  if (futureRemoved) lines.push(`<b>${futureRemoved} flight${futureRemoved === 1 ? " was" : "s were"} dated in the future and ${futureRemoved === 1 ? "has" : "have"} been taken out of your logbook.</b> The logbook only holds flights already flown; planned flights belong in <a href="#" data-go="crewbase">Crew Base</a>.`);
   if (data.flights.length && user.id !== "sample" && data.backup?.sig !== flightsSig())
     lines.push(`<b>Back up your logbook:</b> it has changed since ${data.backup?.date ? "your last download on " + fmtDate(data.backup.date) : "you added it"}. <a href="#" data-csv>Download CSV file</a> · <a href="#" data-backup>full backup</a>`);
   const ios = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
@@ -1494,8 +1503,8 @@ function doImport(){
   const fmt = imp.fmt || (imp.own ? "YMD" : $("#mDateFmt").value), existing = new Map(), inFile = new Map();
   for (const f of data.flights) { const k = dupKey(f); existing.set(k, [...(existing.get(k) || []), f]); }
   let added = 0, dup = 0, bad = 0, bf = "", future = 0, updated = 0;
-  // flights not flown yet (planned flights in an export that runs into the future) are not logged; UTC dates may run a day ahead
-  const tomorrow = new Date(Date.now() + 864e5).toISOString().slice(0, 10), stored = new Set(data.flights), renewed = new Set();
+  // flights not flown yet (planned flights in an export that runs into the future) never go in the logbook
+  const today = logToday(), stored = new Set(data.flights), renewed = new Set();
   for (const r of imp.flights || imp.rows) {
     if (imp.own && /^brought forward$/i.test(String(r[imp.map.flightNo] || "").trim())) { data.prev = prevFromCSV(rowToFlight(r, imp.map, fmt)); bf = " (and your previous experience)"; continue; }
     const f = imp.flights ? { ...r } : rowToFlight(r, imp.map, fmt);
@@ -1505,7 +1514,7 @@ function doImport(){
     // (two identical sim sessions on one day): only as many copies as the logbook already has count as duplicates
     const k = dupKey(f), n = inFile.get(k) || 0, had = existing.get(k)?.[n]; inFile.set(k, n + 1);
     if (had) { if (f.remarkSig && !had.remarkSig) had.remarkSig = f.remarkSig; dup++; continue; }
-    if (f.date > tomorrow) { future++; continue; }
+    if (f.date > today) { future++; continue; }
     // the same flight already logged with other times (planned vs actual, or corrected in the crew system): the new file wins
     const old = !imp.own && data.flights.find(x => stored.has(x) && !renewed.has(x) && sameFlight(x, f));
     if (old) { Object.assign(old, f, { remarks: f.remarks || old.remarks, remarkSig: f.remarkSig || old.remarkSig }); if (!old.remarkSig) delete old.remarkSig; renewed.add(old); updated++; continue; }
@@ -1519,7 +1528,7 @@ function doImport(){
   if (!imp.own && !imp.flights && (added || dup)) data.templates[imp.sig] = Object.fromEntries(Object.entries(imp.map).filter(([,v]) => v !== undefined));
   if (!save()) return false;
   impLog.push(`<b>${esc(imp.name)}</b>: ${added.toLocaleString()} new entr${added===1?"y":"ies"}${bf}` + (updated ? `, ${updated} updated with new times` : "") + (dup ? `, ${dup.toLocaleString()} already in your logbook` : "") +
-    (future ? `, ${future} not flown yet (dated after today) left out` : "") + (bad ? `, ${bad} rows without a date/route ignored` : ""));
+    (future ? `, ${future} future flight${future === 1 ? "" : "s"} left out (the logbook only holds flights already flown)` : "") + (bad ? `, ${bad} rows without a date/route ignored` : ""));
   if (imp.pdf) {
     if (imp.pdf.prev) impLog.push(`Brought forward on its first page, from an earlier logbook: <b>${fmtMin(imp.pdf.prev.total)}</b> total time. Saved as your <a href="#" data-go="import" data-scroll="#prevBox">previous experience</a>.`);
     impLog.push(easaCheck(imp.pdf));
@@ -1756,9 +1765,6 @@ function download(name, type, text){ const a = document.createElement("a"); a.hr
 
 /* ---------- logbook ---------- */
 function renderLogbook(){
-  const tomorrow = new Date(Date.now() + 864e5).toISOString().slice(0, 10), fut = data.flights.filter(f => f.date > tomorrow);
-  $("#lbFuture").classList.toggle("hidden", !fut.length);
-  if (fut.length) $("#lbFuture").innerHTML = `<b>${fut.length} flight${fut.length === 1 ? " is" : "s are"} dated after today</b> (${fmtDate(fut[0].date)}${fut.length > 1 ? " to " + fmtDate(fut[fut.length - 1].date) : ""}). These were not flown yet: probably planned flights from an export or an earlier test. They are in your totals and PDF until removed. <button class="btn ghost small" type="button" id="lbFutureDel">Remove them</button>`;
   const F = data.flights, sum = k => F.reduce((s,f) => s + (f[k]||0), 0);
   $("#lbStats").innerHTML = [["Flights", F.filter(f => !isSim(f)).length.toLocaleString()], ["Total", fmtMin(sum("total"))], ["PIC", fmtMin(sum("pic"))], ["Night", fmtMin(sum("night"))]]
     .map(([k,v]) => `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`).join("");
@@ -1779,14 +1785,14 @@ const flightLabel = f => (isSim(f) ? `${fmtDate(f.date)} simulator ${f.fstdType 
 function flightFieldsHTML(pre, f = {}){
   const v = k => LB_DUR.includes(k) ? (f[k] ? fmtMin(f[k]) : "") : k.startsWith("ldg") ? (f[k] || "") : f[k] ?? "";
   const input = k => `<input id="${pre}${k}" data-k="${k}" value="${esc(String(v(k)))}"` +
-    (k === "date" ? ' type="date" required' : LB_TIME.includes(k) ? ' class="mono" placeholder="HH:MM" inputmode="numeric"' : LB_DUR.includes(k) ? ' class="mono" placeholder="H:MM"' : k.startsWith("ldg") ? ' type="number" min="0" step="1"' : "") + ">";
+    (k === "date" ? ` type="date" required max="${logToday()}"` : LB_TIME.includes(k) ? ' class="mono" placeholder="HH:MM" inputmode="numeric"' : LB_DUR.includes(k) ? ' class="mono" placeholder="H:MM"' : k.startsWith("ldg") ? ' type="number" min="0" step="1"' : "") + ">";
   // off-block, take-off, landing, on-block always side by side in one row, on any screen
   const times = `<div class="field wide"><div class="times">${LB_TIME.map(k => `<div><label for="${pre}${k}">${{ out: "Off-block", off: "Take-off", on: "Landing", in: "On-block" }[k]}</label>${input(k)}</div>`).join("")}</div></div>`;
   return FIELDS.filter(([k]) => !LB_TIME.includes(k)).map(([k, label]) => `<div class="field${k === "remarks" ? " wide" : ""}"><label for="${pre}${k}">${label}</label>${k === "date" ? `<span class="datewrap">${input(k)}</span>` : input(k)}</div>` + (k === "to" ? times : "")).join("");
 }
 // a simulator session: EASA FSTD columns (date, type, session time) and remarks
 function simFieldsHTML(pre, f = {}){
-  return `<div class="field"><label for="${pre}date">Date</label><span class="datewrap"><input id="${pre}date" type="date" required value="${esc(f.date || "")}"></span></div>
+  return `<div class="field"><label for="${pre}date">Date</label><span class="datewrap"><input id="${pre}date" type="date" required max="${logToday()}" value="${esc(f.date || "")}"></span></div>
     <div class="field"><label for="${pre}fstdType">FSTD type</label><input id="${pre}fstdType" placeholder="e.g. B787 FFS" value="${esc(f.fstdType || "")}"></div>
     <div class="field"><label for="${pre}fstdTime">Session time</label><input id="${pre}fstdTime" class="mono" placeholder="H:MM" value="${f.fstdTime ? fmtMin(f.fstdTime) : ""}"></div>
     <div class="field wide"><label for="${pre}remarks">Remarks</label><input id="${pre}remarks" placeholder="e.g. OPC, LPC, recurrent, type rating" value="${esc(f.remarks || "")}"></div>`;
@@ -1796,7 +1802,7 @@ function readSimForm(pre, base = {}){
   const f = { ...base, date: g("date"), flightNo: "", from: "", to: "", out: "", off: "", on: "", in: "", acType: "", reg: "", picName: "",
     total: 0, pic: 0, copilot: 0, dual: 0, instructor: 0, night: 0, ifr: 0, ldgDay: 0, ldgNight: 0,
     fstdType: g("fstdType").toUpperCase(), fstdTime: parseDur(g("fstdTime")), remarks: g("remarks") };
-  const err = !/^\d{4}-\d{2}-\d{2}$/.test(f.date) ? "Check: Date." : !f.fstdTime ? "Enter the session time as H:MM, e.g. 4:00." : "";
+  const err = !/^\d{4}-\d{2}-\d{2}$/.test(f.date) ? "Check: Date." : f.date > logToday() ? FUTURE_MSG : !f.fstdTime ? "Enter the session time as H:MM, e.g. 4:00." : "";
   return { f, err };
 }
 // -> { f, err } ; f is base plus the form's values
@@ -1810,7 +1816,7 @@ function readFlightForm(pre, base = {}){
   for (const k of ["ldgDay","ldgNight"]) f[k] = Math.max(0, parseInt(g(k)) || 0);
   if (!f.total && f.out && f.in) f.total = tdiff(f.out, f.in);
   const err = bad.length ? "Check: " + bad.map(k => FIELDS.find(x => x[0] === k)[1]).join(", ") + ". Times as HH:MM, durations as H:MM."
-    : !valid(f) ? "A flight needs a date and a route or total time." : "";
+    : f.date > logToday() ? FUTURE_MSG : !valid(f) ? "A flight needs a date and a route or total time." : "";
   return { f, err };
 }
 const lbPad = makePad($("#lbSigPad")); let lbSigDrop = false;
@@ -1871,14 +1877,8 @@ $("#restoreFile").addEventListener("change", async e => {
   const f = e.target.files[0]; e.target.value = ""; if (!f) return;
   try { const j = JSON.parse(await f.text()); if (!j.data?.flights) throw 0;
     if (!confirm(`Replace everything on this device with the backup from ${j.exported?.slice(0,10) || "file"} (${j.data.flights.length} flights)?`)) return;
-    data = j.data; data.profile.email = user.email; migrateExpiries(); save(); renderLogbook(); renderOverview();
+    store.set(key(), j.data); load(); save(); renderLogbook(); renderOverview();   // load() also drops future-dated flights
   } catch { alert("That isn't a CrewBase Log backup file."); }
-});
-document.addEventListener("click", e => {
-  if (e.target.id !== "lbFutureDel") return;
-  const tomorrow = new Date(Date.now() + 864e5).toISOString().slice(0, 10), n = data.flights.filter(f => f.date > tomorrow).length;
-  if (!confirm(`Remove ${n} flight${n === 1 ? "" : "s"} dated after today from your logbook?`)) return;
-  data.flights = data.flights.filter(f => f.date <= tomorrow); lbCloseEdit(); save(); renderLogbook(); cbMsg("#lbMsg", `Removed ${n} future flight${n === 1 ? "" : "s"}.`);
 });
 $("#btnClearFlights").addEventListener("click", () => { if (data.flights.length && confirm(`Delete all ${data.flights.length} flights from this device? Download a backup first if unsure.`)) { data.flights = []; lbCloseEdit(); save(); renderLogbook(); } });
 
