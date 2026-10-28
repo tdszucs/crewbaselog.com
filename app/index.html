@@ -501,6 +501,7 @@ td.r,th.r{text-align:right}
         <form class="notice hidden" id="lbEdit" style="margin:0 0 14px;background:var(--bg);border-color:var(--line)">
           <h3 style="margin:0 0 12px" id="lbEditTitle">Edit flight</h3>
           <div class="lbgrid" id="lbEditFields"></div>
+          <p class="hint" style="margin:0 0 10px">Change the date, airports or block times and night time is worked out again (total, PIC/co-pilot and IFR follow the block time too). A value you change yourself is kept.</p>
           <div class="field">
             <label>Instructor signature <span class="hint" style="font-weight:400">(optional, printed in the remarks column)</span></label>
             <div id="lbSigCur" class="hidden" style="display:flex;align-items:center;gap:12px;margin:0 0 8px"></div>
@@ -509,6 +510,7 @@ td.r,th.r{text-align:right}
           </div>
           <div class="row-actions" style="margin:4px 0 0"><button class="btn small" type="submit">Save flight</button><button class="btn ghost small" type="button" id="lbEditCancel">Cancel</button><button class="btn danger small" type="button" id="lbEditDel">Delete flight</button><span class="err" id="lbEditErr" style="margin:0"></span></div>
         </form>
+        <p id="lbMsg" class="hint" style="margin:0 0 8px"></p>
         <div class="field" style="max-width:340px"><input id="lbSearch" type="search" placeholder="Search date, flight, airport, registration…" aria-label="Search flights"></div>
         <div class="tablewrap" id="lbTable"></div>
         <p class="hint" id="lbMore"></p>
@@ -1509,14 +1511,31 @@ $("#lbTable").addEventListener("click", e => {
 $("#lbSearch").addEventListener("input", renderLogbook);
 $("#lbEditCancel").addEventListener("click", lbCloseEdit);
 $("#lbEditDel").addEventListener("click", () => lbDelete(data.flights.indexOf(lbEditing)));
+/* After an edit to the date, airports or block times, update what was worked out from them, unless the pilot changed it too:
+   total time (only if it was the block time), PIC / co-pilot / dual / instructor / IFR that equalled the total, and night time. */
+function followChanges(old, f){
+  const notes = [], moved = ["date", "from", "to", "out", "in"].some(k => (f[k] || "") !== (old[k] || ""));
+  if (!moved) return notes;
+  const oldBlock = tdiff(old.out, old.in), newBlock = tdiff(f.out, f.in);
+  if (newBlock && newBlock !== oldBlock && f.total === old.total && old.total === oldBlock) {
+    for (const k of ["pic", "copilot", "dual", "instructor", "ifr"]) if (old[k] === old.total && f[k] === old[k]) f[k] = newBlock;
+    f.total = newBlock; notes.push(`total time ${fmtMin(newBlock)}`);
+  }
+  if (data.profile.autoNight !== false && f.night === old.night && AIRPORTS?.[f.from] && AIRPORTS?.[f.to] && f.out && f.in) {
+    const n = nightMinutes(f); if (n !== f.night) { f.night = n; notes.push(`night time ${fmtMin(n)}`); }
+  }
+  return notes;
+}
 $("#lbEdit").addEventListener("submit", async e => {
   e.preventDefault();
   const at = data.flights.indexOf(lbEditing); if (at < 0) return lbCloseEdit();
   const { f, err } = isSim(lbEditing) ? readSimForm("e_", lbEditing) : readFlightForm("e_", lbEditing); if (err) return $("#lbEditErr").textContent = err;
+  if (!isSim(lbEditing)) await loadAirports();
+  const notes = isSim(lbEditing) ? [] : followChanges(lbEditing, f);
   if (lbPad.inked()) f.remarkSig = await smallSigPNG($("#lbSigPad")); else if (lbSigDrop) delete f.remarkSig;
   if (data.flights.indexOf(lbEditing) !== at) return lbCloseEdit();
   data.flights[at] = f; data.flights.sort((a,b) => (a.date+a.out).localeCompare(b.date+b.out));
-  if (save()) { lbCloseEdit(); renderLogbook(); }
+  if (save()) { lbCloseEdit(); renderLogbook(); cbMsg("#lbMsg", notes.length ? `Saved. Updated from the new times and route: ${notes.join(", ")}.` : "Saved."); }
 });
 $("#btnBackup").addEventListener("click", () => { markBackedUp(); download(`crewbaselog-backup-${todayISO()}.json`, "application/json", JSON.stringify({ app: "CrewBase Log", version: 1, exported: new Date().toISOString(), data }, null, 1)); });
 $("#restoreFile").addEventListener("change", async e => {
