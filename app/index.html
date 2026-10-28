@@ -902,7 +902,7 @@ const PF = { pName: "name", pEmail: "email", pLic: "lic", pType: "type", pBase: 
 const PF_DROPPED = ["auth", "phone", "employer", "location", "lic2", "auth2", "type2"];
 function renderAcTypes(){
   const opts = v => Object.entries(AC_CLASS).map(([k, l]) => `<option value="${k}"${k === v ? " selected" : ""}>${l}</option>`).join("");
-  const T = Object.entries(acTypesFlown()).sort((a, b) => b[1] - a[1]);
+  const T = Object.entries(acTypesFlown()).sort((a, b) => a[0].localeCompare(b[0], "en", { numeric: true }));
   $("#acRows").innerHTML = T.length ? T.map(([t, n]) => `<tr><td><b>${esc(t)}</b></td><td class="r">${n.toLocaleString()}</td><td><select data-ac="${esc(t)}" style="width:auto">${opts(acClass(t))}</select>${!(data.acTypes || {})[t] ? ' <span class="hint" style="margin:0">guessed</span>' : ""}</td></tr>`).join("")
     : '<tr><td colspan="3" class="hint">No flights yet. Types appear here once you import or add flights.</td></tr>';
   $("#acDefault").innerHTML = opts(data.profile.crew || "MP");
