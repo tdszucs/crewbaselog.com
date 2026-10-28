@@ -94,6 +94,7 @@ h2{font-size:24px;letter-spacing:-.02em;margin:0 0 6px}
 .fixgrp .hint{margin:6px 0 0;font-size:13.5px}
 .fixrows{margin-top:10px}
 .fixrows td{vertical-align:middle}
+.fixrows tr.fixed td{background:var(--ok-soft)}
 .pvgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0 14px}
 @media (max-width:640px){ .pvgrid{grid-template-columns:repeat(2,minmax(0,1fr))} }
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;padding:3px;margin:0 0 14px;background:var(--bg)}
@@ -1660,6 +1661,7 @@ function handleFiles(list){
   // our own CSV first, so a new export's duplicates are counted against it
   impQueue = files.sort((a, b) => (/crewbaselog/i.test(b.name) ? 1 : 0) - (/crewbaselog/i.test(a.name) ? 1 : 0));
   impLog = []; impErrs = 0; $("#impErr").textContent = ""; $("#impDone").classList.add("hidden");
+  fixLog = {};   // corrections listed in troubleshooting belong to the logbook before this import
   impBatch = { id: Date.now().toString(36), date: todayISO(), names: [], added: 0, updated: 0, prev: [], prevExp: data.prev ? { ...data.prev } : null };
   nextFile();
 }
@@ -1963,7 +1965,6 @@ function fixHits(c){
   else hits = F.filter(c.test);
   return hits.filter(f => !ok.has(dupKey(f)));
 }
-let fixOpen = new Set(["noRole", "roleOver", "roleUnder"]);   // function-time lines are judged one by one, so they show straight away
 async function renderFix(){
   await loadAirports();
   const any = data.flights.length > 0;
@@ -1972,45 +1973,66 @@ async function renderFix(){
   $("#undoBox").classList.toggle("hidden", !L);
   if (L) $("#undoBox").innerHTML = `<b>Last import</b> (${fmtDate(L.date)}): ${L.names.map(esc).join(", ")}: ${L.added.toLocaleString()} line${L.added === 1 ? "" : "s"} added${L.updated ? `, ${L.updated} updated` : ""}. <button class="btn ghost small" type="button" id="undoImp">Undo this import</button>`;
   let total = 0;
-  const groups = FIX_CHECKS.map(c => [c, fixHits(c)]).filter(([, h]) => h.length);
-  $("#fixList").innerHTML = !groups.length ? `<p style="margin:0;color:var(--ok);font-weight:600">✓ No problems found in ${data.flights.length.toLocaleString()} lines.</p>` : groups.map(([c, H]) => {
+  const groups = FIX_CHECKS.map(c => [c, fixHits(c), fixLog[c.id] || []]).filter(([, h, g]) => h.length || g.length);
+  const okMsg = total0 => total0 ? "" : `<p style="margin:0 0 10px;color:var(--ok);font-weight:600">✓ No problems left in ${data.flights.length.toLocaleString()} lines.</p>`;
+  const left = groups.reduce((s, [, H]) => s + H.length, 0);
+  $("#fixList").innerHTML = okMsg(left) + groups.map(([c, H, G]) => {
     total += H.length;
-    const label = typeof c.fixLabel === "function" ? c.fixLabel() : c.fixLabel, canAll = (c.fix || c.del) && H.some(f => !c.can || c.can(f));
     const rows = H.slice(0, 200).map(f => {
       const i = data.flights.indexOf(f), sg = c.roles ? suggestRole(f) : null;
       // function-time lines: what the line says, the suggestion and its reason, then one button per function
       const why = c.roles ? `<div class="hint" style="margin:3px 0 0;font-size:12.5px">${sg ? `Suggested: <b>${ROLE_PICK.find(x => x[0] === sg[0])[1]}</b> (${esc(sg[1])})` : "No PIC name or remarks to go by: check this flight."}</div>` : "";
-      const roleBtns = c.roles ? `<span class="hint" style="margin:0 2px 0 0">You were:</span>` + ROLE_PICK.map(([r, l]) => `<button class="rowbtn${sg && sg[0] === r ? " sug" : ""}" type="button" data-role="${r}" data-i="${i}">${l}</button>`).join("") + "<br>" : "";
-      return `<tr><td style="white-space:nowrap">${fmtDate(f.date)}</td><td>${esc(flightLabel(f).replace(fmtDate(f.date), "").trim())}</td><td>${esc(c.detail ? c.detail(f, data.flights) : "")}${why}</td><td class="r" style="white-space:${c.roles ? "normal;min-width:330px" : "nowrap"}">` + roleBtns +
-      ((c.fix && (!c.can || c.can(f))) ? `<button class="rowbtn" type="button" data-fix1="${c.id}" data-i="${i}">Fix</button>` : "") + `<button class="rowbtn" type="button" data-fixedit="${i}">Edit</button>` +
-      (c.del ? `<button class="rowbtn del" type="button" data-fixdel="${i}">Delete</button>` : "") + `<button class="rowbtn" type="button" data-fixok="${c.id}" data-i="${i}" title="Stop flagging this line">It's correct</button></td></tr>`; }).join("");
-    return `<div class="fixgrp"><div class="fixhd"><b>${c.title}</b><span class="tag">${H.length.toLocaleString()} line${H.length === 1 ? "" : "s"}</span>` +
-      (canAll ? `<button class="btn small" type="button" data-fixall="${c.id}">${label}</button>` : "") + `<button class="btn ghost small" type="button" data-fixshow="${c.id}">${fixOpen.has(c.id) ? "Hide lines" : "Show lines"}</button></div>` +
-      `<p class="hint">${c.why}</p><div class="fixrows tablewrap${fixOpen.has(c.id) ? "" : " hidden"}"><table><tbody>${rows}</tbody></table>${H.length > 200 ? `<p class="hint" style="padding:8px">Showing the first 200 of ${H.length.toLocaleString()}.</p>` : ""}</div></div>`;
+      const roleBtns = c.roles ? `<div style="margin:4px 0 0"><span class="hint" style="margin:0 2px 0 0;font-size:12.5px">You were:</span>` + ROLE_PICK.map(([r, l]) => `<button class="rowbtn${sg && sg[0] === r ? " sug" : ""}" type="button" data-role="${r}" data-i="${i}">${l}</button>`).join("") + "</div>" : "";
+      return `<tr><td style="white-space:nowrap">${fmtDate(f.date)}</td><td>${esc(flightLabel(f).replace(fmtDate(f.date), "").trim())}</td><td>${esc(c.detail ? c.detail(f, data.flights) : "")}${why}${roleBtns}</td><td class="r" style="white-space:nowrap">` +
+      ((c.fix && (!c.can || c.can(f))) ? `<button class="rowbtn sug" type="button" data-fix1="${c.id}" data-i="${i}">${FIX_ONE[c.id] || "Fix"}</button>` : "") + `<button class="rowbtn" type="button" data-fixedit="${i}">Edit</button>` +
+      (c.del ? `<button class="rowbtn del" type="button" data-fixdel="${i}">${FIX_ONE[c.id] || "Delete"}</button>` : "") + `<button class="rowbtn" type="button" data-fixok="${c.id}" data-i="${i}" title="Stop flagging this line">It's correct</button></td></tr>`; }).join("");
+    // lines already corrected stay in the list: the corrected line, what it was, and an undo
+    const done = G.map((g, j) => `<tr class="fixed"><td style="white-space:nowrap">${fmtDate(g.copy.date)}</td><td>${esc(flightLabel(g.copy).replace(fmtDate(g.copy.date), "").trim())}</td>` +
+      `<td><b style="color:var(--ok)">✓ ${esc(g.msg)}</b>${g.kind === "mod" ? `<div style="font-size:12.5px;margin-top:2px">Now: ${esc(lineSum(g.f))}</div><div class="hint" style="margin:1px 0 0;font-size:12.5px">Was: ${esc(lineSum(g.copy))}</div>` : `<div class="hint" style="margin:2px 0 0;font-size:12.5px">${esc(lineSum(g.copy))}</div>`}</td>` +
+      `<td class="r"><button class="rowbtn" type="button" data-undo="${c.id}:${j}">Undo</button></td></tr>`).join("");
+    return `<div class="fixgrp"><div class="fixhd"><b>${c.title}</b><span class="tag">${H.length ? `${H.length.toLocaleString()} to check` : "all checked"}${G.length ? ` · ${G.length} corrected` : ""}</span>` +
+      `<button class="btn ghost small" type="button" data-fixshow="${c.id}">${fixClosed.has(c.id) ? "Show lines" : "Hide lines"}</button></div>` +
+      `<p class="hint">${c.why}</p><div class="fixrows tablewrap${fixClosed.has(c.id) ? " hidden" : ""}"><table><tbody>${rows}${done}</tbody></table>${H.length > 200 ? `<p class="hint" style="padding:8px">Showing the first 200 of ${H.length.toLocaleString()}; the rest appear as these are done.</p>` : ""}</div></div>`;
   }).join("");
   return total;
 }
-function fixDone(msg){ save(); renderCheck(); renderFix().then(() => { if (msg) $("#fixList").insertAdjacentHTML("afterbegin", `<p class="ok-msg" style="margin:0 0 10px">${esc(msg)}</p>`); }); }
+// one line in short, to show a correction: type, registration, route, times, function, landings
+const lineSum = f => isSim(f) ? `simulator ${f.fstdType || ""} ${fmtMin(f.fstdTime)}`.replace(/\s+/g, " ") :
+  [f.acType, f.reg, f.from || f.to ? `${f.from || "?"}–${f.to || "?"}` : "", `total ${fmtMin(f.total)}`, ...["pic","copilot","dual","instructor"].filter(k => f[k]).map(k => `${ROLE_LABEL[k]} ${fmtMin(f[k])}`),
+    f.night ? `night ${fmtMin(f.night)}` : "", f.ifr ? `IFR ${fmtMin(f.ifr)}` : "", /PIC\s*\(?US/i.test(f.remarks || "") ? "PICUS" : ""].filter(Boolean).join(" · ");
+const FIX_ONE = { bulk: "Move to previous experience", sim: "Make it a sim session", dup: "Delete this copy", noTotal: "Use block time", block: "Use block time",
+  night: "Work out night again", ifr: "Set IFR to total", reg: "Add the dash" };
+// corrections made in this visit, per check: { kind: mod | del | move | ok, f, copy, msg }
+let fixLog = {}, fixClosed = new Set();
+function fixDone(){ save(); renderCheck(); renderFix(); }
+const logFix = (id, e) => (fixLog[id] ||= []).push(e);
 $("#fixCard").addEventListener("click", e => {
   const b = e.target.closest("button"); if (!b) return;
-  const d = b.dataset, F = data.flights, C = id => FIX_CHECKS.find(c => c.id === id);
-  if (d.fixshow) { fixOpen.has(d.fixshow) ? fixOpen.delete(d.fixshow) : fixOpen.add(d.fixshow); return renderFix(); }
-  if (d.fixall) {
-    const c = C(d.fixall), H = fixHits(c).filter(f => !c.can || c.can(f));
-    if (!confirm(`${typeof c.fixLabel === "function" ? c.fixLabel() : c.fixLabel}: ${H.length.toLocaleString()} line${H.length === 1 ? "" : "s"}?`)) return;
-    if (c.del) data.flights = F.filter(f => !H.includes(f)); else { H.forEach(c.fix); c.after?.(); }
-    return fixDone(`${c.del ? "Deleted" : "Fixed"} ${H.length.toLocaleString()} line${H.length === 1 ? "" : "s"}.`);
+  const d = b.dataset, F = data.flights, C = id => FIX_CHECKS.find(c => c.id === id), copy = f => JSON.parse(JSON.stringify(f));
+  if (d.fixshow) { fixClosed.has(d.fixshow) ? fixClosed.delete(d.fixshow) : fixClosed.add(d.fixshow); return renderFix(); }
+  if (d.role) { const f = F[+d.i], c0 = copy(f), id = FIX_CHECKS.find(c => c.roles && fixHits(c).includes(f))?.id || "noRole"; setRole(f, d.role);
+    logFix(id, { kind: "mod", f, copy: c0, msg: `Logged as ${ROLE_PICK.find(x => x[0] === d.role)[1]}` }); return fixDone(); }
+  if (d.fix1) { const c = C(d.fix1), f = F[+d.i], c0 = copy(f); c.fix(f); c.after?.();
+    logFix(c.id, c.id === "bulk" ? { kind: "move", f, copy: c0, msg: "Moved to previous experience" } : { kind: "mod", f, copy: c0, msg: FIX_ONE[c.id] || "Fixed" }); return fixDone(); }
+  if (d.fixdel) { const f = F[+d.fixdel], id = b.closest(".fixgrp").querySelector("[data-fixshow]").dataset.fixshow; F.splice(+d.fixdel, 1); logFix(id, { kind: "del", copy: copy(f), msg: "Deleted" }); return fixDone(); }
+  if (d.fixok) { const f = F[+d.i], k = dupKey(f); (data.fixOk[d.fixok] ||= []).push(k); logFix(d.fixok, { kind: "ok", f, copy: copy(f), key: k, msg: "Marked as correct" }); return fixDone(); }
+  if (d.undo) {
+    const [id, j] = d.undo.split(":"), g = fixLog[id][+j];
+    if (g.kind === "mod") { for (const k of Object.keys(g.f)) if (!(k in g.copy)) delete g.f[k]; Object.assign(g.f, g.copy); }
+    if (g.kind === "del" || g.kind === "move") { F.push(g.copy); F.sort((a, b) => (a.date + a.out).localeCompare(b.date + b.out)); }
+    if (g.kind === "move") { const P = data.prev || {}, f = g.copy, sub = (k, v) => P[k] = Math.max(0, (P[k] || 0) - (v || 0));
+      if (isSim(f)) sub("fstd", f.fstdTime);
+      else { for (const k of ["total","pic","copilot","dual","instructor","night","ifr","ldgDay","ldgNight"]) sub(k, f[k]); const cl = acClass(f.acType); sub(cl === "SPSE" ? "se" : cl === "SPME" ? "me" : "mp", f.total); }
+      renderPrev(); }
+    if (g.kind === "ok") data.fixOk[id] = (data.fixOk[id] || []).filter(k => k !== g.key);
+    fixLog[id].splice(+j, 1); return fixDone();
   }
-  if (d.role) { setRole(F[+d.i], d.role); return fixDone(`Logged as ${ROLE_PICK.find(x => x[0] === d.role)[1]}.`); }
-  if (d.fix1) { const c = C(d.fix1); c.fix(F[+d.i]); c.after?.(); return fixDone("Fixed."); }
-  if (d.fixdel) { const f = F[+d.fixdel]; if (!confirm(`Delete ${flightLabel(f)}?`)) return; F.splice(+d.fixdel, 1); return fixDone("Deleted."); }
-  if (d.fixok) { const ok = (data.fixOk[d.fixok] ||= []); ok.push(dupKey(F[+d.i])); return fixDone(""); }
   if (d.fixedit !== undefined) { tab("logbook"); lbOpenEdit(+d.fixedit); return; }
   if (b.id === "undoImp") {
     const L = data.lastImport; if (!L || !confirm(`Undo the import of ${L.names.join(", ")}? Its ${L.added.toLocaleString()} new line${L.added === 1 ? "" : "s"} are removed${L.updated ? ` and ${L.updated} updated line${L.updated === 1 ? " goes" : "s go"} back to how ${L.updated === 1 ? "it was" : "they were"}` : ""}.`)) return;
     data.flights = F.filter(f => f._b !== L.id).concat(L.prev).sort((a, b) => (a.date + a.out).localeCompare(b.date + b.out));
     if (L.prevExp) data.prev = L.prevExp; else delete data.prev;
-    delete data.lastImport; renderPrev(); return fixDone("Import undone.");
+    delete data.lastImport; fixLog = {}; renderPrev(); return fixDone();
   }
 });
 $("#fixMail").addEventListener("click", e => { e.preventDefault(); $("#airMail").click(); });
