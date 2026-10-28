@@ -372,6 +372,12 @@ td.r,th.r{text-align:right}
         <label style="display:flex;gap:8px;align-items:flex-start;font-weight:400;margin:0 0 14px"><input type="checkbox" id="pNight" style="width:auto;margin-top:3px"> <span>Work out night time from the block times and airports (times in UTC). Night is when the sun is more than 6° below the horizon, along the route.</span></label>
         <div class="row-actions" style="margin:0"><button class="btn ghost" type="button" id="pApply">Apply to flights already in my logbook</button><span id="pApplyMsg" class="ok-msg"></span></div>
       </div>
+      <div class="card" id="acSection">
+        <h3>Aircraft types</h3>
+        <p class="hint" style="margin:0 0 14px;font-size:14px">How each type is flown decides the single-pilot (SE / ME) and multi-pilot columns of your logbook and your multi-crew and multi-engine hours. Guessed from the type; change any that are wrong.</p>
+        <div class="tablewrap"><table><thead><tr><th>Type</th><th class="r">Flights</th><th>Flown as</th></tr></thead><tbody id="acRows"></tbody></table></div>
+        <div class="field" style="max-width:360px;margin:14px 0 0"><label for="acDefault">Types not on the list</label><select id="acDefault"></select><div class="hint">Used for new types until you set them here.</div></div>
+      </div>
     </div>
 
     <!-- your data: import + export -->
@@ -455,7 +461,7 @@ td.r,th.r{text-align:right}
             <details style="margin:0 0 14px"><summary style="cursor:pointer;font-size:14px;color:var(--muted)">More options</summary>
               <div style="margin-top:12px">
                 <div class="field"><label for="prRows">Lines per page</label><select id="prRows"><option>14</option><option selected>18</option><option>24</option></select></div>
-                <div class="field"><label for="prCrew">Flights are</label><select id="prCrew"><option value="MP">Multi-pilot</option><option value="SPME">Single-pilot, multi-engine</option><option value="SPSE">Single-pilot, single-engine</option></select><div class="hint">Decides which time column is filled.</div></div>
+                <p class="hint" style="margin:0 0 14px">Single-pilot (SE / ME) and multi-pilot columns follow each aircraft type: <a href="#" data-go="profile" data-scroll="#acSection">set them in Profile</a>.</p>
                 <div class="field"><label for="prPaper">Paper size</label><select id="prPaper"><option value="auto">Format default</option><option value="A4">A4</option><option value="LETTER">US Letter</option></select></div>
                 <div class="field"><label for="prBF">Brought forward (hh:mm, optional)</label><input id="prBF" class="mono" placeholder="e.g. 3250:15"><div class="hint">Total time from a paper logbook not imported here.</div></div>
                 <label style="display:flex;gap:8px;align-items:center;font-weight:400;margin:2px 0 4px"><input type="checkbox" id="prCover" checked style="width:auto"> Include cover page</label>
@@ -510,7 +516,7 @@ td.r,th.r{text-align:right}
         <div><h2>Statistics</h2><p class="lead" style="margin-bottom:0">The hours airlines ask for in a job application, from your logbook. <span id="stInfo"></span></p></div>
         <button class="btn ghost small" type="button" id="stCopy">Copy summary</button>
       </div>
-      <div class="field" style="max-width:320px;margin-top:16px"><label for="stCrew">Your flights are</label><select id="stCrew"><option value="MP">Multi-pilot (multi-crew, multi-engine)</option><option value="SPME">Single-pilot, multi-engine</option><option value="SPSE">Single-pilot, single-engine</option></select><div class="hint">Decides multi-crew and multi-engine time. Also used in your PDF.</div></div>
+      <p class="hint" id="stTypesNote" style="margin:16px 0 0;font-size:14px"></p>
       <div class="card hidden" id="stEmpty"><p class="hint" style="margin:0">No flights yet. <a href="#" data-go="import">Import or add your flights</a>.</p></div>
       <div id="stBody">
         <div class="stats" id="stTiles"></div>
@@ -844,7 +850,17 @@ document.addEventListener("click", e => { const g = e.target.closest("[data-go]"
 /* ---------- profile ---------- */
 const PF = { pName: "name", pEmail: "email", pLic: "lic", pType: "type", pBase: "base" };
 const PF_DROPPED = ["auth", "phone", "employer", "location", "lic2", "auth2", "type2"];
+function renderAcTypes(){
+  const opts = v => Object.entries(AC_CLASS).map(([k, l]) => `<option value="${k}"${k === v ? " selected" : ""}>${l}</option>`).join("");
+  const T = Object.entries(acTypesFlown()).sort((a, b) => b[1] - a[1]);
+  $("#acRows").innerHTML = T.length ? T.map(([t, n]) => `<tr><td><b>${esc(t)}</b></td><td class="r">${n.toLocaleString()}</td><td><select data-ac="${esc(t)}" style="width:auto">${opts(acClass(t))}</select>${!(data.acTypes || {})[t] ? ' <span class="hint" style="margin:0">guessed</span>' : ""}</td></tr>`).join("")
+    : '<tr><td colspan="3" class="hint">No flights yet. Types appear here once you import or add flights.</td></tr>';
+  $("#acDefault").innerHTML = opts(data.profile.crew || "MP");
+}
+$("#acRows").addEventListener("change", e => { const t = e.target.dataset.ac; if (t === undefined) return; (data.acTypes ||= {})[t] = e.target.value; save(); renderAcTypes(); });
+$("#acDefault").addEventListener("change", e => { data.profile.crew = e.target.value; save(); renderAcTypes(); });
 function renderProfile(){
+  renderAcTypes();
   for (const [id,k] of Object.entries(PF)) $("#"+id).value = data.profile[k] || ""; $("#profSaved").textContent = "";
   $("#pRole").value = data.profile.role || "PIC"; $("#pIfr").checked = data.profile.autoIfr !== false; $("#pNight").checked = data.profile.autoNight !== false; $("#pApplyMsg").textContent = "";
 }
@@ -1306,7 +1322,7 @@ $("#airMail").addEventListener("click", e => {
 
 // one line of the EASA (FCL.050) logbook, same columns and formatting as the PDF
 function easaLineHTML(f){
-  const crew = $("#prCrew").value, t = m => lbTime(m), c = n => n ? String(n) : "", tick = on => on ? "✓" : "";
+  const crew = acClass(f.acType), t = m => lbTime(m), c = n => n ? String(n) : "", tick = on => on ? "✓" : "";
   const self = /^self$/i.test((f.picName || "").trim()) || (!f.picName && !(f.copilot && !f.pic));
   const cells = [f.date ? ddmmyy(f.date) : "", f.from, f.out, f.to, f.in, f.acType, f.reg,
     tick(crew === "SPSE" && f.total), tick(crew === "SPME" && f.total), crew === "MP" ? t(f.total) : "", t(f.total),
@@ -1326,7 +1342,7 @@ function renderAddPreview(){
   return err;
 }
 $("#addFields").addEventListener("input", () => { renderAddPreview(); $("#addErr").textContent = ""; $("#addOk").textContent = ""; });
-$("#prCrew").addEventListener("change", e => { data.profile.crew = e.target.value; save(); renderAddPreview(); });
+
 $("#addClear").addEventListener("click", () => { $("#addFields").innerHTML = flightFieldsHTML("n_"); renderAddPreview(); $("#addErr").textContent = ""; });
 $("#addForm").addEventListener("submit", e => {
   e.preventDefault(); $("#addOk").textContent = "";
@@ -1340,13 +1356,21 @@ $("#addForm").addEventListener("submit", e => {
 });
 
 /* ---------- statistics (hours for job applications) ---------- */
-const crewOf = () => data.profile.crew || "MP";
+/* How each aircraft type is flown: MP multi-pilot, SPME single-pilot multi-engine, SPSE single-pilot single-engine.
+   Set per type in Profile; otherwise guessed from the type name; anything unknown is multi-pilot (airline types). */
+const AC_SPSE = /^(C1[5-8]\d|C20[68]|C210|CE-?1[5-8]\d|P28|PA-?(18|22|28|32|38|46)|DA-?(20|40|50)|DV20|SR2[02]|TB-?(9|10|20|21|200)|M20|BE-?(33|35|36)|G11[05]|R2[2]|R44|TBM|PC-?(6|12)|C208|AT-?01|EXTRA|CAP|J-?3|SUPER ?CUB|AQUILA|P2002|C42(?!\d)|ZLIN)/i;
+const AC_SPME = /^(PA-?(23|30|31|34|44)|P34|P44|DA-?42|DA-?62|BE-?(55|58|76|95)|P68|C3[0-4]\d|C40[0-4]|C41\d|C42[01]|TB-?30|BE-?(9L|20|200)|B190|PC-?24)/i;
+const AC_CLASS = { MP: "Multi-pilot", SPME: "Single-pilot, multi-engine", SPSE: "Single-pilot, single-engine" };
+const acGuess = t => AC_SPSE.test(t) ? "SPSE" : AC_SPME.test(t) ? "SPME" : "";
+const acClass = t => (data.acTypes || {})[t] || acGuess(t || "") || data.profile.crew || "MP";
+const acTypesFlown = () => { const n = {}; for (const f of data.flights) if (!isSim(f) && f.acType) n[f.acType] = (n[f.acType] || 0) + 1; return n; };
 function statTotals(F){
-  const crew = crewOf(), o = { n: 0, sims: 0, fstd: 0, total: 0, pic: 0, copilot: 0, dual: 0, instructor: 0, night: 0, ifr: 0, mp: 0, me: 0, se: 0, ldg: 0, ldgNight: 0, last: "" };
+  const o = { n: 0, sims: 0, fstd: 0, total: 0, pic: 0, copilot: 0, dual: 0, instructor: 0, night: 0, ifr: 0, mp: 0, me: 0, se: 0, ldg: 0, ldgNight: 0, last: "" };
   for (const f of F) {
     if (isSim(f)) { o.sims++; o.fstd += f.fstdTime; continue; }
     o.n++;
     for (const k of ["total","pic","copilot","dual","instructor","night","ifr"]) o[k] += f[k] || 0;
+    const crew = acClass(f.acType);
     if (crew === "MP") o.mp += f.total || 0;
     if (crew === "SPSE") o.se += f.total || 0; else o.me += f.total || 0;
     o.ldg += (f.ldgDay || 0) + (f.ldgNight || 0); o.ldgNight += f.ldgNight || 0;
@@ -1355,7 +1379,8 @@ function statTotals(F){
   return o;
 }
 function renderStats(){
-  const F = data.flights; $("#stCrew").value = crewOf();
+  const F = data.flights, T0 = acTypesFlown();
+  $("#stTypesNote").innerHTML = Object.keys(T0).length ? "Multi-crew and multi-engine time follow each aircraft type: " + Object.keys(T0).map(t => `${esc(t)} ${AC_CLASS[acClass(t)].toLowerCase()}`).join(", ") + '. <a href="#" data-go="profile" data-scroll="#acSection">Change</a>' : "";
   $("#stEmpty").classList.toggle("hidden", !!F.length); $("#stBody").classList.toggle("hidden", !F.length);
   if (!F.length) return;
   const T = statTotals(F), h = fmtMin;
@@ -1375,7 +1400,6 @@ function renderStats(){
       .map(([t, o]) => `<tr><td>${esc(t)}</td><td class="r">${o.n}</td>${cols.map(c => `<td class="r">${h(o[c[1]])}</td>`).join("")}<td>${fmtDate(o.last)}</td></tr>`).join("") + "</tbody></table>";
   $("#stInfo").textContent = `${F.length.toLocaleString()} flights, ${fmtDate(F[0].date)} to ${fmtDate(F[F.length-1].date)}.`;
 }
-$("#stCrew").addEventListener("change", e => { data.profile.crew = e.target.value; save(); renderStats(); });
 $("#stCopy").addEventListener("click", async () => {
   const P = data.profile, T = statTotals(data.flights), h = fmtMin;
   const lines = [`Flight hours summary${P.name ? " - " + P.name : ""}${P.lic ? " (" + P.lic + ")" : ""}`, `As of ${fmtDate(todayISO())}`, "",
@@ -1828,7 +1852,6 @@ $("#cbMin").addEventListener("change", renderCrewBase);
 /* ================= PRINT (PDF logbook) ================= */
 let prFmt = null, pdfUrl = null;
 function renderPrint(){
-  $("#prCrew").value = data.profile.crew || "MP";
   if (!prFmt) { prFmt = data.profile.format === "FAA" ? "FAA" : data.profile.format === "UK CAA" ? "UK" : "EASA"; $("#prFmtSel").value = prFmt; }
   const F = data.flights;
   if (F.length && !$("#prFrom").value) { $("#prFrom").value = F[0].date; $("#prTo").value = F[F.length-1].date; }
@@ -1846,8 +1869,8 @@ const ddmmyy = iso => { const [y,m,d] = iso.split("-"); return `${d}/${m}/${y.sl
 const mmddyy = iso => { const [y,m,d] = iso.split("-"); return `${m}/${d}/${y.slice(2)}`; };
 const hhmm = t => t ? t.replace(":","") : "";
 
-function easaColumns(crew){
-  const se = f => crew === "SPSE" ? f.total : 0, me = f => crew === "SPME" ? f.total : 0, mp = f => crew === "MP" ? f.total : 0;
+function easaColumns(){
+  const se = f => acClass(f.acType) === "SPSE" ? f.total : 0, me = f => acClass(f.acType) === "SPME" ? f.total : 0, mp = f => acClass(f.acType) === "MP" ? f.total : 0;
   return [
     { g:"", h:"DATE\n(dd/mm/yy)", w:34, v:f => ddmmyy(f.date) },
     { g:"DEPARTURE", h:"PLACE", w:24, v:f => f.from }, { g:"DEPARTURE", h:"TIME", w:20, v:f => hhmm(f.out) },
@@ -1865,7 +1888,7 @@ function easaColumns(crew){
     { g:"", h:"REMARKS AND\nENDORSEMENTS", w:62, v:f => f.remarks }
   ];
 }
-function faaColumns(crew){
+function faaColumns(){
   const xc = f => f.from && f.to && f.from !== f.to ? f.total : 0;
   return [
     { g:"", h:"DATE", w:32, v:f => mmddyy(f.date) },
@@ -1874,7 +1897,7 @@ function faaColumns(crew){
     { g:"", h:"REMARKS AND\nENDORSEMENTS", w:62, v:f => [f.flightNo, f.remarks].filter(Boolean).join(" ") },
     { g:"", h:"NR\nINST\nAPP", w:16, v:() => "" },
     { g:"LANDINGS", h:"DAY", w:16, n:f => f.ldgDay, t:"c" }, { g:"LANDINGS", h:"NIGHT", w:16, n:f => f.ldgNight, t:"c" },
-    { g:"CATEGORY & CLASS", h:"SEL", w:22, n:f => crew === "SPSE" ? f.total : 0, t:"d" }, { g:"CATEGORY & CLASS", h:"MEL", w:22, n:f => crew === "SPSE" ? 0 : f.total, t:"d" },
+    { g:"CATEGORY & CLASS", h:"SEL", w:22, n:f => acClass(f.acType) === "SPSE" ? f.total : 0, t:"d" }, { g:"CATEGORY & CLASS", h:"MEL", w:22, n:f => acClass(f.acType) === "SPSE" ? 0 : f.total, t:"d" },
     { g:"", h:"CROSS\nCOUNTRY", w:24, n:xc, t:"d" },
     { g:"CONDITIONS OF FLIGHT", h:"NIGHT", w:22, n:f => f.night, t:"d" }, { g:"CONDITIONS OF FLIGHT", h:"ACTUAL\nINSTR.", w:22, n:f => f.ifr, t:"d" }, { g:"CONDITIONS OF FLIGHT", h:"SIM.\nINSTR.", w:22, v:() => "", n:() => 0, t:"d" },
     { g:"", h:"FLIGHT\nSIMU-\nLATOR", w:22, v:() => "", n:() => 0, t:"d" },
@@ -1921,7 +1944,7 @@ const licType = t => String(t || "").replace(/\((\w)\)/, " $1").trim().toUpperCa
 // 1234:05 -> "1,234:05"; 0 -> ""
 const lbTime = m => { m = Math.round(m || 0); if (!m) return ""; const h = Math.floor(m/60); return h.toLocaleString("en-US") + ":" + String(m % 60).padStart(2, "0"); };
 
-async function makeEasaPdf(F, bf, rowsPerPage, crew, before = [], pageOffset = 0){
+async function makeEasaPdf(F, bf, rowsPerPage, before = [], pageOffset = 0){
   const { PDFDocument, rgb } = PDFLib;
   const W = 841.8898, H = 595.2756;
   const doc = await PDFDocument.create();
@@ -1994,7 +2017,7 @@ async function makeEasaPdf(F, bf, rowsPerPage, crew, before = [], pageOffset = 0
   const X = [20, 50.32, 77.28, 104.23, 131.19, 158.14, 191.83, 225.53, 252.48, 279.43, 319.87, 353.56, 393.99, 417.58, 441.16, 471.48, 501.81, 532.13, 562.45, 592.78, 623.1, 668.03, 690.49, 821.89];
   const R = X[23];
   const isSelf = n => !n || /^self$/i.test(String(n).trim());
-  const se = f => crew === "SPSE" ? f.total : 0, me = f => crew === "SPME" ? f.total : 0, mp = f => crew === "MP" ? f.total : 0;
+  const se = f => acClass(f.acType) === "SPSE" ? f.total : 0, me = f => acClass(f.acType) === "SPME" ? f.total : 0, mp = f => acClass(f.acType) === "MP" ? f.total : 0;
   // numeric columns: [colIndex, value(f), kind] kind t=time c=count
   const NUM = [[7, se, "t"], [8, me, "t"], [9, mp, "t"], [10, f => f.total, "t"], [12, f => f.ldgDay, "c"], [13, f => f.ldgNight, "c"],
     [14, f => f.night, "t"], [15, f => f.ifr, "t"], [16, f => f.pic, "t"], [17, f => f.copilot, "t"], [18, f => f.dual, "t"], [19, f => f.instructor, "t"], [21, f => f.fstdTime || 0, "t"]];
@@ -2088,15 +2111,15 @@ function pdfSelection(rows){
   return { F: all, before: [], pageOffset: 0 };
 }
 async function makePdf(){
-  const crew = $("#prCrew").value, rows = +$("#prRows").value;
+  const rows = +$("#prRows").value;
   const { F, before, pageOffset } = pdfSelection(rows);
   if (!F.length) throw new Error(data.flights.length ? "No flights in that date range." : "Import or add some flights first.");
   const bf = parseHM($("#prBF").value); if (isNaN(bf)) throw new Error("Brought-forward total should look like 3250:15.");
   if (!window.PDFLib) await loadScript("https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js");
   const { PDFDocument, StandardFonts, rgb } = PDFLib;
   const isFAA = prFmt === "FAA";
-  if (!isFAA) return makeEasaPdf(F, bf, rows, crew, before, pageOffset);
-  const cols = isFAA ? faaColumns(crew) : easaColumns(crew);
+  if (!isFAA) return makeEasaPdf(F, bf, rows, before, pageOffset);
+  const cols = isFAA ? faaColumns() : easaColumns();
   const paper = $("#prPaper").value === "auto" ? (isFAA ? "LETTER" : "A4") : $("#prPaper").value;
   const [W,H] = paper === "A4" ? [841.89, 595.28] : [792, 612];
   const fmtV = (c, m) => c.t === "c" ? (m || "") + "" : c.t === "d" ? dec(m) : hm(m);
