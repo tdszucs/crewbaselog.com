@@ -1135,14 +1135,16 @@ function ecrewMap(headers){
   };
   // SYNTH. DEVICES Time, Type: after the Instr column
   if (m.instructor >= 0) { m.simTime = after("time", m.instructor); m.simType = after("type", m.simTime); }
+  const fn = h.findIndex(x => FLT_NO.includes(x)); if (fn >= 0) m.flightNo = fn;   // not in today's report; read when it is added
   // takeoffs: first day/night pair (kept for remarks-free recency in future)
   for (const k in m) if (m[k] < 0) delete m[k];
   return m;
 }
+const FLT_NO = ["flt no", "flt no ", "fltno", "flt nr", "flight no", "flight nr", "flight number", "flight", "flt", "flt number", "flightno"];
 function ecrewListMap(headers){
   const h = headers.map(norm), at = w => h.indexOf(w);
   if (at("depplace") < 0 || at("arrplace") < 0 || at("flttime") < 0) return null;
-  const m = { date: at("date"), from: at("depplace"), out: at("deptime"), to: at("arrplace"), in: at("arrtime"), acType: at("actype"), reg: at("reg"),
+  const m = { flightNo: h.findIndex(x => FLT_NO.includes(x)), date: at("date"), from: at("depplace"), out: at("deptime"), to: at("arrplace"), in: at("arrtime"), acType: at("actype"), reg: at("reg"),
     total: at("flttime"), picName: at("picname"), ldgDay: at("landsday"), ldgNight: at("landsnight"), pic: at("pic"), copilot: at("coplt"),
     instructor: at("instr"), simTime: at("simtime"), simType: at("simtype") };
   for (const k in m) if (m[k] < 0) delete m[k];
