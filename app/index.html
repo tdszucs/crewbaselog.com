@@ -476,15 +476,15 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
 
       <div class="card" id="aimsCard">
         <h3><span class="stepn">3</span>Import new flights from eCrew</h3>
-        <p class="hint step-sub">The eCrew Pilot LogBook report. Flights already in your logbook are skipped.</p>
+        <p class="hint step-sub">The eCrew Pilot LogBook report. eCrew exports up to 2 years at a time: drop as many reports as you need, together or one after another. Flights already in your logbook are skipped.</p>
         <div class="drop" id="dropAims"><b>Drop your eCrew report here</b><br><span class="hint">or tap to choose · .csv, .xlsx, .pdf</span>
           <input type="file" id="aimsFile" accept=".csv,.txt,.tsv,.xlsx,.xls,.pdf" multiple class="hidden"></div>
         <details style="margin-top:12px"><summary class="more">How to get the report from eCrew</summary>
           <ol class="hint" style="margin:10px 0 0;padding-left:20px;line-height:1.7;font-size:14px">
             <li>Log in to <b>eCrew</b> and open <b>Reports</b> → <b>Pilot LogBook report</b>.</li>
-            <li>Set the <b>Period</b> (a month or a whole year) and press <b>Go</b>.</li>
+            <li>Set the <b>Period</b> (up to 2 years) and press <b>Go</b>. For a longer history, export each 2-year period in turn.</li>
             <li>Press <b>Export</b> (the save icon with ▾) and choose <b>CSV</b>, <b>Excel</b> or <b>PDF</b>. On iPhone, save it to Files.</li>
-            <li>Drop the file above. Times are in UTC; overlapping periods are fine; simulator sessions go into the FSTD columns.</li>
+            <li>Drop the files above, all at once if you like. Times are in UTC; overlapping periods are fine; simulator sessions go into the FSTD columns.</li>
           </ol>
         </details>
       </div>
@@ -1741,7 +1741,18 @@ async function nextFile(){
   $("#impDoneLog").innerHTML = impLog.join("<br>") + `<br>Your logbook now has <b>${nf.toLocaleString()} flight${nf === 1 ? "" : "s"}</b>` + (ns ? ` and <b>${ns} simulator session${ns === 1 ? "" : "s"}</b>` : "") + `` + (restoredView() ? "." : `. <a href="#" data-go="import" data-scroll="#chkBox">Check the totals against your old logbook's last page</a>.`);
   $("#impDone").classList.remove("hidden"); $("#impDone").scrollIntoView({ behavior: "smooth", block: "start" });
   $("#chkUpto").value = ""; renderCheck();
+  const gaps = importGaps(); if (gaps.length) $("#impDoneLog").insertAdjacentHTML("beforeend", `<br><b style="color:var(--warn)">No flights ${gaps.map(([a, b, n]) => `from ${fmtDate(a)} to ${fmtDate(b)} (${n} days)`).join(", ")}.</b> If you flew then, drop that period's report too.`);
   renderFix().then(n => { if (n) $("#impDoneLog").insertAdjacentHTML("beforeend", `<br><b style="color:var(--warn)">${n} line${n === 1 ? " looks" : "s look"} wrong.</b> <a href="#" data-go="import" data-scroll="#fixBox">Review and fix them</a>.`); });
+}
+// long stretches without a flight inside the period just imported (or between it and the flights before it):
+// a 2-year eCrew export that was missed, or leave. Shown as a hint, never changed.
+function importGaps(){
+  const B = impBatch && data.flights.filter(f => f._b === impBatch.id); if (!B?.length) return [];
+  const lo = B.reduce((m, f) => f.date < m ? f.date : m, B[0].date), hi = B.reduce((m, f) => f.date > m ? f.date : m, B[0].date);
+  const before = data.flights.filter(f => f.date < lo).map(f => f.date).sort().pop();
+  const D = [...new Set(data.flights.filter(f => f.date >= (before || lo) && f.date <= hi).map(f => f.date))].sort(), out = [];
+  for (let i = 1; i < D.length; i++) { const n = Math.round((Date.parse(D[i]) - Date.parse(D[i - 1])) / 864e5); if (n > 60) out.push([D[i - 1], D[i], n]); }
+  return out;
 }
 async function handleFile(f){
   await loadAirports();
