@@ -139,6 +139,11 @@ h2{font-size:24px;letter-spacing:-.02em;margin:0 0 6px}
 .drop{border:2px dashed var(--line);border-radius:14px;padding:28px;text-align:center;color:var(--muted);cursor:pointer}
 .step-sub{margin:-4px 0 14px;font-size:14px}
 summary.cardsum{cursor:pointer}
+.danger-zone{border:1.5px solid var(--bad);background:linear-gradient(90deg,var(--bad-soft),transparent 60%)}
+.dz-title{display:flex;align-items:center;gap:10px}
+.dz-ic{width:26px;height:26px;flex:none}
+.dz-confirm{margin-top:14px;padding:14px 16px;border-radius:12px;background:var(--bad-soft);border:1px solid var(--bad)}
+.btn.dz-yes{background:#c0362c;border-color:#c0362c;color:#fff}
 summary.cardsum h3{display:inline;margin:0}
 summary.more{cursor:pointer;font-size:14px;font-weight:600;color:var(--accent)}
 summary.more #prevNote{font-weight:400;color:var(--muted)}
@@ -526,10 +531,16 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
         </div>
       </div>
       <div class="card hidden" id="pdfCard" style="padding:0;overflow:hidden"><iframe id="pdfFrame" title="Logbook preview" style="width:100%;height:78vh;border:0;display:block;background:#fff"></iframe></div>
-      <div class="card">
-        <h3>Start over</h3>
+      <div class="card danger-zone" id="startOver">
+        <h3 class="dz-title"><svg class="dz-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.3 3.6 1.9 18a2 2 0 0 0 1.7 3h16.8a2 2 0 0 0 1.7-3L13.7 3.6a2 2 0 0 0-3.4 0z" fill="#f2b544" stroke="#c0362c" stroke-width="1.4" stroke-linejoin="round"/><path d="M12 9v5" stroke="#1b1b1b" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="17.4" r="1.25" fill="#1b1b1b"/></svg>Danger zone: start over</h3>
         <p class="hint step-sub">Clears your flights, previous experience and import checks so you can import again from step 1. Your profile, signature, expiries and Crew Base rosters stay.</p>
         <button class="btn danger small" type="button" id="btnStartOver">Clear logbook data</button>
+        <div class="dz-confirm hidden" id="soConfirm" role="alert">
+          <div class="dz-title" style="font-size:16px"><svg class="dz-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.3 3.6 1.9 18a2 2 0 0 0 1.7 3h16.8a2 2 0 0 0 1.7-3L13.7 3.6a2 2 0 0 0-3.4 0z" fill="#f2b544" stroke="#c0362c" stroke-width="1.4" stroke-linejoin="round"/><path d="M12 9v5" stroke="#1b1b1b" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="17.4" r="1.25" fill="#1b1b1b"/></svg><b>You're about to restart</b></div>
+          <p style="margin:8px 0 14px;font-size:14px" id="soWhat"></p>
+          <div class="row-actions" style="margin:0"><button class="btn ghost small" type="button" data-backup>Download full backup first</button><button class="btn small dz-yes" type="button" id="soYes">Yes, clear everything</button><button class="btn ghost small" type="button" id="soNo">Cancel</button></div>
+        </div>
+        <p class="ok-msg" id="soDone" style="margin:10px 0 0"></p>
       </div>
       <div class="card">
         <h3>Doesn't look right?</h3>
@@ -2348,10 +2359,20 @@ $("#restoreFile").addEventListener("change", async e => {
   } catch { alert("That isn't a CrewBase Log backup file."); }
 });
 $("#btnStartOver").addEventListener("click", () => {
-  if (!confirm("Clear all flights, previous experience and import checks from this device and start the import again? Download a full backup first if unsure.")) return;
+  const n = data.flights.length, P = data.prev?.total;
+  $("#soWhat").innerHTML = `This deletes <b>${n.toLocaleString()} flight${n === 1 ? "" : "s"}</b>${P ? `, <b>${fmtMin(P)}</b> of previous experience` : ""} and your import checks from this device. It can't be undone; download a full backup first if you might need them.`;
+  $("#soDone").textContent = ""; $("#soConfirm").classList.remove("hidden"); $("#btnStartOver").classList.add("hidden");
+  $("#soConfirm").scrollIntoView({ behavior: "smooth", block: "center" });
+});
+$("#soNo").addEventListener("click", () => { $("#soConfirm").classList.add("hidden"); $("#btnStartOver").classList.remove("hidden"); });
+$("#soYes").addEventListener("click", () => {
   data.flights = []; delete data.prev; delete data.oldTotals; delete data.lastImport; delete data.fixOk; fixLog = {};
-  $("#chkUpto").value = ""; ["impDone", "mapCard"].forEach(id => $("#" + id).classList.add("hidden")); $("#impErr").textContent = "";
+  $("#chkUpto").value = ""; ["impDone", "mapCard", "pdfCard"].forEach(id => $("#" + id).classList.add("hidden")); $("#impErr").textContent = "";
+  // close the PDF preview of the old logbook
+  $("#pdfFrame").removeAttribute("src"); if (pdfUrl) { URL.revokeObjectURL(pdfUrl); pdfUrl = null; }
+  $("#prevBox").open = false; $("#chkBox").open = false; $("#fixBox").open = false;
   lbCloseEdit(); save(); renderPrev(); renderCheck(); renderFix(); renderLogbook(); renderOverview(); renderPrint();
+  $("#soConfirm").classList.add("hidden"); $("#btnStartOver").classList.remove("hidden"); $("#soDone").textContent = "Logbook data cleared. Start again from step 1.";
   window.scrollTo({ top: 0, behavior: "smooth" });
 });
 
