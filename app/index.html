@@ -1394,7 +1394,8 @@ function renderStats(){
   const cols = [["Total","total"],["PIC","pic"],["Co-pilot","copilot"],["Multi-crew","mp"],["IFR","ifr"],["Night","night"]];
   $("#stPeriods").innerHTML = `<table><thead><tr><th>Period</th>${cols.map(c => `<th class="r">${c[0]}</th>`).join("")}<th class="r">Sectors</th><th class="r">Landings</th></tr></thead><tbody>` +
     per.map(([k, o]) => `<tr${k === "All time" ? ' style="font-weight:700"' : ""}><td>${k}</td>${cols.map(c => `<td class="r">${h(o[c[1]])}</td>`).join("")}<td class="r">${o.n}</td><td class="r">${o.ldg}</td></tr>`).join("") + "</tbody></table>";
-  const by = {}; F.forEach(f => (by[f.acType || "Unknown"] ||= []).push(f));
+  // simulator sessions have their own tile, not an aircraft type
+  const by = {}; F.filter(f => !isSim(f)).forEach(f => (by[f.acType || "No type given"] ||= []).push(f));
   $("#stTypes").innerHTML = `<table><thead><tr><th>Aircraft type</th><th class="r">Sectors</th>${cols.map(c => `<th class="r">${c[0]}</th>`).join("")}<th>Last flown</th></tr></thead><tbody>` +
     Object.entries(by).map(([t, fl]) => [t, statTotals(fl)]).sort((a, b) => b[1].total - a[1].total)
       .map(([t, o]) => `<tr><td>${esc(t)}</td><td class="r">${o.n}</td>${cols.map(c => `<td class="r">${h(o[c[1]])}</td>`).join("")}<td>${fmtDate(o.last)}</td></tr>`).join("") + "</tbody></table>";
