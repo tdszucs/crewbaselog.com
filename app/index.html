@@ -82,10 +82,6 @@ h2{font-size:24px;letter-spacing:-.02em;margin:0 0 6px}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 18px}
 .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
 .stepn{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:50%;background:var(--accent-soft);color:var(--accent);font-size:13px;margin-right:10px;vertical-align:1px}
-.airlines{display:flex;flex-wrap:wrap;gap:10px}
-.airline{display:grid;gap:2px;text-align:left;padding:12px 16px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);cursor:pointer;font:inherit;min-width:220px}
-.airline span{font-size:12.5px;color:var(--muted)}
-.airline.on{border-color:var(--accent);background:var(--accent-soft);box-shadow:0 0 0 1px var(--accent)}
 .lbline{border-collapse:collapse;font-size:11.5px;min-width:max-content}
 .lbline th,.lbline td{border:1px solid var(--ink);padding:3px 5px;text-align:center;white-space:nowrap}
 .lbline th{font-size:9.5px;font-weight:700;background:var(--bg)}
@@ -424,10 +420,8 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
       </div>
 
       <div class="card" id="aimsCard">
-        <h3><span class="stepn">2</span>Import new flights from AIMS</h3>
-        <p class="hint" style="margin:0 0 12px;font-size:14px">Choose your airline. Each airline's crew system exports flights a little differently.</p>
-        <div class="airlines" id="airlines"><button type="button" class="airline" data-air="etihad"><b>Etihad Airways</b><span>eCrew · Pilot LogBook report</span></button></div>
-        <div class="hidden" id="air_etihad" style="margin-top:16px">
+        <h3><span class="stepn">2</span>Import new flights from eCrew: Pilot LogBook report</h3>
+        <div>
           <ol style="margin:0 0 14px;padding-left:20px;line-height:1.8">
             <li>Log in to <b>eCrew</b>.</li>
             <li>In the left menu open <b>Reports</b> → <b>Pilot LogBook report</b>.</li>
@@ -436,14 +430,13 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
             <li>Choose <b>CSV</b> or <b>Excel (XLSX)</b>; both work. On iPhone, save the file to Files.</li>
             <li>Drop the file below, or tap the box and pick it from Files. It is read automatically. eCrew times are in UTC and are imported as UTC.</li>
           </ol>
-          <div class="drop" id="dropAims"><b>Drop your Etihad eCrew file here</b><br><span class="hint">or click to choose files · .csv, .xlsx</span>
+          <div class="drop" id="dropAims"><b>Drop your eCrew Pilot LogBook report here</b><br><span class="hint">or click to choose files · .csv, .xlsx</span>
             <input type="file" id="aimsFile" accept=".csv,.txt,.tsv,.xlsx,.xls" multiple class="hidden"></div>
           <p class="hint" style="margin:12px 0 0">Overlapping periods are fine: flights already in your logbook are skipped. Simulator sessions go into the FSTD columns of your logbook.</p>
         </div>
         <div class="notice" style="margin:16px 0 0;background:var(--bg);border-color:var(--line)">
-          <b>Don't see your airline?</b> Send us these and we will add your airline:
-          <ul style="margin:8px 0 10px;padding-left:20px;line-height:1.7"><li>your logbook</li><li>your roster</li><li>your flown flights exported from AIMS, eCrew or your airline's online system</li></ul>
-          <a class="btn ghost small" id="airMail" href="#">Email us your files</a> <span class="hint">Attach the files to the email before sending.</span>
+          <b>Doesn't seem to work correctly?</b> Send us your logbook, your roster and your flights exported from AIMS, eCrew or your airline's online system, and we'll make sure it works.
+          <div style="margin-top:10px"><a class="btn ghost small" id="airMail" href="#">Email us your files</a> <span class="hint">Attach the files to the email before sending.</span></div>
         </div>
       </div>
       <p class="err" id="impErr"></p>
@@ -1631,7 +1624,7 @@ $("#chkRows").addEventListener("change", e => { const k = e.target.dataset.chk; 
 $("#chkUpto").addEventListener("change", renderCheck);
 $("#chkGo").addEventListener("click", () => $("#aimsCard").scrollIntoView({ behavior: "smooth", block: "start" }));
 
-/* ---------- your data: airlines, add a flight by hand ---------- */
+/* ---------- your data: eCrew import, add a flight by hand ---------- */
 function renderYourData(){
   renderPrint(); renderPrev(); renderCheck();
 }
@@ -1642,11 +1635,6 @@ function openAddForm(){
 }
 $("#btnAddOpen").addEventListener("click", openAddForm);
 $("#addClose").addEventListener("click", () => { $("#addForm").classList.add("hidden"); $("#addOpenRow").classList.remove("hidden"); });
-$("#airlines").addEventListener("click", e => {
-  const b = e.target.closest("[data-air]"); if (!b) return;
-  const on = !b.classList.contains("on");
-  $$("#airlines .airline").forEach(x => { x.classList.toggle("on", on && x === b); $("#air_" + x.dataset.air).classList.toggle("hidden", !(on && x === b)); });
-});
 const dropAims = $("#dropAims");
 dropAims.addEventListener("click", () => $("#aimsFile").click());
 $("#aimsFile").addEventListener("change", e => { handleFiles(e.target.files); e.target.value = ""; });
@@ -1655,8 +1643,8 @@ $("#aimsFile").addEventListener("change", e => { handleFiles(e.target.files); e.
 dropAims.addEventListener("drop", e => handleFiles(e.dataTransfer.files));
 $("#airMail").addEventListener("click", e => {
   e.preventDefault();
-  const body = `Hello,\n\nPlease add my airline to CrewBase Log.\n\nAirline:\nCrew system (AIMS, eCrew, other):\n\nAttached:\n- my logbook\n- my roster\n- my flown flights exported from the crew system\n\nThank you`;
-  location.href = `mailto:${FEEDBACK_TO}?subject=${encodeURIComponent("Please add my airline to CrewBase Log")}&body=${encodeURIComponent(body)}`;
+  const body = `Hello,\n\nMy import into CrewBase Log doesn't seem to work correctly.\n\nAirline:\nCrew system (AIMS, eCrew, other):\nWhat went wrong:\n\nAttached:\n- my logbook\n- my roster\n- my flights exported from the crew system\n\nThank you`;
+  location.href = `mailto:${FEEDBACK_TO}?subject=${encodeURIComponent("CrewBase Log import doesn't work correctly")}&body=${encodeURIComponent(body)}`;
 });
 
 // one line of the EASA (FCL.050) logbook, same columns and formatting as the PDF
