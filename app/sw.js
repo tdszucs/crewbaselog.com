@@ -14,9 +14,10 @@ self.addEventListener("activate", e => {
 self.addEventListener("fetch", e => {
   const req = e.request, url = new URL(req.url);
   if (req.method !== "GET") return;
-  // the app itself: newest version from the network, the cached one when offline
+  // the app itself: newest version from the network (asking the server, not the browser's HTTP cache, so an update
+  // shows on the next open), the cached one when offline
   if (url.origin === location.origin && url.pathname.startsWith("/app/")) {
-    e.respondWith(fetch(req).then(r => { if (r.ok) { const copy = r.clone(); caches.open(VERSION).then(c => c.put(req, copy)); } return r; })
+    e.respondWith(fetch(url.href, { cache: "no-cache" }).then(r => { if (r.ok) { const copy = r.clone(); caches.open(VERSION).then(c => c.put(req, copy)); } return r; })
       .catch(() => caches.match(req, { ignoreSearch: true }).then(r => r || caches.match("./"))));
     return;
   }
