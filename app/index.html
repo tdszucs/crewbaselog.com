@@ -1733,7 +1733,7 @@ async function nextFile(){
   if (!impLog.length) return;
   if (impErrs === impLog.length) return $("#impErr").innerHTML = impLog.join("<br>");
   const ns = data.flights.filter(isSim).length, nf = data.flights.length - ns;
-  $("#impDoneLog").innerHTML = impLog.join("<br>") + `<br>Your logbook now has <b>${nf.toLocaleString()} flight${nf === 1 ? "" : "s"}</b>` + (ns ? ` and <b>${ns} simulator session${ns === 1 ? "" : "s"}</b>` : "") + `. <a href="#" data-go="import" data-scroll="#chkBox">Check the totals against your old logbook's last page</a>.`;
+  $("#impDoneLog").innerHTML = impLog.join("<br>") + `<br>Your logbook now has <b>${nf.toLocaleString()} flight${nf === 1 ? "" : "s"}</b>` + (ns ? ` and <b>${ns} simulator session${ns === 1 ? "" : "s"}</b>` : "") + `` + (restoredView() ? "." : `. <a href="#" data-go="import" data-scroll="#chkBox">Check the totals against your old logbook's last page</a>.`);
   $("#impDone").classList.remove("hidden"); $("#impDone").scrollIntoView({ behavior: "smooth", block: "start" });
   $("#chkUpto").value = ""; renderCheck();
   renderFix().then(n => { if (n) $("#impDoneLog").insertAdjacentHTML("beforeend", `<br><b style="color:var(--warn)">${n} line${n === 1 ? " looks" : "s look"} wrong.</b> <a href="#" data-go="import" data-scroll="#fixBox">Review and fix them</a>.`); });
@@ -1895,16 +1895,18 @@ function prevFromCSV(f){
   for (const k of ["se","me","mp"]) { const m = (f.remarks || "").match(new RegExp(`\\b${k}\\s+(\\d+:\\d{2})`, "i")); o[k] = m ? parseHM(m[1]) : 0; }
   return o;
 }
-// after a full backup is restored, steps 1 and 2 aren't needed: hide them (a link shows them again)
+// after a full backup is restored, steps 1 and 2, the check and troubleshooting aren't needed: hide them (a link shows them again).
+// Troubleshooting comes back with the next import, for the new lines.
 let showSteps12 = false;
+const restoredView = () => !!data?.restored && !showSteps12;
 function renderSteps(){
-  const r = !!data.restored && !showSteps12;
+  const r = restoredView();
   ["prevCard", "pastCard"].forEach(id => $("#" + id).classList.toggle("hidden", r));
   $("#bkNote").classList.toggle("hidden", !data.restored);
   if (data.restored) $("#bkNote").innerHTML = `<b style="color:var(--ok)">✓ Restored from your backup of ${fmtDate(data.restored)}.</b> ` +
-    (r ? `Steps 1 and 2 are hidden: your logbook is complete up to the backup. <a href="#" id="showSteps">Show them</a>` : `<a href="#" id="showSteps">Hide steps 1 and 2</a>`);
+    (r ? `Steps 1 and 2 and the import checks are hidden: your logbook is complete up to the backup. <a href="#" id="showSteps">Show them</a>` : `<a href="#" id="showSteps">Hide steps 1 and 2 and the checks</a>`);
 }
-document.addEventListener("click", e => { if (e.target.id === "showSteps") { e.preventDefault(); showSteps12 = !showSteps12; renderSteps(); } });
+document.addEventListener("click", e => { if (e.target.id === "showSteps") { e.preventDefault(); showSteps12 = !showSteps12; renderSteps(); renderCheck(); renderFix(); } });
 function renderPrev(){
   renderSteps();
   const P = data.prev || {};
@@ -1928,7 +1930,7 @@ $("#prevClear").addEventListener("click", () => {
 const CHK_ROWS = [["total","Total time"],["se","SE (single-pilot, single-engine)"],["me","ME (single-pilot, multi-engine)"],["mp","Multi-pilot"],["pic","PIC"],["copilot","Co-pilot"],
   ["dual","Dual"],["instructor","Instructor"],["night","Night"],["ifr","IFR"],["ldgDay","Landings day"],["ldgNight","Landings night"],["fstd","FSTD (simulator)"]];
 function renderCheck(){
-  const F = data.flights, show = F.length > 0 || hasPrev();
+  const F = data.flights, show = (F.length > 0 || hasPrev()) && !restoredView();
   $("#chkCard").classList.toggle("hidden", !show); if (!show) return;
   if (!$("#chkUpto").value && F.length) $("#chkUpto").value = F[F.length - 1].date;
   const upto = $("#chkUpto").value || "9999", L = F.filter(f => f.date <= upto), T = withPrev(statTotals(L));
@@ -2064,7 +2066,7 @@ function fixHits(c){
 async function renderFix(){
   await loadAirports();
   const any = data.flights.length > 0;
-  $("#fixCard").classList.toggle("hidden", !any && !data.lastImport);
+  $("#fixCard").classList.toggle("hidden", (!any && !data.lastImport) || (restoredView() && !data.lastImport));
   const L = data.lastImport;
   $("#undoBox").classList.toggle("hidden", !L);
   if (L) $("#undoBox").innerHTML = `<b>Last import</b> (${fmtDate(L.date)}): ${L.names.map(esc).join(", ")}: ${L.added.toLocaleString()} line${L.added === 1 ? "" : "s"} added${L.updated ? `, ${L.updated} updated` : ""}. <button class="btn ghost small" type="button" id="undoImp">Undo this import</button>`;
@@ -2397,7 +2399,7 @@ async function restoreBackup(text){
   if (!confirm(`Replace everything on this device with the backup from ${j.exported?.slice(0,10) || "file"} (${j.data.flights.length.toLocaleString()} flights)?`)) return;
   const today = logToday(), want = j.data.flights.filter(f => !(f.date > today)), future = j.data.flights.length - want.length;
   if (!store.set(key(), j.data)) return;
-  load(); data.restored = (j.exported || "").slice(0, 10) || todayISO(); save();   // load() also drops future-dated flights
+  load(); data.restored = (j.exported || "").slice(0, 10) || todayISO(); delete data.lastImport; save();   // load() also drops future-dated flights
   showSteps12 = false; fixLog = {}; $("#chkUpto").value = ""; $("#impErr").textContent = "";
   ["impDone", "mapCard", "pdfCard"].forEach(id => $("#" + id).classList.add("hidden")); $("#pdfFrame").removeAttribute("src");
   renderPrev(); renderCheck(); renderFix(); renderLogbook(); renderOverview(); renderPrint();
