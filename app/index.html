@@ -426,6 +426,9 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
         <div class="field" style="max-width:360px"><label for="pRole">I fly as</label>
           <select id="pRole"><option value="PIC">Pilot in command (captain)</option><option value="CP">Co-pilot (first officer)</option></select>
           <div class="hint">Decides whether a flight's time goes to PIC or co-pilot. Files with their own PIC/co-pilot columns (like eCrew) keep their values.</div></div>
+        <div class="field" style="max-width:360px"><label for="pApt">Airport codes</label>
+          <select id="pApt"><option value="">As in my files</option><option value="ICAO">ICAO, 4 letters (EGLL, OMAA)</option><option value="IATA">IATA, 3 letters (LHR, AUH)</option></select>
+          <div class="hint">Used for every flight you import or add, and on your PDF logbook. An airport that only has one code (closed for airlines, or a small airfield without an IATA code) keeps the code it has.</div><div class="ok-msg" id="pAptMsg"></div></div>
         <label style="display:flex;gap:8px;align-items:flex-start;font-weight:400;margin:0 0 8px"><input type="checkbox" id="pIfr" style="width:auto;margin-top:3px"> <span>Airline flights are IFR: a flight between two airports gets IFR time equal to its total time.</span></label>
         <label style="display:flex;gap:8px;align-items:flex-start;font-weight:400;margin:0 0 14px"><input type="checkbox" id="pNight" style="width:auto;margin-top:3px"> <span>Work out night time from the block times and airports (times in UTC). Night is when the sun is more than 6° below the horizon, along the route.</span></label>
         <div class="row-actions" style="margin:0"><button class="btn ghost" type="button" id="pApply">Apply to flights already in my logbook</button><span id="pApplyMsg" class="ok-msg"></span></div>
@@ -1050,9 +1053,21 @@ $("#acDefault").addEventListener("change", e => { data.profile.crew = e.target.v
 function renderProfile(){
   renderAcTypes();
   for (const [id,k] of Object.entries(PF)) $("#"+id).value = data.profile[k] || ""; $("#profSaved").textContent = "";
-  $("#pRole").value = data.profile.role || "PIC"; $("#pIfr").checked = data.profile.autoIfr !== false; $("#pNight").checked = data.profile.autoNight !== false; $("#pApplyMsg").textContent = "";
+  $("#pRole").value = data.profile.role || "PIC"; $("#pIfr").checked = data.profile.autoIfr !== false; $("#pApt").value = data.profile.apt || ""; $("#pAptMsg").textContent = ""; $("#pNight").checked = data.profile.autoNight !== false; $("#pApplyMsg").textContent = "";
 }
 $("#defCard").addEventListener("change", () => { data.profile.role = $("#pRole").value; data.profile.autoIfr = $("#pIfr").checked; data.profile.autoNight = $("#pNight").checked; save(); });
+// choosing the airport-code style converts the logbook straight away
+async function setAptStyle(pref){
+  await loadAirports(); data.profile.apt = pref; data.profile.aptAsked = true;
+  const n = pref ? aptConvert(pref) : 0; save(); renderLogbook(); renderFix(); renderCheck();
+  return pref ? (n ? `${n.toLocaleString()} airport code${n === 1 ? "" : "s"} changed to ${pref}.` : `Your logbook already uses ${pref} codes.`) : "Codes stay as they are in your files.";
+}
+$("#pApt").addEventListener("change", async e => { $("#pAptMsg").textContent = await setAptStyle(e.target.value); });
+document.addEventListener("click", async e => { const b = e.target.closest("[data-aptpick]"); if (!b) return; e.preventDefault();
+  const msg = await setAptStyle(b.dataset.aptpick); document.querySelectorAll(".aptask").forEach(x => x.innerHTML = `<span style="color:var(--ok)">✓ ${esc(msg)}</span> <a href="#" data-go="profile" data-scroll="#defCard">Change in Profile</a>`); });
+// asked once, when a logbook mixes both styles and no choice was made yet
+const aptAskHTML = () => { if (data.profile.aptAsked || data.profile.apt) return ""; const m = aptMixed(); if (!m) return "";
+  return `<div class="notice aptask" style="margin:10px 0;color:var(--ink);font-size:14px"><b>Your logbook mixes ICAO (EGLL) and IATA (LHR) airport codes.</b> Which do you log? <span style="white-space:nowrap"><button class="btn small" type="button" data-aptpick="ICAO">ICAO</button> <button class="btn ghost small" type="button" data-aptpick="IATA">IATA</button> <button class="btn ghost small" type="button" data-aptpick="">Keep both</button></span></div>`; };
 $("#pApply").addEventListener("click", async () => {
   const msg = $("#pApplyMsg"); msg.style.color = ""; msg.textContent = "Working…";
   if (!Object.keys(await loadAirports()).length) { msg.style.color = "var(--bad)"; msg.textContent = "Couldn't load the airport list. Check your connection and try again."; return; }
@@ -1495,7 +1510,21 @@ function autoFill(f){
   return r;
 }
 const valid = f => f.date && (f.from || f.to || f.total || f.fstdTime);
-const aptKey = c => (AIRPORTS && AIRPORTS[c] ? AIRPORTS[c].join(",") : c);   // AUH and OMAA: same position, same airport
+const aptKey = c => (AIRPORTS && AIRPORTS[c] ? AIRPORTS[c].join(",") : c);
+/* ICAO / IATA: the airport's other code, matched by position in the airport list (built once). An airport that only has one
+   code (closed for airlines, or a small airfield without an IATA code) keeps it. data.profile.apt: "" as in the files, "ICAO", "IATA" */
+let APT_ALT = null;
+function aptAlt(){
+  if (APT_ALT || !AIRPORTS) return APT_ALT || {};
+  const at = {}; for (const [c, v] of Object.entries(AIRPORTS)) if (!v[2]) ((at[v[0] + "," + v[1]] ||= { 3: [], 4: [] })[c.length] ||= []).push(c);
+  APT_ALT = {}; for (const g of Object.values(at)) if (g[3]?.length === 1 && g[4]?.length === 1) { APT_ALT[g[3][0]] = g[4][0]; APT_ALT[g[4][0]] = g[3][0]; }
+  return APT_ALT;
+}
+const aptStyle = (c, pref = data?.profile?.apt) => !c || !pref ? c : (pref === "ICAO" && c.length === 3) || (pref === "IATA" && c.length === 4) ? aptAlt()[c] || c : c;
+// the logbook's codes in one style; returns how many changed
+function aptConvert(pref){ let n = 0; for (const f of data.flights) for (const k of ["from", "to"]) { const v = aptStyle(f[k], pref); if (v !== f[k]) { f[k] = v; n++; } } return n; }
+// both styles in the logbook (a 4-letter code that has an IATA one, next to 3-letter codes)?
+const aptMixed = () => { const A = aptAlt(); let i3 = 0, i4 = 0; for (const f of data.flights) for (const c of [f.from, f.to]) { if (c?.length === 3 && A[c]) i3++; else if (c?.length === 4 && A[c]) i4++; if (i3 && i4) return { i3, i4 }; } return null; };   // AUH and OMAA: same position, same airport
 // one flight logged twice with different times (planned and actual, or corrected): same day and route, and the same flight
 // number, or (without numbers) block times that overlap. Back-to-back sorties (circuits, a shuttle) never overlap.
 const hm2m = t => { const [h, m] = String(t).split(":").map(Number); return h * 60 + m; };
@@ -1792,6 +1821,7 @@ async function nextFile(){
   $("#impDone").classList.remove("hidden"); $("#impDone").scrollIntoView({ behavior: "smooth", block: "start" });
   $("#chkUpto").value = ""; renderCheck();
   const gaps = importGaps(); if (gaps.length) $("#impDoneLog").insertAdjacentHTML("beforeend", `<br>${gapMsg(gaps)}`);
+  $("#impDoneLog").insertAdjacentHTML("beforeend", aptAskHTML());
   renderFix().then(n => { if (n) $("#impDoneLog").insertAdjacentHTML("beforeend", `<br><b style="color:var(--warn)">${n} line${n === 1 ? " looks" : "s look"} wrong.</b> <a href="#" data-go="import" data-scroll="#fixBox">Review and fix them</a>.`); });
 }
 // long stretches without a flight inside the period just imported (or between it and the flights before it):
@@ -1894,6 +1924,7 @@ function doImport(){
     const f = imp.flights ? { ...r } : rowToFlight(r, imp.map, fmt);
     // report lines (pilot name, totals, "Generated on") are not flights: only a dated line or a route counts as left out
     if (!valid(f)) { if (f.date || (f.from && f.to)) badRows.push(f.date ? fmtDate(f.date) : `${f.from}–${f.to}`); continue; }
+    if (!isSim(f)) { f.from = aptStyle(f.from); f.to = aptStyle(f.to); }
     if (!imp.own && !imp.flights) autoFill(f);   // a PDF logbook's own columns are what was logged
     // already there: only pick up an instructor signature the stored copy lacks. A file may hold the same line twice
     // (two identical sim sessions on one day): only as many copies as the logbook already has count as duplicates
@@ -2156,7 +2187,7 @@ async function renderFix(){
   // open by itself the first time there is something to fix
   if (left && !$("#fixBox").dataset.seen) { $("#fixBox").open = true; $("#fixBox").dataset.seen = 1; }
   if (fixEditCtx) lbCloseEdit();
-  $("#fixList").innerHTML = okMsg(left) + groups.map(([c, H, G]) => {
+  $("#fixList").innerHTML = aptAskHTML() + okMsg(left) + groups.map(([c, H, G]) => {
     total += H.length;
     const rows = H.slice(0, 200).map(f => {
       const i = data.flights.indexOf(f), sg = c.roles ? suggestRole(f) : null;
@@ -2402,6 +2433,7 @@ function readFlightForm(pre, base = {}){
   const g = k => $("#" + pre + k).value.trim(), bad = [], f = { ...base };
   f.date = g("date"); if (!/^\d{4}-\d{2}-\d{2}$/.test(f.date)) bad.push("date");
   for (const k of ["flightNo","from","to","reg"]) f[k] = g(k).toUpperCase();
+  f.from = aptStyle(f.from); f.to = aptStyle(f.to);
   f.acType = acTypeName(g("acType")); f.picName = g("picName"); f.remarks = g("remarks");
   for (const k of LB_TIME) { f[k] = parseTime(g(k)); if (g(k) && !f[k]) bad.push(k); }
   for (const k of LB_DUR) { f[k] = parseDur(g(k)); if (g(k) && !f[k] && !/^0*[:.]?0*$/.test(g(k))) bad.push(k); }
@@ -2511,7 +2543,7 @@ async function restoreBackup(text){
     (gaps.length ? `<br>${gapMsg(gaps)}` : "") +
     (ok ? `<br><a href="#" data-go="import" data-scroll="#aimsCard">Next: add your new flights in step 3</a>` : ""), gaps.length > 0);
   if (ok && !$('[data-p="import"]').classList.contains("hidden")) $("#aimsCard").scrollIntoView({ behavior: "smooth", block: "start" });
-  $("#impErr").innerHTML = (ok ? `<span style="color:var(--ok)">Backup restored: ${F.length.toLocaleString()} lines, matching the backup file.</span>` : "Backup restored, but it doesn't fully match the file: see the message.") + (gaps.length ? `<br>${gapMsg(gaps)}` : "");
+  $("#impErr").innerHTML = (ok ? `<span style="color:var(--ok)">Backup restored: ${F.length.toLocaleString()} lines, matching the backup file.</span>` : "Backup restored, but it doesn't fully match the file: see the message.") + (gaps.length ? `<br>${gapMsg(gaps)}` : "") + aptAskHTML();
 }
 function restoreToast(ok, html, stay){
   let t = $("#restToast");
