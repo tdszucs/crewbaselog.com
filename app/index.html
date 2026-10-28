@@ -1345,11 +1345,16 @@ function rowToFlight(r, map, fmt){
 }
 const isSim = f => !!f.fstdTime && !f.total;
 
-/* airport positions (IATA and ICAO codes, OurAirports, public domain), loaded when first needed */
+/* airport positions (IATA and ICAO codes, OurAirports, public domain), loaded when first needed.
+   airfields.json: small airfields with an ICAO code only (LHBS, EDFZ...); marked [lat, lon, 1] */
 let AIRPORTS = null;
+const isAirfield = c => !!AIRPORTS?.[c]?.[2];
 async function loadAirports(){
   if (AIRPORTS) return AIRPORTS;
-  try { const r = await fetch("airports.json"); AIRPORTS = r.ok ? await r.json() : {}; } catch (e) { AIRPORTS = {}; }
+  const get = u => fetch(u).then(r => r.ok ? r.json() : {}).catch(() => ({}));
+  const [big, small] = await Promise.all([get("airports.json"), get("airfields.json")]);
+  for (const [c, v] of Object.entries(small)) big[c] ||= [v[0], v[1], 1];
+  AIRPORTS = big;
   const got = AIRPORTS; if (!Object.keys(got).length) AIRPORTS = null; // try again next time
   return got;
 }
@@ -1386,7 +1391,7 @@ function autoFill(f){
   if (isSim(f) || !f.total) return 0;
   const P = data.profile; let r = 0;
   if (!f.pic && !f.copilot && !f.dual && !f.instructor) { f[P.role === "CP" ? "copilot" : "pic"] = f.total; r |= 1; }
-  if (P.autoIfr !== false && !f.ifr && AIRPORTS?.[f.from] && AIRPORTS?.[f.to]) { f.ifr = f.total; r |= 2; }
+  if (P.autoIfr !== false && !f.ifr && AIRPORTS?.[f.from] && AIRPORTS?.[f.to] && !isAirfield(f.from) && !isAirfield(f.to)) { f.ifr = f.total; r |= 2; }
   if (P.autoNight !== false && !f.night) { const n = nightMinutes(f); if (n) { f.night = n; r |= 4; } }
   return r;
 }

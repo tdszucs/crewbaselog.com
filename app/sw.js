@@ -1,7 +1,7 @@
 // CrewBase Log service worker: lets the app open offline and be installed on the Home Screen.
 // The logbook itself is in the browser's storage, not here; this only caches the app's files.
-const VERSION = "cbl-v1";
-const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./airports.json", "./icons/icon-192.png", "./icons/icon-512.png", "./icons/apple-touch-icon.png"];
+const VERSION = "cbl-v2";
+const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./airports.json", "./airfields.json", "./icons/icon-192.png", "./icons/icon-512.png", "./icons/apple-touch-icon.png"];
 // libraries and fonts loaded from CDNs (versioned URLs, so a cached copy stays valid)
 const CDN = ["cdnjs.cloudflare.com", "cdn.jsdelivr.net", "fonts.googleapis.com", "fonts.gstatic.com"];
 
