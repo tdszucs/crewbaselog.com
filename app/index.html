@@ -92,6 +92,8 @@ h2{font-size:24px;letter-spacing:-.02em;margin:0 0 6px}
 .lbline td{font-family:"JetBrains Mono",monospace;height:24px}
 .lbgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:0 12px}
 .lbgrid .field{margin-bottom:10px;min-width:0}
+.pvgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0 14px}
+@media (max-width:640px){ .pvgrid{grid-template-columns:repeat(2,minmax(0,1fr))} }
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;padding:3px;margin:0 0 14px;background:var(--bg)}
 .seg label{display:flex;align-items:center;gap:6px;margin:0;padding:6px 14px;border-radius:7px;font-size:14px;font-weight:500;cursor:pointer;color:var(--muted)}
 .seg input{position:absolute;opacity:0;width:1px;height:1px}
@@ -279,7 +281,7 @@ td.r,th.r{text-align:right}
         <a class="fbox fstart" href="#" data-go="profile"><span class="fn">0</span><svg class="fic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg><div><b>First, set up your profile</b><small>Name, licence, signature and expiry dates. They go on the cover and every page of your PDF logbook.</small></div></a>
         <div class="flowgrid">
           <div class="fcol">
-            <div class="fbox"><span class="fn">1</span><svg class="fic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v17H6.5A2.5 2.5 0 0 0 4 21.5z"/><path d="M4 21.5A2.5 2.5 0 0 1 6.5 19H20v3H6.5A2.5 2.5 0 0 1 4 21.5zM9 7h7M9 11h5"/></svg><div><b>Add your old logbook</b><small>CSV or Excel from another app, your own sheet, or the CrewBase Log CSV you saved last time</small></div></div>
+            <div class="fbox"><span class="fn">1</span><svg class="fic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v17H6.5A2.5 2.5 0 0 0 4 21.5z"/><path d="M4 21.5A2.5 2.5 0 0 1 6.5 19H20v3H6.5A2.5 2.5 0 0 1 4 21.5zM9 7h7M9 11h5"/></svg><div><b>Add your old logbook</b><small>CSV or Excel from another app or your own sheet, an EASA PDF logbook, or the CrewBase Log CSV you saved last time</small></div></div>
             <div class="fbox"><span class="fn">2</span><svg class="fic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 16l20-7-6 13-4-5-5 3v-5z"/></svg><div><b>Add your AIMS / eCrew file</b><small>The Pilot LogBook report you download from your airline's crew system</small></div></div>
           </div>
           <div class="farr" aria-hidden="true"><svg viewBox="0 0 40 16"><path d="M2 8h32M28 2l7 6-7 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
@@ -392,10 +394,15 @@ td.r,th.r{text-align:right}
 
       <div class="card">
         <h3><span class="stepn">1</span>Import your past logbook</h3>
-        <p class="hint" style="margin:0 0 14px;font-size:14px">Most pilots start with a logbook from before. Upload it as CSV or Excel: the CrewBase Log CSV you downloaded last time, or an export from another logbook app or your own spreadsheet.</p>
-        <div class="drop" id="drop"><b>Drop your past logbook here</b><br><span class="hint">or click to choose files · .csv, .txt, .xlsx</span>
-          <input type="file" id="impFile" accept=".csv,.txt,.tsv,.xlsx,.xls" multiple class="hidden"></div>
+        <p class="hint" style="margin:0 0 14px;font-size:14px">Most pilots start with a logbook from before. Upload the CrewBase Log CSV you downloaded last time, an export from another logbook app or your own spreadsheet (CSV or Excel), or a PDF logbook in the EASA layout made by a logbook app. Scanned paper pages can't be read; enter their totals under previous experience instead.</p>
+        <div class="drop" id="drop"><b>Drop your past logbook here</b><br><span class="hint">or click to choose files · .csv, .xlsx, .pdf</span>
+          <input type="file" id="impFile" accept=".csv,.txt,.tsv,.xlsx,.xls,.pdf" multiple class="hidden"></div>
         <div class="row-actions" style="margin-top:12px;justify-content:center"><a href="#" id="dlSample" class="hint">Download a sample CSV to try</a></div>
+        <details id="prevBox" style="margin-top:14px"><summary style="cursor:pointer;font-size:15px;font-weight:600">Previous experience (brought forward)</summary>
+          <p class="hint" style="margin:10px 0 14px;font-size:14px">Hours from logbooks you don't import flight by flight, such as an old paper logbook: copy the totals from its last page. They are added to your statistics and carried into "total from previous pages" on page 1 of your PDF logbook. Times as H:MM. <span id="prevNote"></span></p>
+          <div class="pvgrid" id="prevGrid"></div>
+          <div class="row-actions" style="margin:4px 0 0"><button class="btn ghost small" type="button" id="prevClear">Clear</button><span class="ok-msg" id="prevMsg"></span><span class="err" id="prevErr" style="margin:0"></span></div>
+        </details>
       </div>
 
       <div class="card">
@@ -468,7 +475,7 @@ td.r,th.r{text-align:right}
                 <div class="field"><label for="prRows">Lines per page</label><select id="prRows"><option>14</option><option selected>18</option><option>24</option></select></div>
                 <p class="hint" style="margin:0 0 14px">Single-pilot (SE / ME) and multi-pilot columns follow each aircraft type: <a href="#" data-go="profile" data-scroll="#acSection">set them in Profile</a>.</p>
                 <div class="field"><label for="prPaper">Paper size</label><select id="prPaper"><option value="auto">Format default</option><option value="A4">A4</option><option value="LETTER">US Letter</option></select></div>
-                <div class="field"><label for="prBF">Brought forward (hh:mm, optional)</label><input id="prBF" class="mono" placeholder="e.g. 3250:15"><div class="hint">Total time from a paper logbook not imported here.</div></div>
+                <p class="hint" style="margin:0 0 14px">Hours from earlier logbooks: <a href="#" data-go="import" data-scroll="#prevBox">previous experience</a>.</p>
                 <label style="display:flex;gap:8px;align-items:center;font-weight:400;margin:2px 0 4px"><input type="checkbox" id="prCover" checked style="width:auto"> Include cover page</label>
                 <label style="display:flex;gap:8px;align-items:center;font-weight:400;margin:0"><input type="checkbox" id="prSig" checked style="width:auto"> Sign each page with my saved signature</label>
               </div>
@@ -1110,7 +1117,7 @@ function iso(y,m,d){ if (y < 100) y += y > 70 ? 1900 : 2000; if (m<1||m>12||d<1|
 function parseTime(s){ s = String(s||"").trim(); const m = s.match(/(\d{1,2}):?(\d{2})(?!\d)/); if (!m) return ""; const h=+m[1], mi=+m[2]; return h<24&&mi<60 ? String(h).padStart(2,"0")+":"+m[2] : ""; }
 function parseDur(s){
   s = String(s||"").trim(); if (!s) return 0;
-  let m = s.match(/^(\d{1,4}):(\d{2})(?::\d{2})?$/); if (m) return +m[1]*60 + +m[2];
+  let m = s.match(/^(\d{1,5}):(\d{2})(?::\d{2})?$/); if (m) return +m[1]*60 + +m[2];
   m = s.match(/^(\d{1,4})\.(\d+)$/); if (m) return Math.round(parseFloat(s)*60);
   m = s.match(/^\d{3,4}$/); if (m) return Math.floor(+s/100)*60 + (+s%100);
   if (/^\d{1,2}$/.test(s)) return +s*60;
@@ -1193,6 +1200,139 @@ function autoFill(f){
 const valid = f => f.date && (f.from || f.to || f.total || f.fstdTime);
 const dupKey = f => [f.date, f.from, f.to, f.out || f.flightNo, f.fstdTime || ""].join("|");
 
+/* A past logbook printed in the EASA (FCL.050) layout, as a PDF with text (not a scan): each spread is a left page
+   (date, departure, arrival, aircraft, SE / ME / multi-pilot, total, PIC name, landings) and a right page (night, IFR,
+   pilot function times, FSTD session, remarks), lines matched by height. Columns are found from the printed headings;
+   times may be printed as "3 21", "58" (minutes) or "3:21". -> { flights, prev, check } or null */
+const EASA_PREV = ["se","me","mp","total","ldgDay","ldgNight","night","ifr","pic","copilot","dual","instructor","fstd"];
+async function parseEasaLogbookPDF(buf){
+  if (!window.pdfjsLib) { await loadScript(PDFJS + "pdf.min.js"); pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS + "pdf.worker.min.js"; }
+  const doc = await pdfjsLib.getDocument({ data: new Uint8Array(buf) }).promise, pages = [];
+  for (let n = 1; n <= doc.numPages; n++) {
+    const pg = await doc.getPage(n), h = pg.getViewport({ scale: 1 }).height, W = [];
+    for (const it of (await pg.getTextContent()).items) {
+      const str = it.str; if (!str.trim()) continue;
+      const re = /\S+/g; let m;
+      while ((m = re.exec(str))) W.push({ s: m[0], x: it.transform[4] + it.width * m.index / str.length, w: it.width * m[0].length / str.length, y: h - it.transform[5] });
+    }
+    W.forEach(w => w.c = w.x + w.w / 2);
+    const has = s => W.some(w => w.s === s);
+    pages.push({ W, kind: has("DEPARTURE") && has("ARRIVAL") ? "L" : (has("REMARKS") || has("FUNCTION")) && has("NIGHT") ? "R" : "" });
+  }
+  // the printed heading words: centre of a word (or of a word and the next one on its line)
+  const head = (W, s, next) => { const a = W.find(w => w.s === s && (!next || W.some(v => v.s === next && Math.abs(v.y - w.y) < 2 && v.x > w.x && v.x - (w.x + w.w) < 8)));
+    if (!a) return null; const b = next && W.find(v => v.s === next && Math.abs(v.y - a.y) < 2 && v.x > a.x && v.x - (a.x + a.w) < 8); return { c: b ? (a.x + b.x + b.w) / 2 : a.c, y: a.y, x: a.x, r: b ? b.x + b.w : a.x + a.w }; };
+  // centre of a two-word heading such as "TOTAL TIME"
+  const pc = (W, a) => { const b = a && W.find(v => v !== a && Math.abs(v.y - a.y) < 2 && v.x > a.x && v.x - (a.x + a.w) < 8); return a && { c: b ? (a.x + b.x + b.w) / 2 : a.c, x: a.x, y: a.y }; };
+  const num = s => /^\d{1,2}$/.test(s), clock = s => /^\d{1,2}:\d{2}$/.test(s);
+  // a time from the words in one cell: "3 21", "58", "3:21", "1,212:41"; minutes stacked above hours in some total rows
+  const dur = ws => {
+    const t = ws.filter(w => /^[\d,]+(:\d{2})?$/.test(w.s)); if (!t.length) return 0;
+    const hm = t.find(w => w.s.includes(":")); if (hm) { const [h, m] = hm.s.replace(/,/g, "").split(":"); return +h * 60 + +m; }
+    if (t.length === 1) return +t[0].s.replace(/,/g, "");
+    const [a, b] = Math.abs(t[0].y - t[1].y) > 3 ? [...t].sort((p, q) => q.y - p.y) : [...t].sort((p, q) => p.x - q.x);   // hours below / left, minutes above / right
+    return +a.s.replace(/,/g, "") * 60 + +b.s;
+  };
+  const cnt = ws => ws.filter(w => /^\d+$/.test(w.s)).reduce((s, w) => s + +w.s, 0);
+  const out = { flights: [], prev: null, check: null, classes: {} };
+  let spreads = 0;
+  for (let i = 0; i < pages.length; i++) {
+    if (pages[i].kind !== "L") continue;
+    const L = pages[i].W, R = pages[i + 1]?.kind === "R" ? pages[i + 1].W : [];
+    // left page columns
+    const tt = L.filter(w => w.s === "TOTAL").sort((a, b) => a.y - b.y)[0];
+    const H = { date: head(L, "DATE"), mk: head(L, "MAKE,") || head(L, "AIRCRAFT"), reg: head(L, "REGISTRATION"), se: head(L, "SE"), me: head(L, "ME"),
+      mp: head(L, "MULTI-PILOT") || head(L, "MULTI"), total: pc(L, tt), name: head(L, "NAME"), ldg: head(L, "LANDINGS"), to: head(L, "TAKEOFFS") || head(L, "TAKE-OFFS") };
+    const places = L.filter(w => w.s === "PLACE").sort((a, b) => a.x - b.x), times = L.filter(w => w.s === "TIME" && places[0] && Math.abs(w.y - places[0].y) < 2).sort((a, b) => a.x - b.x);
+    if (!H.date || places.length < 2 || times.length < 2 || !H.total) continue;
+    spreads++;
+    const labels = { this: L.find(w => w.s === "THIS"), prev: L.find(w => w.s === "PREVIOUS"), all: L.filter(w => w.s === "TOTAL" && L.some(v => v.s === "TIME" && Math.abs(v.y - w.y) < 2 && v.x > w.x && v.x - w.x < 40)).sort((a, b) => b.y - a.y)[0] };
+    const top = Math.max(...places.map(w => w.y)) + 6, bottom = Math.min(...[labels.this, labels.prev, labels.all].filter(Boolean).map(w => w.y)) - 14;
+    const mid = (a, b) => (a + b) / 2;
+    const lcol = [["date", -1e9, mid(H.date.c, places[0].c)], ["from", mid(H.date.c, places[0].c), mid(places[0].c, times[0].c)], ["out", mid(places[0].c, times[0].c), mid(times[0].c, places[1].c)],
+      ["to", mid(times[0].c, places[1].c), mid(places[1].c, times[1].c)], ["in", mid(places[1].c, times[1].c), mid(times[1].c, H.mk ? H.mk.c : times[1].c + 60)]];
+    const nums = [H.se && ["se", H.se], H.me && ["me", H.me], H.mp && ["mp", H.mp], ["total", H.total]].filter(Boolean);
+    lcol.push(["acType", lcol[4][2], H.reg ? mid(H.mk.c, H.reg.c) : 1e9]);
+    if (H.reg) lcol.push(["reg", lcol[5][2], mid(H.reg.c, nums[0][1].c)]);
+    nums.forEach(([k, h], j) => lcol.push([k, j ? mid(nums[j - 1][1].c, h.c) : lcol[lcol.length - 1][2], nums[j + 1] ? mid(h.c, nums[j + 1][1].c) : h.c + 22]));
+    const lHi = lcol[lcol.length - 1][2], toX = H.to ? H.to.x - 2 : H.ldg ? H.ldg.x - 2 : 1e9, ldgX = H.ldg ? H.ldg.x - 3 : 1e9, ldgMid = H.ldg ? H.ldg.c : 1e9;
+    const lcell = w => w.x < lHi ? lcol.find(([, a, b]) => w.c >= a && w.c < b)?.[0] : w.x < toX ? (/^\d/.test(w.s) ? "" : "picName") : w.x >= ldgX ? (w.c < ldgMid ? "ldgDay" : "ldgNight") : "";
+    // right page columns
+    const rh = { night: head(R, "NIGHT"), ifr: head(R, "IFR"), pic: head(R, "PILOT-IN-") || head(R, "PIC"), copilot: head(R, "CO-PILOT"), dual: head(R, "DUAL"), instructor: head(R, "INSTRUCTOR") };
+    const sdate = R.find(w => w.s === "DATE"), stype = R.find(w => w.s === "TYPE" && sdate && Math.abs(w.y - sdate.y) < 6 && w.x > sdate.x),
+      stt = R.filter(w => w.s === "TOTAL" && sdate && w.x > sdate.x).sort((a, b) => Math.abs(a.y - sdate.y) - Math.abs(b.y - sdate.y))[0], stime = pc(R, stt);
+    const rk = Object.keys(rh).filter(k => rh[k]), rcol = [];
+    rk.forEach((k, j) => rcol.push([k, j ? mid(rh[rk[j - 1]].c, rh[k].c) : -1e9, rk[j + 1] ? mid(rh[k].c, rh[rk[j + 1]].c) : sdate ? mid(rh[k].c, sdate.c) : rh[k].c + 40]));
+    if (sdate) rcol.push(["simDate", rcol.length ? rcol[rcol.length - 1][2] : -1e9, stype ? mid(sdate.c, stype.c) : sdate.c + 30]);
+    if (stype && stime) rcol.push(["fstdType", rcol[rcol.length - 1][2], stime.c - 18], ["fstdTime", stime.c - 18, stime.c + 19]);
+    const remX = rcol.length ? rcol[rcol.length - 1][2] : 1e9;
+    const isDate = s => /^\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}$/.test(s);
+    const rcell = w => { if (w.x >= remX - 1) return "remarks"; const k = rcol.find(([, a, b]) => w.c >= a && w.c < b)?.[0]; return k === "simDate" && !isDate(w.s) ? "fstdType" : k; };
+    // lines: anchored on the dates in the DATE columns
+    const anchors = [...L.filter(w => w.y > top && w.y < bottom && isDate(w.s) && lcell(w) === "date").map(w => ({ y: w.y, side: "L" })),
+      ...R.filter(w => w.y > top && w.y < bottom && isDate(w.s) && rcell(w) === "simDate").map(w => ({ y: w.y, side: "R" }))].sort((a, b) => a.y - b.y);
+    const lines = []; for (const a of anchors) { const l = lines.find(l => Math.abs(l.y - a.y) < 4); if (!l) lines.push({ y: a.y, L: {}, R: {} }); }
+    const put = (W, cell, side) => { for (const w of W) { if (w.y <= top || w.y >= bottom) continue; const k = cell(w); if (!k) continue;
+      const l = lines.reduce((b, l) => Math.abs(l.y - w.y) < Math.abs(b.y - w.y) ? l : b, lines[0]); if (!l || Math.abs(l.y - w.y) > 7) continue; (l[side][k] ||= []).push(w); } };
+    put(L, lcell, "L"); put(R, rcell, "R");
+    const txt = ws => (ws || []).sort((a, b) => a.y - b.y > 2 ? 1 : b.y - a.y > 2 ? -1 : a.x - b.x).map(w => w.s).join(" ").trim();
+    const date = s => { const m = s && s.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})$/); return m ? iso(+m[3], +m[2], +m[1]) : ""; };
+    for (const { L: a, R: b } of lines) {
+      const remarks = txt(b.remarks);
+      if (a.date) {
+        const f = { date: date(txt(a.date)), flightNo: "", from: txt(a.from).toUpperCase(), to: txt(a.to).toUpperCase(), out: (a.out || []).map(w => w.s).find(clock) || "", off: "", on: "",
+          in: (a.in || []).map(w => w.s).find(clock) || "", acType: txt(a.acType).toUpperCase(), reg: txt(a.reg).toUpperCase(), picName: txt(a.picName),
+          total: dur(a.total || []), pic: dur(b.pic || []), copilot: dur(b.copilot || []), dual: dur(b.dual || []), instructor: dur(b.instructor || []),
+          night: dur(b.night || []), ifr: dur(b.ifr || []), ldgDay: cnt(a.ldgDay || []), ldgNight: cnt(a.ldgNight || []), remarks };
+        if (f.out.length === 4) f.out = "0" + f.out; if (f.in.length === 4) f.in = "0" + f.in;
+        if (!f.total) f.total = dur(a.mp || []) || dur(a.me || []) || dur(a.se || []);
+        if (/^self$/i.test(f.picName)) f.picName = "SELF";
+        const cls = a.mp && dur(a.mp) ? "MP" : a.me ? "SPME" : a.se ? "SPSE" : "";
+        if (cls && f.acType) out.classes[f.acType] ||= cls;
+        if (f.date) out.flights.push(f);
+      }
+      if (b.simDate && b.fstdTime) {
+        const s = { date: date(txt(b.simDate)), flightNo: "", from: "", to: "", out: "", off: "", on: "", in: "", acType: "", reg: "", picName: "",
+          total: 0, pic: 0, copilot: 0, dual: 0, instructor: 0, night: 0, ifr: 0, ldgDay: 0, ldgNight: 0, fstdType: txt(b.fstdType).toUpperCase(), fstdTime: dur(b.fstdTime), remarks: a.date ? "" : remarks };
+        if (s.date && s.fstdTime) out.flights.push(s);
+      }
+    }
+    // the total rows at the foot of the page: values sit just above their label
+    const totals = lab => { if (!lab) return null; const o = {}, inRow = w => w.y > lab.y - 13 && w.y < lab.y + 3 && /^[\d,]+(:\d{2})?$/.test(w.s);
+      const g = {}; for (const w of L.filter(inRow)) { const k = lcell(w); if (k) (g[k] ||= []).push(w); } for (const w of R.filter(inRow)) { const k = rcell(w); if (k) (g[k] ||= []).push(w); }
+      for (const k of EASA_PREV) { const c = k === "fstd" ? g.fstdTime : g[k]; o[k] = !c ? 0 : k.startsWith("ldg") ? cnt(c) : dur(c); } return o; };
+    if (spreads === 1) out.prev = totals(labels.prev);
+    out.check = totals(labels.all) || out.check;
+  }
+  if (!spreads) return null;
+  if (out.prev && !Object.values(out.prev).some(Boolean)) out.prev = null;
+  return out;
+}
+
+// does a logbook PDF add up? flights read plus brought forward, against the PDF's own last TOTAL TIME row
+const PREV_LABEL = { total: "Total time", se: "SE (single-pilot)", me: "ME (single-pilot)", mp: "Multi-pilot", pic: "PIC", copilot: "Co-pilot", dual: "Dual", instructor: "Instructor",
+  night: "Night", ifr: "IFR", ldgDay: "Landings day", ldgNight: "Landings night", fstd: "FSTD (simulator)" };
+function easaCheck(r){
+  if (!r.check) return "";
+  const sum = Object.fromEntries(EASA_PREV.map(k => [k, r.prev?.[k] || 0]));
+  for (const f of r.flights) {
+    if (isSim(f)) { sum.fstd += f.fstdTime; continue; }
+    for (const k of ["total","pic","copilot","dual","instructor","night","ifr","ldgDay","ldgNight"]) sum[k] += f[k] || 0;
+    const c = r.classes[f.acType] || acClass(f.acType); sum[{ SPSE: "se", SPME: "me", MP: "mp" }[c]] += f.total || 0;
+  }
+  const v = (k, m) => k.startsWith("ldg") ? m.toLocaleString() : fmtMin(m);
+  const off = EASA_PREV.filter(k => sum[k] !== r.check[k]);
+  return !off.length ? `Checked against the PDF's own totals: every column matches (total time ${v("total", r.check.total)}).`
+    : `<span style="color:var(--bad)">Doesn't match the PDF's own totals in ${off.map(k => `${PREV_LABEL[k]} (read ${v(k, sum[k])}, PDF says ${v(k, r.check[k])})`).join(", ")}.</span> Check those flights on the Logbook tab.`;
+}
+async function readLogbookPDF(f){
+  let r;
+  try { r = await parseEasaLogbookPDF(await f.arrayBuffer()); } catch (x) { console.warn(x); return "Couldn't read that PDF."; }
+  if (!r) return "This PDF isn't a logbook we can read yet. We read PDF logbooks in the EASA layout (DATE, DEPARTURE, ARRIVAL ... on the left page, NIGHT, IFR, PILOT FUNCTION TIME ... on the right). Export it as CSV or Excel, or email it to us so we can add it.";
+  if (!r.flights.length) return "No flights found in this PDF. Is it a scan? Scanned pages have no text to read: enter their totals under previous experience instead.";
+  imp = { name: f.name, flights: r.flights, auto: true, pdf: r };
+}
+
 /* several files in one go (e.g. last time's CrewBase Log CSV + a new eCrew export):
    our own CSV imports straight away, other files go through the column check one by one */
 let impQueue = [], impLog = [], impErrs = 0;
@@ -1219,6 +1359,7 @@ async function handleFile(f){
   await loadAirports();
   $("#impResult").textContent = "";
   if (f.size > 20e6) return "That file is over 20 MB. Try exporting a smaller date range.";
+  if (new TextDecoder().decode(await f.slice(0, 5).arrayBuffer()) === "%PDF-") return readLogbookPDF(f);
   let rows;
   try { rows = await readFile(f); } catch (x) { return "Couldn't read that file. Is it a CSV or Excel export?"; }
   if (rows.length < 2) return "The file looks empty.";
@@ -1256,20 +1397,33 @@ $("#mapGrid").addEventListener("change", e => { const k = e.target.dataset.k; im
 $("#mDateFmt").addEventListener("change", renderPreview);
 $("#btnCancelImp").addEventListener("click", () => { impLog.push(`<b>${esc(imp.name)}</b>: skipped`); imp = null; $("#mapCard").classList.add("hidden"); nextFile(); });
 function doImport(){
-  const fmt = imp.fmt || (imp.own ? "YMD" : $("#mDateFmt").value), existing = new Map(data.flights.map(f => [dupKey(f), f]));
-  let added = 0, dup = 0, bad = 0;
-  for (const r of imp.rows) {
-    const f = rowToFlight(r, imp.map, fmt);
+  const fmt = imp.fmt || (imp.own ? "YMD" : $("#mDateFmt").value), existing = new Map(), inFile = new Map();
+  for (const f of data.flights) { const k = dupKey(f); existing.set(k, [...(existing.get(k) || []), f]); }
+  let added = 0, dup = 0, bad = 0, bf = "";
+  for (const r of imp.flights || imp.rows) {
+    if (imp.own && /^brought forward$/i.test(String(r[imp.map.flightNo] || "").trim())) { data.prev = prevFromCSV(rowToFlight(r, imp.map, fmt)); bf = " (and your previous experience)"; continue; }
+    const f = imp.flights ? { ...r } : rowToFlight(r, imp.map, fmt);
     if (!valid(f)) { bad++; continue; }
-    if (!imp.own) autoFill(f);
-    // already there: only pick up an instructor signature the stored copy lacks
-    const k = dupKey(f), had = existing.get(k); if (had) { if (f.remarkSig && !had.remarkSig) had.remarkSig = f.remarkSig; dup++; continue; }
-    existing.set(k, f); data.flights.push(f); added++;
+    if (!imp.own && !imp.flights) autoFill(f);   // a PDF logbook's own columns are what was logged
+    // already there: only pick up an instructor signature the stored copy lacks. A file may hold the same line twice
+    // (two identical sim sessions on one day): only as many copies as the logbook already has count as duplicates
+    const k = dupKey(f), n = inFile.get(k) || 0, had = existing.get(k)?.[n]; inFile.set(k, n + 1);
+    if (had) { if (f.remarkSig && !had.remarkSig) had.remarkSig = f.remarkSig; dup++; continue; }
+    data.flights.push(f); added++;
   }
   data.flights.sort((a,b) => (a.date+a.out).localeCompare(b.date+b.out));
-  if (!imp.own && (added || dup)) data.templates[imp.sig] = Object.fromEntries(Object.entries(imp.map).filter(([,v]) => v !== undefined));
+  if (imp.pdf) {
+    for (const [t, c] of Object.entries(imp.pdf.classes)) if (!(data.acTypes || {})[t] && acClass(t) !== c) (data.acTypes ||= {})[t] = c;
+    if (imp.pdf.prev) data.prev = imp.pdf.prev;
+  }
+  if (!imp.own && !imp.flights && (added || dup)) data.templates[imp.sig] = Object.fromEntries(Object.entries(imp.map).filter(([,v]) => v !== undefined));
   if (!save()) return false;
-  impLog.push(`<b>${esc(imp.name)}</b>: ${added} new entr${added===1?"y":"ies"}` + (dup ? `, ${dup} already in your logbook` : "") + (bad ? `, ${bad} rows without a date/route ignored` : ""));
+  impLog.push(`<b>${esc(imp.name)}</b>: ${added.toLocaleString()} new entr${added===1?"y":"ies"}${bf}` + (dup ? `, ${dup.toLocaleString()} already in your logbook` : "") + (bad ? `, ${bad} rows without a date/route ignored` : ""));
+  if (imp.pdf) {
+    if (imp.pdf.prev) impLog.push(`Brought forward on its first page, from an earlier logbook: <b>${fmtMin(imp.pdf.prev.total)}</b> total time. Saved as your <a href="#" data-go="import" data-scroll="#prevBox">previous experience</a>.`);
+    impLog.push(easaCheck(imp.pdf));
+  }
+  renderPrev();
   return true;
 }
 $("#btnImport").addEventListener("click", () => {
@@ -1294,7 +1448,8 @@ const LOG_DUR = new Set(["total","pic","copilot","dual","instructor","night","if
 function logbookCSV(){
   const cell = v => /[",\r\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
   const val = (f, k) => LOG_DUR.has(k) ? (f[k] ? fmtMin(f[k]) : "") : k.startsWith("ldg") ? (f[k] ? String(f[k]) : "") : String(f[k] ?? "");
-  return [LOG_COLS.map(c => c[1]), ...data.flights.map(f => LOG_COLS.map(([k]) => val(f, k)))].map(r => r.map(cell).join(",")).join("\r\n") + "\r\n";
+  const P = data.prev, bf = hasPrev() ? [{ flightNo: "Brought forward", ...P, fstdTime: P.fstd, remarks: `SE ${fmtMin(P.se)}; ME ${fmtMin(P.me)}; MP ${fmtMin(P.mp)}` }] : [];
+  return [LOG_COLS.map(c => c[1]), ...[...bf, ...data.flights].map(f => LOG_COLS.map(([k]) => val(f, k)))].map(r => r.map(cell).join(",")).join("\r\n") + "\r\n";
 }
 document.addEventListener("click", e => {
   if (!e.target.closest("[data-csv]")) return; e.preventDefault();
@@ -1305,9 +1460,35 @@ document.addEventListener("click", e => {
 // a short fingerprint of the flights: a backup reminder shows when it differs from the last download
 const flightsSig = () => { const F = data.flights; let h = 0; const t = JSON.stringify(F); for (let i = 0; i < t.length; i++) h = (h * 31 + t.charCodeAt(i)) | 0; return F.length + ":" + h; };
 function markBackedUp(){ data.backup = { sig: flightsSig(), date: todayISO() }; save(); if (!$("[data-p=overview]").classList.contains("hidden")) renderOverview(); }
+/* ---------- previous experience (brought forward): data.prev, minutes and landings ---------- */
+const hasPrev = () => !!data.prev && EASA_PREV.some(k => data.prev[k]);
+function prevFromCSV(f){
+  const o = { total: f.total, pic: f.pic, copilot: f.copilot, dual: f.dual, instructor: f.instructor, night: f.night, ifr: f.ifr, ldgDay: f.ldgDay, ldgNight: f.ldgNight, fstd: f.fstdTime || 0 };
+  for (const k of ["se","me","mp"]) { const m = (f.remarks || "").match(new RegExp(`\\b${k}\\s+(\\d+:\\d{2})`, "i")); o[k] = m ? parseHM(m[1]) : 0; }
+  return o;
+}
+function renderPrev(){
+  const P = data.prev || {};
+  $("#prevGrid").innerHTML = ["total","pic","copilot","dual","instructor","night","ifr","se","me","mp","ldgDay","ldgNight","fstd"].map(k =>
+    `<div class="field"><label for="pv_${k}">${PREV_LABEL[k]}</label><input id="pv_${k}" data-pv="${k}" class="mono" ${k.startsWith("ldg") ? 'type="number" min="0" step="1" placeholder="0"' : 'placeholder="0:00"'} value="${P[k] ? (k.startsWith("ldg") ? P[k] : fmtMin(P[k])) : ""}"></div>`).join("");
+  $("#prevNote").textContent = hasPrev() ? `Now: ${fmtMin(P.total)} total time brought forward.` : "";
+  if (hasPrev()) $("#prevBox").open = true;
+}
+$("#prevGrid").addEventListener("change", e => {
+  const k = e.target.dataset.pv; if (!k) return;
+  const v = k.startsWith("ldg") ? Math.max(0, Math.round(+e.target.value || 0)) : parseHM(e.target.value);
+  if (isNaN(v)) return $("#prevErr").textContent = `${PREV_LABEL[k]}: enter hours as H:MM, e.g. 3250:15.`;
+  $("#prevErr").textContent = ""; (data.prev ||= {})[k] = v; save();
+  $("#prevNote").textContent = hasPrev() ? `Now: ${fmtMin(data.prev.total)} total time brought forward.` : "";
+  $("#prevMsg").textContent = "Saved"; setTimeout(() => $("#prevMsg").textContent = "", 1200);
+});
+$("#prevClear").addEventListener("click", () => {
+  if (hasPrev() && !confirm("Clear your previous experience (brought forward)?")) return;
+  delete data.prev; save(); renderPrev();
+});
 /* ---------- your data: airlines, add a flight by hand ---------- */
 function renderYourData(){
-  renderPrint(); loadAirports().then(renderAddPreview);
+  renderPrint(); renderPrev(); loadAirports().then(renderAddPreview);
   if (!$("#addFields").children.length) addFormReset();
 }
 $("#airlines").addEventListener("click", e => {
@@ -1393,19 +1574,27 @@ function statTotals(F){
   }
   return o;
 }
+// all-time totals: add the previous experience (brought forward)
+function withPrev(o){
+  const P = data.prev || {};
+  for (const k of ["total","pic","copilot","dual","instructor","night","ifr","mp","se"]) o[k] += P[k] || 0;
+  o.me += (P.me || 0) + (P.mp || 0); o.fstd += P.fstd || 0; o.ldg += (P.ldgDay || 0) + (P.ldgNight || 0); o.ldgNight += P.ldgNight || 0;
+  return o;
+}
 function renderStats(){
   const F = data.flights, T0 = acTypesFlown();
   $("#stTypesNote").innerHTML = Object.keys(T0).length ? "Multi-crew and multi-engine time follow each aircraft type: " + Object.keys(T0).map(t => `${esc(t)} ${AC_CLASS[acClass(t)].toLowerCase()}`).join(", ") + '. <a href="#" data-go="profile" data-scroll="#acSection">Change</a>' : "";
-  $("#stEmpty").classList.toggle("hidden", !!F.length); $("#stBody").classList.toggle("hidden", !F.length);
-  if (!F.length) return;
-  const T = statTotals(F), h = fmtMin;
+  const any = F.length || hasPrev();
+  $("#stEmpty").classList.toggle("hidden", !!any); $("#stBody").classList.toggle("hidden", !any);
+  if (!any) return;
+  const T = withPrev(statTotals(F)), h = fmtMin;
   const tiles = [["Total time", h(T.total)], ["PIC", h(T.pic)], ["Co-pilot (SIC)", h(T.copilot)], ["Multi-crew (multi-pilot)", h(T.mp)], ["Multi-engine", h(T.me)],
     ["Single-engine", h(T.se)], ["IFR", h(T.ifr)], ["Night", h(T.night)], ["Instructor", h(T.instructor)], ["Dual received", h(T.dual)], ["Sectors", T.n.toLocaleString()], ["Landings", `${T.ldg.toLocaleString()}${T.ldgNight ? ` (${T.ldgNight} night)` : ""}`],
     ["Simulator (FSTD)", `${h(T.fstd)}${T.sims ? ` · ${T.sims} session${T.sims === 1 ? "" : "s"}` : ""}`]];
   $("#stTiles").innerHTML = tiles.map(([k, v]) => `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`).join("");
   const ago = d => new Date(Date.now() - d*864e5).toISOString().slice(0, 10);
   const per = [["Last 28 days", 28], ["Last 90 days", 90], ["Last 6 months", 182], ["Last 12 months", 365], ["Last 24 months", 730], ["All time", 0]]
-    .map(([k, d]) => [k, statTotals(d ? F.filter(f => f.date >= ago(d)) : F)]);
+    .map(([k, d]) => [k, d ? statTotals(F.filter(f => f.date >= ago(d))) : withPrev(statTotals(F))]);
   const cols = [["Total","total"],["PIC","pic"],["Co-pilot","copilot"],["Multi-crew","mp"],["IFR","ifr"],["Night","night"]];
   $("#stPeriods").innerHTML = `<table><thead><tr><th>Period</th>${cols.map(c => `<th class="r">${c[0]}</th>`).join("")}<th class="r">Sectors</th><th class="r">Landings</th></tr></thead><tbody>` +
     per.map(([k, o]) => `<tr${k === "All time" ? ' style="font-weight:700"' : ""}><td>${k}</td>${cols.map(c => `<td class="r">${h(o[c[1]])}</td>`).join("")}<td class="r">${o.n}</td><td class="r">${o.ldg}</td></tr>`).join("") + "</tbody></table>";
@@ -1414,10 +1603,11 @@ function renderStats(){
   $("#stTypes").innerHTML = `<table><thead><tr><th>Aircraft type</th><th class="r">Sectors</th>${cols.map(c => `<th class="r">${c[0]}</th>`).join("")}<th>Last flown</th></tr></thead><tbody>` +
     Object.entries(by).map(([t, fl]) => [t, statTotals(fl)]).sort((a, b) => b[1].total - a[1].total)
       .map(([t, o]) => `<tr><td>${esc(t)}</td><td class="r">${o.n}</td>${cols.map(c => `<td class="r">${h(o[c[1]])}</td>`).join("")}<td>${fmtDate(o.last)}</td></tr>`).join("") + "</tbody></table>";
-  $("#stInfo").textContent = `${F.length.toLocaleString()} flights, ${fmtDate(F[0].date)} to ${fmtDate(F[F.length-1].date)}.`;
+  $("#stInfo").textContent = (F.length ? `${T.n.toLocaleString()} flights${T.sims ? ` and ${T.sims} simulator sessions` : ""}, ${fmtDate(F[0].date)} to ${fmtDate(F[F.length-1].date)}.` : "") +
+    (hasPrev() ? ` All-time figures include ${h(data.prev.total)} brought forward from earlier logbooks.` : "");
 }
 $("#stCopy").addEventListener("click", async () => {
-  const P = data.profile, T = statTotals(data.flights), h = fmtMin;
+  const P = data.profile, T = withPrev(statTotals(data.flights)), h = fmtMin;
   const lines = [`Flight hours summary${P.name ? " - " + P.name : ""}${P.lic ? " (" + P.lic + ")" : ""}`, `As of ${fmtDate(todayISO())}`, "",
     `Total time: ${h(T.total)}`, `PIC: ${h(T.pic)}`, `Co-pilot (SIC): ${h(T.copilot)}`, `Multi-crew: ${h(T.mp)}`, `Multi-engine: ${h(T.me)}`,
     `IFR: ${h(T.ifr)}`, `Night: ${h(T.night)}`, `Instructor: ${h(T.instructor)}`, `Sectors: ${T.n}`, `Landings: ${T.ldg}`, `Simulator (FSTD): ${h(T.fstd)}`, "",
@@ -1944,14 +2134,14 @@ function faaColumns(){
     { g:"ROUTE OF FLIGHT", h:"FROM", w:24, v:f => f.from }, { g:"ROUTE OF FLIGHT", h:"TO", w:24, v:f => f.to },
     { g:"", h:"REMARKS AND\nENDORSEMENTS", w:62, v:f => [f.flightNo, f.remarks].filter(Boolean).join(" ") },
     { g:"", h:"NR\nINST\nAPP", w:16, v:() => "" },
-    { g:"LANDINGS", h:"DAY", w:16, n:f => f.ldgDay, t:"c" }, { g:"LANDINGS", h:"NIGHT", w:16, n:f => f.ldgNight, t:"c" },
-    { g:"CATEGORY & CLASS", h:"SEL", w:22, n:f => acClass(f.acType) === "SPSE" ? f.total : 0, t:"d" }, { g:"CATEGORY & CLASS", h:"MEL", w:22, n:f => acClass(f.acType) === "SPSE" ? 0 : f.total, t:"d" },
+    { g:"LANDINGS", h:"DAY", w:16, n:f => f.ldgDay, p:P => P.ldgDay, t:"c" }, { g:"LANDINGS", h:"NIGHT", w:16, n:f => f.ldgNight, p:P => P.ldgNight, t:"c" },
+    { g:"CATEGORY & CLASS", h:"SEL", w:22, n:f => acClass(f.acType) === "SPSE" ? f.total : 0, p:P => P.se, t:"d" }, { g:"CATEGORY & CLASS", h:"MEL", w:22, n:f => acClass(f.acType) === "SPSE" ? 0 : f.total, p:P => (P.me || 0) + (P.mp || 0), t:"d" },
     { g:"", h:"CROSS\nCOUNTRY", w:24, n:xc, t:"d" },
-    { g:"CONDITIONS OF FLIGHT", h:"NIGHT", w:22, n:f => f.night, t:"d" }, { g:"CONDITIONS OF FLIGHT", h:"ACTUAL\nINSTR.", w:22, n:f => f.ifr, t:"d" }, { g:"CONDITIONS OF FLIGHT", h:"SIM.\nINSTR.", w:22, v:() => "", n:() => 0, t:"d" },
+    { g:"CONDITIONS OF FLIGHT", h:"NIGHT", w:22, n:f => f.night, p:P => P.night, t:"d" }, { g:"CONDITIONS OF FLIGHT", h:"ACTUAL\nINSTR.", w:22, n:f => f.ifr, p:P => P.ifr, t:"d" }, { g:"CONDITIONS OF FLIGHT", h:"SIM.\nINSTR.", w:22, v:() => "", n:() => 0, t:"d" },
     { g:"", h:"FLIGHT\nSIMU-\nLATOR", w:22, v:() => "", n:() => 0, t:"d" },
-    { g:"TYPE OF PILOTING TIME", h:"DUAL\nRECEIVED", w:24, n:f => f.dual, t:"d" }, { g:"TYPE OF PILOTING TIME", h:"PIC", w:22, n:f => f.pic, t:"d" },
-    { g:"TYPE OF PILOTING TIME", h:"SIC", w:22, n:f => f.copilot, t:"d" }, { g:"TYPE OF PILOTING TIME", h:"AS FLIGHT\nINSTR.", w:24, n:f => f.instructor, t:"d" },
-    { g:"", h:"TOTAL\nDURATION\nOF FLIGHT", w:28, n:f => f.total, t:"d" }
+    { g:"TYPE OF PILOTING TIME", h:"DUAL\nRECEIVED", w:24, n:f => f.dual, p:P => P.dual, t:"d" }, { g:"TYPE OF PILOTING TIME", h:"PIC", w:22, n:f => f.pic, p:P => P.pic, t:"d" },
+    { g:"TYPE OF PILOTING TIME", h:"SIC", w:22, n:f => f.copilot, p:P => P.copilot, t:"d" }, { g:"TYPE OF PILOTING TIME", h:"AS FLIGHT\nINSTR.", w:24, n:f => f.instructor, p:P => P.instructor, t:"d" },
+    { g:"", h:"TOTAL\nDURATION\nOF FLIGHT", w:28, n:f => f.total, p:P => P.total, t:"d" }
   ];
 }
 const pdfSafe = s => String(s ?? "").replace(/[–—]/g,"-").replace(/[‘’]/g,"'").replace(/[“”]/g,'"').replace(/[^\x20-\x7E\xA0-\xFF]/g,"?");
@@ -1992,7 +2182,7 @@ const licType = t => String(t || "").replace(/\((\w)\)/, " $1").trim().toUpperCa
 // 1234:05 -> "1,234:05"; 0 -> ""
 const lbTime = m => { m = Math.round(m || 0); if (!m) return ""; const h = Math.floor(m/60); return h.toLocaleString("en-US") + ":" + String(m % 60).padStart(2, "0"); };
 
-async function makeEasaPdf(F, bf, rowsPerPage, before = [], pageOffset = 0){
+async function makeEasaPdf(F, rowsPerPage, before = [], pageOffset = 0){
   const { PDFDocument, rgb } = PDFLib;
   const W = 841.8898, H = 595.2756;
   const doc = await PDFDocument.create();
@@ -2073,7 +2263,8 @@ async function makeEasaPdf(F, bf, rowsPerPage, before = [], pageOffset = 0){
   const TOP = 78, BOT = 438, rh = (BOT - TOP) / rowsPerPage;
   const pages = Math.max(1, Math.ceil(F.length / rowsPerPage));
   const totalPages = pre.length + pageOffset + pages;
-  const prev = NUM.map(([, fn]) => before.reduce((s, f) => s + (+fn(f) || 0), 0)); prev[3] += bf || 0;
+  // NUM is in the order of EASA_PREV: se, me, mp, total, landings, night, IFR, function times, FSTD
+  const prev = NUM.map(([, fn], j) => before.reduce((s, f) => s + (+fn(f) || 0), 0) + ((data.prev || {})[EASA_PREV[j]] || 0));
   const sigImgs = new Map();
   for (const f of F) if (f.remarkSig && !sigImgs.has(f.remarkSig)) { try { sigImgs.set(f.remarkSig, await doc.embedPng(f.remarkSig)); } catch (e) { sigImgs.set(f.remarkSig, null); } }
   const tick = (pg, x0, x1, top, bot) => { const cx = (x0 + x1)/2, cy = Y((top + bot)/2); pg.drawSvgPath("M0 2.2 L1.8 4.2 L5 -0.6", { x: cx - 2.5, y: cy + 1.8, borderColor: black, borderWidth: 0.6 }); };
@@ -2162,11 +2353,10 @@ async function makePdf(){
   const rows = +$("#prRows").value;
   const { F, before, pageOffset } = pdfSelection(rows);
   if (!F.length) throw new Error(data.flights.length ? "No flights in that date range." : "Import or add some flights first.");
-  const bf = parseHM($("#prBF").value); if (isNaN(bf)) throw new Error("Brought-forward total should look like 3250:15.");
   if (!window.PDFLib) await loadScript("https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js");
   const { PDFDocument, StandardFonts, rgb } = PDFLib;
   const isFAA = prFmt === "FAA";
-  if (!isFAA) return makeEasaPdf(F, bf, rows, before, pageOffset);
+  if (!isFAA) return makeEasaPdf(F, rows, before, pageOffset);
   const cols = isFAA ? faaColumns() : easaColumns();
   const paper = $("#prPaper").value === "auto" ? (isFAA ? "LETTER" : "A4") : $("#prPaper").value;
   const [W,H] = paper === "A4" ? [841.89, 595.28] : [792, 612];
@@ -2208,9 +2398,8 @@ async function makePdf(){
   const topY = H - M - 26, hdrH = 34, footH = 58, totRows = 3, totH = 12;
   const rh = Math.min(24, (topY - hdrH - totRows*totH - footH - 14) / rows);
   const pages = Math.ceil(F.length / rows);
-  const prev = cols.map(c => c.n ? before.reduce((s, f) => s + (+c.n(f) || 0), 0) : null);
-  const bfIdx = cols.findIndex(c => /TOTAL\n(TIME OF\nFLIGHT|DURATION)/.test(c.h));
-  if (bf && bfIdx >= 0) prev[bfIdx] += bf;
+  const P0 = data.prev || {};
+  const prev = cols.map(c => c.n ? before.reduce((s, f) => s + (+c.n(f) || 0), 0) + (c.p ? c.p(P0) || 0 : 0) : null);
 
   for (let p = 0; p < pages; p++) {
     const pg = doc.addPage([W,H]), chunk = F.slice(p*rows, (p+1)*rows);
