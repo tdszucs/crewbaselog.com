@@ -541,7 +541,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
     <!-- logbook -->
     <div data-p="logbook" class="hidden">
       <h2>Logbook</h2>
-      <p class="lead">Your flights are kept only in this browser. Download your full logbook CSV after each import and keep it safe: if you clear your browser data or change device, import it again.</p>
+      <p class="lead">Your flights are kept only in this browser. Downloads, backup and starting over are on <a href="#" data-go="import" data-scroll="#outCard">Your data</a>.</p>
       <div class="stats" id="lbStats"></div>
       <div class="card" id="addBlock">
         <h3>Add a flight manually</h3>
@@ -555,10 +555,6 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
       </form>
       </div>
       <div class="card">
-        <div class="row-actions" style="margin:0 0 14px">
-          <button class="btn small" type="button" data-csv>Download CSV file</button>
-          <button class="btn danger small" id="btnClearFlights" type="button">Delete all flights</button>
-        </div>
         <form class="notice hidden" id="lbEdit" style="margin:0 0 14px;background:var(--bg);border-color:var(--line)">
           <h3 style="margin:0 0 12px" id="lbEditTitle">Edit flight</h3>
           <div class="lbgrid" id="lbEditFields"></div>
@@ -2358,7 +2354,6 @@ $("#btnStartOver").addEventListener("click", () => {
   lbCloseEdit(); save(); renderPrev(); renderCheck(); renderFix(); renderLogbook(); renderOverview(); renderPrint();
   window.scrollTo({ top: 0, behavior: "smooth" });
 });
-$("#btnClearFlights").addEventListener("click", () => { if (data.flights.length && confirm(`Delete all ${data.flights.length} flights from this device? Download a backup first if unsure.`)) { data.flights = []; lbCloseEdit(); save(); renderLogbook(); } });
 
 /* ================= CREW BASE (shared rosters) ================= */
 const CB_DAY = 1440;
