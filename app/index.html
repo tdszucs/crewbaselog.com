@@ -507,21 +507,23 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
       <h2>Logbook</h2>
       <p class="lead">Your flights are kept only in this browser. Download your full logbook CSV after each import and keep it safe: if you clear your browser data or change device, import it again.</p>
       <div class="stats" id="lbStats"></div>
-      <form class="card hidden" id="addForm">
-        <h3>Add a flight or simulator session by hand</h3>
+      <div class="card" id="addBlock">
+        <h3>Add a flight manually</h3>
+        <div class="row-actions" style="margin:0" id="addOpenRow"><span class="hint" style="margin:0;font-size:14px">For a flight or simulator session that isn't in any file.</span><button class="btn ghost small" id="btnAddOpen" type="button">Add a flight manually</button></div>
+      <form class="hidden" id="addForm" style="margin-top:4px">
         <div class="seg" role="radiogroup" aria-label="What to add"><label><input type="radio" name="addKind" value="flight" checked> Flight</label><label><input type="radio" name="addKind" value="sim"> Simulator session</label></div>
         <p class="hint" style="margin:0 0 14px;font-size:14px">For a flight that isn't in any file. Times in UTC. Leave PIC/co-pilot, night and IFR empty to have them filled in from your <a href="#" data-go="profile">profile</a>. The preview shows the line exactly as it will appear in your EASA logbook.</p>
         <div class="lbgrid" id="addFields"></div>
         <div class="field" style="margin-top:4px"><label>Preview: your logbook line</label><div class="tablewrap"><div id="addPreview"></div></div></div>
         <div class="row-actions" style="margin:0"><button class="btn" type="submit" id="addSubmit">Add flight to logbook</button><button class="btn ghost" type="button" id="addClear">Clear</button><button class="btn ghost" type="button" id="addClose">Close</button><span class="err" id="addErr" style="margin:0"></span><span class="ok-msg" id="addOk"></span></div>
       </form>
+      </div>
       <div class="card">
         <div class="row-actions" style="margin:0 0 14px">
           <button class="btn small" type="button" data-csv>Download CSV file</button>
           <button class="btn ghost small" type="button" data-go="import" data-scroll="#outCard">Download PDF logbook</button>
           <button class="btn ghost small" id="btnBackup" type="button" title="Includes profile, expiries, signature and rosters">Download full backup</button>
           <label class="btn ghost small" style="margin:0">Restore backup<input type="file" id="restoreFile" accept=".json" class="hidden"></label>
-          <button class="btn ghost small" id="btnAddOpen" type="button">+ Add a flight by hand</button>
           <button class="btn danger small" id="btnClearFlights" type="button">Delete all flights</button>
         </div>
         <form class="notice hidden" id="lbEdit" style="margin:0 0 14px;background:var(--bg);border-color:var(--line)">
@@ -1635,11 +1637,11 @@ function renderYourData(){
 }
 // adding a flight by hand lives on the Logbook tab, behind a button: most airline pilots import everything
 function openAddForm(){
-  $("#addForm").classList.remove("hidden"); if (!$("#addFields").children.length) addFormReset();
-  loadAirports().then(renderAddPreview); $("#addForm").scrollIntoView({ behavior: "smooth", block: "start" });
+  $("#addForm").classList.remove("hidden"); $("#addOpenRow").classList.add("hidden"); if (!$("#addFields").children.length) addFormReset();
+  loadAirports().then(renderAddPreview);
 }
 $("#btnAddOpen").addEventListener("click", openAddForm);
-$("#addClose").addEventListener("click", () => $("#addForm").classList.add("hidden"));
+$("#addClose").addEventListener("click", () => { $("#addForm").classList.add("hidden"); $("#addOpenRow").classList.remove("hidden"); });
 $("#airlines").addEventListener("click", e => {
   const b = e.target.closest("[data-air]"); if (!b) return;
   const on = !b.classList.contains("on");
