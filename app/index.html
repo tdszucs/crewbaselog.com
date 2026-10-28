@@ -1626,8 +1626,10 @@ async function parseEasaLogbookPDF(buf){
         if (s.date && s.fstdTime) out.flights.push(s);
       }
     }
-    // the total rows at the foot of the page: values sit just above their label
-    const totals = lab => { if (!lab) return null; const o = {}, inRow = w => w.y > lab.y - 13 && w.y < lab.y + 3 && /^[\d,]+(:\d{2})?$/.test(w.s);
+    // the total rows at the foot of the page: values sit just above their label, level with it, or (some exports) just below;
+    // a value goes to the nearest of the three labels
+    const labY = [labels.this, labels.prev, labels.all].filter(Boolean).map(l => l.y), near = y => labY.reduce((b, v) => Math.abs(y - v) < Math.abs(y - b) ? v : b, labY[0]);
+    const totals = lab => { if (!lab) return null; const o = {}, inRow = w => w.y > lab.y - 13 && w.y < lab.y + 12 && near(w.y) === lab.y && /^[\d,]+(:\d{2})?$/.test(w.s);
       const g = {}; for (const w of L.filter(inRow)) { const k = lcell(w); if (k) (g[k] ||= []).push(w); } for (const w of R.filter(inRow)) { const k = rcell(w); if (k) (g[k] ||= []).push(w); }
       for (const k of EASA_PREV) { const c = k === "fstd" ? g.fstdTime : g[k]; o[k] = !c ? 0 : k.startsWith("ldg") ? cnt(c) : dur(c); } if (g.picus) o.pic += dur(g.picus); return o; };
     if (spreads === 1) out.prev = totals(labels.prev);
