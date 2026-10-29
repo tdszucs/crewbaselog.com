@@ -43,3 +43,20 @@ as $$
     timeout_milliseconds := 150000);
 $$;
 revoke all on function private.report_call(jsonb) from public, anon, authenticated;
+
+-- a pilot's own report turns to "works now" when they import that file successfully (only their own, only new/working)
+create or replace function public.cbl_report_works(fname text)
+returns int
+language sql
+security definer
+set search_path = ''
+as $$
+  with u as (
+    update public.file_reports set status = 'done', updated_at = now(),
+      admin_note = coalesce(admin_note, 'Imported successfully by the pilot.')
+    where user_id = auth.uid() and file_name = fname and status in ('new', 'working')
+    returning 1)
+  select count(*)::int from u;
+$$;
+revoke all on function public.cbl_report_works(text) from public, anon;
+grant execute on function public.cbl_report_works(text) to authenticated;

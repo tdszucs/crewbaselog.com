@@ -236,6 +236,11 @@ td.r,th.r{text-align:right}
   .exp-head{display:none!important}
 }
 @media (max-width:520px){ .who span{display:none} }
+.repcard{border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:0 0 12px;background:var(--bg)}
+.rephd{display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap;word-break:break-all}
+.repctl{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;margin-top:8px}
+.repctl select{width:auto}
+@media (max-width:640px){ .repctl{grid-template-columns:1fr} }
 dialog.repdlg{width:min(480px,calc(100vw - 32px));max-height:calc(100dvh - 32px);overflow:auto;padding:22px;border:0;border-radius:14px;background:var(--surface);color:var(--ink);box-shadow:0 20px 60px rgba(0,0,0,.35)}
 dialog.repdlg::backdrop{background:rgba(8,20,30,.55)}
 .repfile{font:500 14px "JetBrains Mono",monospace;background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:9px 12px;margin:0 0 14px;word-break:break-all}
@@ -722,7 +727,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
       </div>
       <p class="err" id="adErr"></p>
       <div class="stats" id="adTiles"></div>
-      <div class="card"><h3>Files sent for help</h3><p class="hint" style="margin:0 0 10px;font-size:14px">Files pilots sent because the app couldn't read them. Download one, give it to Claude to add the format, then set it to <b>Works now</b> and press Save: your email app opens with a message to the pilot, ready to send, and they also see it next time they open the app. Delete the file once done (at the latest after 90 days, as promised).</p><div class="tablewrap" id="adReps"></div></div>
+      <div class="card"><h3>Files sent for help</h3><p class="hint" style="margin:0 0 12px;font-size:14px">Files pilots sent because the app couldn't read them. Claude checks new ones every 8 hours, fixes the reader, marks them <b>Works now</b> and deletes them. A file also turns to Works now by itself when its pilot imports it successfully. Then press <b>Email the pilot</b>: your email app opens with the message ready.</p><div id="adReps"></div></div>
       <div class="card"><h3>Registered pilots</h3><p class="hint" style="margin:0 0 10px;font-size:14px">Tap a pilot to see only their actions.</p><div class="tablewrap" id="adUsers"></div></div>
       <div class="card">
         <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 10px"><h3 style="margin:0">Activity</h3>
@@ -1060,14 +1065,16 @@ function renderAdReps(){
   if (!R) { box.innerHTML = '<p class="hint" style="margin:0">Run supabase/file_reports.sql in Supabase (SQL Editor) to receive files.</p>'; return; }
   if (!R.length) { box.innerHTML = '<p class="hint" style="margin:0">No files yet.</p>'; return; }
   const age = s => Math.floor((Date.now() - Date.parse(s)) / 864e5);
-  box.innerHTML = `<table><thead><tr><th>Sent</th><th>From</th><th>File</th><th>What happened</th><th>Status</th><th></th></tr></thead><tbody>` + R.map(r => `<tr data-rep="${r.id}">
-    <td style="white-space:nowrap">${fmtDate(r.created_at.slice(0, 10))}${!r.file_deleted && age(r.created_at) > 60 ? `<div style="color:var(--bad);font-size:12px">${age(r.created_at)} days: delete soon</div>` : ""}</td>
-    <td>${esc(r.email || "")}</td><td>${esc(r.file_name)}<div class="hint" style="font-size:12px;margin:0">${esc(r.kind || "")} · ${Math.max(1, Math.round((r.size || 0) / 1024))} KB</div></td>
-    <td style="min-width:200px">${r.error ? `<div style="color:var(--bad);font-size:13px">${esc(r.error)}</div>` : ""}${r.note ? `<div style="font-size:13px">“${esc(r.note)}”</div>` : ""}</td>
-    <td><select data-repstatus style="width:auto">${Object.entries(REP_STATUS).map(([k, [t]]) => `<option value="${k}"${k === r.status ? " selected" : ""}>${t}</option>`).join("")}</select>
-      <input data-repnote placeholder="Note to the pilot (optional)" value="${esc(r.admin_note || "")}" style="margin-top:6px;min-width:180px"><button class="rowbtn" type="button" data-repsave>Save</button></td>
-    <td style="white-space:nowrap">${r.file_deleted ? '<span class="hint">file deleted</span>' : `<button class="rowbtn sug" type="button" data-repget>Download</button><button class="rowbtn del" type="button" data-repdel>Delete file</button>`}
-      ${r.status === "done" || r.status === "cannot" ? `<div style="margin-top:4px"><button class="rowbtn${r.emailed_at ? "" : " sug"}" type="button" data-repmail>Email the pilot</button>${r.emailed_at ? `<div class="hint" style="font-size:12px;margin:0">emailed ${fmtDate(r.emailed_at.slice(0, 10))}</div>` : ""}</div>` : ""}</td></tr>`).join("") + "</tbody></table>";
+  // one card per file: what was sent, what happened, then the status, note and actions
+  box.innerHTML = R.map(r => { const st = REP_STATUS[r.status] || [r.status, ""], old = !r.file_deleted && age(r.created_at) > 60;
+    return `<div class="repcard" data-rep="${r.id}">
+    <div class="rephd"><b>${esc(r.file_name)}</b><span class="tag" style="color:${st[1]}">${st[0]}</span></div>
+    <div class="hint" style="margin:2px 0 6px;font-size:13px">${esc(r.email || "")} · sent ${fmtDate(r.created_at.slice(0, 10))} · ${esc(r.kind || "")} · ${Math.max(1, Math.round((r.size || 0) / 1024))} KB${r.file_deleted ? " · file deleted" : ""}${old ? ` · <b style="color:var(--bad)">${age(r.created_at)} days old: delete soon</b>` : ""}</div>
+    ${r.error ? `<div style="color:var(--bad);font-size:13px;margin:0 0 4px">App said: ${esc(r.error)}</div>` : ""}${r.note ? `<div style="font-size:13px;margin:0 0 4px">Pilot's note: “${esc(r.note)}”</div>` : ""}
+    <div class="repctl"><select data-repstatus>${Object.entries(REP_STATUS).map(([k, [t]]) => `<option value="${k}"${k === r.status ? " selected" : ""}>${t}</option>`).join("")}</select>
+      <input data-repnote placeholder="Note to the pilot (optional)" value="${esc(r.admin_note || "")}"><button class="btn small" type="button" data-repsave>Save</button></div>
+    <div class="row-actions" style="margin:8px 0 0">${r.file_deleted ? "" : `<button class="btn ghost small" type="button" data-repget>Download</button><button class="btn ghost small" type="button" data-repdel style="color:var(--bad)">Delete file</button>`}
+      ${r.status === "done" || r.status === "cannot" ? `<button class="btn${r.emailed_at ? " ghost" : ""} small" type="button" data-repmail>Email the pilot</button>${r.emailed_at ? `<span class="hint">emailed ${fmtDate(r.emailed_at.slice(0, 10))}</span>` : ""}` : ""}</div></div>`; }).join("");
 }
 $("#adReps").addEventListener("click", async e => {
   const b = e.target.closest("button"), tr = e.target.closest("[data-rep]"); if (!b || !tr) return;
@@ -1955,6 +1962,10 @@ async function nextFile(){
   $("#impDoneLog").innerHTML = impLog.join("<br>") + (nf + ns === 0 ? `<br>Your logbook has no flights yet: nothing in ${impLog.length === 1 ? "this file" : "these files"} has been flown. Planned flights belong in <a href="#" data-go="crewbase">Crew Base</a>.` : `<br>Your logbook now has <b>${nf.toLocaleString()} flight${nf === 1 ? "" : "s"}</b>` + (ns ? ` and <b>${ns} simulator session${ns === 1 ? "" : "s"}</b>` : "") + `` + (restoredView() ? "." : `. <a href="#" data-go="import" data-scroll="#chkBox">Check the totals against your old logbook's last page</a>.`));
   $("#impDone").classList.remove("hidden"); $("#impDone").scrollIntoView({ behavior: "smooth", block: "start" });
   $("#chkUpto").value = ""; renderCheck();
+  if (impBatch?.added && repOnline()) for (const n of impBatch.names) Auth.db().rpc("cbl_report_works", { fname: n }).then(r => {
+    if (r.data > 0) { $("#impDoneLog").insertAdjacentHTML("beforeend", `<br><b style="color:var(--ok)">✓ ${esc(n)} is the file you sent us: thank you! It's marked as working now.</b>`);
+      // no "drop it again" notice for a file they just imported
+      Auth.db().from("file_reports").select("id").eq("user_id", user.id).eq("file_name", n).then(x => { data.repSeen = [...(data.repSeen || []), ...(x.data || []).map(r => r.id)]; save(); renderMyReports(); }); } }, () => {});
   if (impBatch) logEvent("import", { files: impBatch.names.length, types: [...new Set(impBatch.names.map(n => (n.match(/\.(\w+)$/)?.[1] || "?").toLowerCase()))].join(","),
     added: impBatch.added, updated: impBatch.updated, problems: impErrs, ...nLines() });
   const gaps = importGaps(); if (gaps.length) $("#impDoneLog").insertAdjacentHTML("beforeend", `<br>${gapMsg(gaps)}`);
@@ -2434,7 +2445,7 @@ $("#repSend").addEventListener("click", async () => {
     body: JSON.stringify({ _subject: "CrewBase Log: a file to read", _template: "table", from: user.email, file: file.name, kind: row.kind, size_kb: Math.round(file.size / 1024), error: error || "(sent from Doesn't look right?)", note: row.note || "", open: "Admin tab on crewbaselog.com/app" }) }).catch(() => {});
   $("#repDlg").close(); renderMyReports(true);
 });
-const REP_STATUS = { new: ["Received", "var(--muted)"], working: ["We're working on it", "var(--warn)"], done: ["Works now: drop it again", "var(--ok)"], cannot: ["Can't be read", "var(--bad)"] };
+const REP_STATUS = { new: ["Received", "var(--muted)"], working: ["We're working on it", "var(--warn)"], done: ["Works now", "var(--ok)"], cannot: ["Can't be read", "var(--bad)"] };
 // the pilot's own sent files, with their status; news when one now works
 async function renderMyReports(justSent){
   const box = $("#repMine"); if (!repOnline()) { box.innerHTML = ""; return; }
