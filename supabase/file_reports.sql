@@ -44,6 +44,10 @@ create table if not exists public.file_reports (
 );
 create index if not exists file_reports_created on public.file_reports (created_at desc);
 alter table public.file_reports add column if not exists emailed_at timestamptz;   -- when the pilot was emailed about the result
+-- pilots without an account send through the report-guest function (service role): no user, their email, and the hash of a token their device keeps
+alter table public.file_reports alter column user_id drop not null;
+alter table public.file_reports add column if not exists guest_token_hash text;
+grant insert on public.file_reports to service_role;
 
 grant select, insert, update, delete on public.file_reports to authenticated;
 alter table public.file_reports enable row level security;
