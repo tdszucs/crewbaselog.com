@@ -2469,12 +2469,16 @@ async function renderFix(){
       (c.del ? `<button class="rowbtn del" type="button" data-fixdel="${i}">${FIX_ONE[c.id] || "Delete"}</button>` : "") + `<button class="rowbtn" type="button" data-fixedit="${i}">Edit</button>` +
       `<button class="rowbtn" type="button" data-fixok="${c.id}" data-i="${i}" title="Stop flagging this line">It's correct</button></div></div>`; }).join("");
     // lines already corrected stay in the list: the corrected line, what it was, and an undo
-    const done = G.map((g, j) => `<div class="fixline fixed"><div class="fl-top">${fmtDate(g.copy.date)} · ${esc(flightLabel(g.copy).replace(fmtDate(g.copy.date), "").trim())}</div>` +
+    // suggestions accepted in one go: one card, above the lines so it shows even when they are folded
+    const batch = G.map((g, j) => g.kind !== "batch" ? "" : `<div class="fixline fixed" style="margin:10px 0 0"><div class="fl-top" style="color:var(--ok)">✓ ${esc(g.msg)}</div>` +
+      `<div class="fl-what hint" style="font-size:13.5px">${g.items.length.toLocaleString()} flight${g.items.length === 1 ? "" : "s"}, ${esc(fmtDate(g.items[0].copy.date))} to ${esc(fmtDate(g.items[g.items.length - 1].copy.date))}</div>` +
+      `<div class="fl-btns"><button class="rowbtn" type="button" data-undo="${c.id}:${j}">Undo all</button></div></div>`).join("");
+    const done = G.map((g, j) => g.kind === "batch" ? "" : `<div class="fixline fixed"><div class="fl-top">${fmtDate(g.copy.date)} · ${esc(flightLabel(g.copy).replace(fmtDate(g.copy.date), "").trim())}</div>` +
       `<div class="fl-what"><b style="color:var(--ok)">✓ ${esc(g.msg)}</b>${g.kind === "mod" ? `<div style="font-size:13.5px;margin-top:2px">Now: ${esc(lineSum(g.f))}</div><div class="hint" style="margin:1px 0 0;font-size:13.5px">Was: ${esc(lineSum(g.copy))}</div>` : `<div class="hint" style="margin:2px 0 0;font-size:13.5px">${esc(lineSum(g.copy))}</div>`}</div>` +
       `<div class="fl-btns"><button class="rowbtn" type="button" data-undo="${c.id}:${j}">Undo</button></div></div>`).join("");
-    return `<div class="fixgrp"><div class="fixhd"><b>${c.title}</b><span class="tag">${H.length ? `${H.length.toLocaleString()} to check` : "all checked"}${G.length ? ` · ${G.length} corrected` : ""}</span>` +
+    return `<div class="fixgrp"><div class="fixhd"><b>${c.title}</b><span class="tag">${H.length ? `${H.length.toLocaleString()} to check` : "all checked"}${G.length ? ` · ${G.reduce((n, g) => n + (g.items?.length || 1), 0).toLocaleString()} corrected` : ""}</span>` +
       `<button class="btn ghost small" type="button" data-fixshow="${c.id}">${fixClosed.has(c.id) ? "Show lines" : "Hide lines"}</button></div>` +
-      `<p class="hint">${c.why}</p><div class="fixrows${fixClosed.has(c.id) ? " hidden" : ""}">${rows}${done}${H.length > 200 ? `<p class="hint" style="padding:8px">Showing the first 200 of ${H.length.toLocaleString()}; the rest appear as these are done.</p>` : ""}</div></div>`;
+      `<p class="hint">${c.why}</p>${batch}${c.id === "noRole" ? acceptAllHTML(H) : ""}<div class="fixrows${fixClosed.has(c.id) ? " hidden" : ""}">${rows}${done}${H.length > 200 ? `<p class="hint" style="padding:8px">Showing the first 200 of ${H.length.toLocaleString()}; the rest appear as these are done.</p>` : ""}</div></div>`;
   }).join("");
   return total;
 }
@@ -2490,6 +2494,24 @@ function closeReview(){ const P = $('[data-p="import"]'); if (!P.classList.conta
 document.addEventListener("click", e => { if (e.target.closest("[data-review]")) { e.preventDefault(); openReview(); } });
 $("#fixBack").addEventListener("click", closeReview);
 $("#fixBox").addEventListener("toggle", () => { if ($("#fixBox").open && !$('[data-p="import"]').classList.contains("reviewing") && FIX_CHECKS.some(c => fixHits(c).length)) openReview(); });
+// "No PIC or co-pilot time": accept every suggestion in one go, after the pilot says yes
+let acceptAsk = false;
+function acceptAllHTML(H){
+  const sg = H.map(f => suggestRole(f)).filter(Boolean); if (!sg.length) return "";
+  const by = {}; for (const [r] of sg) by[r] = (by[r] || 0) + 1;
+  const what = ROLE_PICK.filter(([r]) => by[r]).map(([r, l]) => `${by[r].toLocaleString()} as ${l}`).join(", ");
+  const rest = H.length - sg.length;
+  return `<div class="notice" style="margin:10px 0 0"><b>Suggested for ${sg.length === H.length ? `all ${sg.length.toLocaleString()}` : `${sg.length.toLocaleString()} of ${H.length.toLocaleString()}`} flight${H.length === 1 ? "" : "s"}:</b> ${what}.` +
+    (rest ? ` <span class="hint" style="font-size:13.5px">${rest.toLocaleString()} without a suggestion stay${rest === 1 ? "s" : ""} for you to check.</span>` : "") +
+    (acceptAsk ? `<div style="margin:10px 0 0"><b>Log ${what}?</b> You can undo it in one tap.</div><div class="fl-btns"><button class="btn small" type="button" data-acceptyes>Yes, apply to ${sg.length.toLocaleString()} flight${sg.length === 1 ? "" : "s"}</button><button class="btn ghost small" type="button" data-acceptno>Cancel</button></div>`
+      : `<div class="fl-btns"><button class="btn small" type="button" data-acceptall>Accept all suggestions</button></div>`) + `</div>`;
+}
+function acceptAll(){
+  const items = [];
+  for (const f of fixHits(FIX_CHECKS.find(c => c.id === "noRole"))) { const sg = suggestRole(f); if (!sg) continue; items.push({ f, copy: JSON.parse(JSON.stringify(f)) }); setRole(f, sg[0]); }
+  acceptAsk = false; if (!items.length) return renderFix();
+  logFix("noRole", { kind: "batch", items, msg: `Suggestions accepted: ${ROLE_PICK.map(([r, l]) => [l, items.filter(x => suggestRole(x.copy)?.[0] === r).length]).filter(x => x[1]).map(([l, n]) => `${n} as ${l}`).join(", ")}` }); fixDone();
+}
 // one line in short, to show a correction: type, registration, route, times, function, landings
 const lineSum = f => isSim(f) ? `simulator ${f.fstdType || ""} ${fmtMin(f.fstdTime)}`.replace(/\s+/g, " ") :
   [f.acType, f.reg, f.from || f.to ? `${f.from || "?"}–${f.to || "?"}` : "", `total ${fmtMin(f.total)}`, ...["pic","copilot","dual","instructor"].filter(k => f[k]).map(k => `${ROLE_LABEL[k]} ${fmtMin(f[k])}`),
@@ -2503,6 +2525,9 @@ const logFix = (id, e) => { (fixLog[id] ||= []).push(e); logEvent("fix", { check
 $("#fixCard").addEventListener("click", e => {
   const b = e.target.closest("button"); if (!b) return;
   const d = b.dataset, F = data.flights, C = id => FIX_CHECKS.find(c => c.id === id), copy = f => JSON.parse(JSON.stringify(f));
+  if (d.acceptall !== undefined) { acceptAsk = true; return renderFix(); }
+  if (d.acceptno !== undefined) { acceptAsk = false; return renderFix(); }
+  if (d.acceptyes !== undefined) return acceptAll();
   if (d.fixshow) { fixClosed.has(d.fixshow) ? fixClosed.delete(d.fixshow) : fixClosed.add(d.fixshow); return renderFix(); }
   if (d.role) { const f = F[+d.i], c0 = copy(f), id = FIX_CHECKS.find(c => c.roles && fixHits(c).includes(f))?.id || "noRole"; setRole(f, d.role);
     logFix(id, { kind: "mod", f, copy: c0, msg: `Logged as ${ROLE_PICK.find(x => x[0] === d.role)[1]}` }); return fixDone(); }
@@ -2512,7 +2537,9 @@ $("#fixCard").addEventListener("click", e => {
   if (d.fixok) { const f = F[+d.i], k = dupKey(f); (data.fixOk[d.fixok] ||= []).push(k); logFix(d.fixok, { kind: "ok", f, copy: copy(f), key: k, msg: "Marked as correct" }); return fixDone(); }
   if (d.undo) {
     const [id, j] = d.undo.split(":"), g = fixLog[id][+j];
-    if (g.kind === "mod") { for (const k of Object.keys(g.f)) if (!(k in g.copy)) delete g.f[k]; Object.assign(g.f, g.copy); }
+    const back = (f, c0) => { for (const k of Object.keys(f)) if (!(k in c0)) delete f[k]; Object.assign(f, c0); };
+    if (g.kind === "mod") back(g.f, g.copy);
+    if (g.kind === "batch") for (const x of g.items) back(x.f, x.copy);
     if (g.kind === "del" || g.kind === "move") { F.push(g.copy); F.sort((a, b) => (a.date + a.out).localeCompare(b.date + b.out)); }
     if (g.kind === "move") { const P = data.prev || {}, f = g.copy, sub = (k, v) => P[k] = Math.max(0, (P[k] || 0) - (v || 0));
       if (isSim(f)) sub("fstd", f.fstdTime);
