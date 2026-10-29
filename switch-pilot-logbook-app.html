@@ -3,21 +3,21 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Move from Flylog, CrewLounge or LogTen | CrewBase Log</title>
-<meta name="description" content="Bring your logbook from Flylog, CrewLounge (mccPILOTLOG), LogTen, Safelog, a PDF or a spreadsheet into a free pilot logbook, checked line by line.">
+<title>Export your logbook from LogTen, CrewLounge, Safelog, Wader or Flylog | CrewBase Log</title>
+<meta name="description" content="How to export your logbook from LogTen Pro, CrewLounge PILOTLOG, Safelog, Wader or Flylog, and bring it into a free pilot logbook, checked line by line.">
 <link rel="canonical" href="https://crewbaselog.com/switch-pilot-logbook-app.html">
 <meta property="og:site_name" content="CrewBase Log">
 <meta property="og:type" content="article">
 <meta property="og:url" content="https://crewbaselog.com/switch-pilot-logbook-app.html">
 <meta property="og:title" content="Move your logbook from another app">
-<meta property="og:description" content="Bring your logbook from Flylog, CrewLounge (mccPILOTLOG), LogTen, Safelog, a PDF or a spreadsheet into a free pilot logbook, checked line by line.">
+<meta property="og:description" content="How to export your logbook from LogTen Pro, CrewLounge PILOTLOG, Safelog, Wader or Flylog, and bring it into a free pilot logbook, checked line by line.">
 <meta property="og:image" content="https://crewbaselog.com/img/hero-logbook.jpg">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="/favicon.ico" sizes="48x48">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/app/icons/apple-touch-icon.png">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-<script type="application/ld+json">{"@context": "https://schema.org", "@type": "Article", "headline": "Move your logbook from another app", "description": "Bring your logbook from Flylog, CrewLounge PILOTLOG (mccPILOTLOG), LogTen, Safelog, a PDF logbook or a spreadsheet into a free pilot logbook, checked against your old totals.", "mainEntityOfPage": "https://crewbaselog.com/switch-pilot-logbook-app.html", "datePublished": "2026-10-28", "dateModified": "2026-10-28", "image": "https://crewbaselog.com/img/hero-logbook.jpg", "author": {"@type": "Organization", "name": "CrewBase Log"}, "publisher": {"@type": "Organization", "name": "CrewBase Log", "url": "https://crewbaselog.com/"}}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "Article", "headline": "Move your logbook from another app", "description": "Bring your logbook from Flylog, CrewLounge PILOTLOG (mccPILOTLOG), LogTen, Safelog, a PDF logbook or a spreadsheet into a free pilot logbook, checked against your old totals.", "mainEntityOfPage": "https://crewbaselog.com/switch-pilot-logbook-app.html", "datePublished": "2026-10-28", "dateModified": "2026-10-29", "image": "https://crewbaselog.com/img/hero-logbook.jpg", "author": {"@type": "Organization", "name": "CrewBase Log"}, "publisher": {"@type": "Organization", "name": "CrewBase Log", "url": "https://crewbaselog.com/"}}</script>
 <style>
 :root{--bg:#f7f8fa;--surface:#fff;--ink:#0f1c27;--muted:#5a6b78;--line:#e2e7ec;--brand:#0b3d5c;--accent:#d9971c;--accent-soft:#fdf3e1}
 @media (prefers-color-scheme:dark){:root{--bg:#0b141b;--surface:#111e28;--ink:#e8eef3;--muted:#9aabb8;--line:#1f2f3c;--brand:#7cc4ee;--accent:#f2b544;--accent-soft:#2a2213}}
@@ -53,14 +53,44 @@ footer{border-top:1px solid var(--line);margin-top:48px;padding-top:16px;color:v
 <p class="lede">Years of flying shouldn't be stuck in one app. Export them once and CrewBase Log carries your totals over, line by line.</p>
 <h2>Apps and files that are read automatically</h2>
 <div class="tw"><table><thead><tr><th>From</th><th>What to export</th></tr></thead><tbody>
-<tr><td>Flylog</td><td>The CSV export or backup, or the EASA / JAR logbook PDF</td></tr>
-<tr><td>CrewLounge PILOTLOG (mccPILOTLOG)</td><td>The PILOTLOG CSV export, or the logbook PDF</td></tr>
-<tr><td>LogTen</td><td>The EASA or SACAA logbook PDF</td></tr>
-<tr><td>Safelog</td><td>The CSV export</td></tr>
+<tr><td><a href="#logten">LogTen Pro</a></td><td>Export Flights (Tab), or the EASA or SACAA logbook PDF</td></tr>
+<tr><td><a href="#crewlounge">CrewLounge PILOTLOG (mccPILOTLOG)</a></td><td>The PILOTLOG CSV export, or the logbook PDF</td></tr>
+<tr><td><a href="#safelog">Safelog</a></td><td>The CSV export</td></tr>
+<tr><td><a href="#wader">Wader Pilot Logbook</a></td><td>The EASA logbook PDF</td></tr>
+<tr><td><a href="#flylog">Flylog</a></td><td>The CSV export or backup, or the EASA / JAR logbook PDF</td></tr>
 <tr><td>eCrew / AIMS</td><td>The <a href="/ecrew-logbook-export.html">Pilot LogBook report</a> (CSV, Excel or PDF)</td></tr>
 <tr><td>Your own spreadsheet</td><td>CSV or Excel: you match the columns once</td></tr>
 </tbody></table></div>
 <p>Database backups (an mccPILOTLOG .mdb or a JSON database) can't be read: export the flights as CSV or print the logbook as PDF from the app instead.</p>
+<h2>Where to find the file in each app</h2>
+<h3 id="logten">LogTen Pro (Mac, iPhone, iPad)</h3>
+<ol>
+<li>Open <b>Reports</b>, choose <b>Exporters</b>, then <b>Export Flights (Tab)</b>. Not Dynamic Export: it leaves out the fields your logbook view hides.</li>
+<li>On iPhone or iPad, under Configure Report set Entry Type and Filter Group to <b>All</b> and the date range to <b>All</b>, then tap Generate and save or share the file. On a Mac, choose Save As.</li>
+<li>Drop the .txt file into step 2 on Your data. The EASA or SACAA logbook PDF from LogTen works too.</li>
+</ol>
+<h3 id="crewlounge">CrewLounge PILOTLOG (mccPILOTLOG)</h3>
+<ol>
+<li>Check that PILOTLOG records your times in <b>UTC</b>.</li>
+<li>Open your logbook, tap <b>Query</b>, leave the date range empty to take the whole logbook, and choose <b>Export Data</b>, then <b>CSV</b>.</li>
+<li>Drop the CSV into step 2. The logbook PDF works too. A database backup (.mdb or JSON) can't be read.</li>
+</ol>
+<h3 id="safelog">Safelog</h3>
+<ol>
+<li>Use Safelog's export to save your flights as a <b>CSV</b> file, not a Safelog backup.</li>
+<li>Drop the CSV into step 2. Day and night, single and multi-engine columns are added up for you.</li>
+</ol>
+<h3 id="wader">Wader Pilot Logbook</h3>
+<ol>
+<li>Export your logbook from Wader as the <b>EASA logbook PDF</b>, the one with Date, Departure, Arrival … on the left page.</li>
+<li>Drop the PDF into step 2. Its totals are checked against the PDF's own "Total time" rows.</li>
+</ol>
+<h3 id="flylog">Flylog</h3>
+<ol>
+<li>In Flylog's sync settings connect <b>Dropbox</b> and choose the <b>CSV export</b>. The file, exportCSV.csv, appears in your Dropbox.</li>
+<li>Drop it into step 2. The EASA or JAR logbook PDF from Flylog works too.</li>
+</ol>
+<p>Another app? Export your flights as CSV or Excel, or the logbook as a PDF in the EASA layout. If CrewBase Log can't read it, press <b>Help us read it</b> and we'll make it work, for free.</p>
 <h2>How the move works</h2>
 <ol>
 <li>Enter hours you won't import flight by flight, such as an old paper logbook, as <b>previous experience</b>.</li>

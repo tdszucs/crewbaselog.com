@@ -485,11 +485,16 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
       <div class="card" id="pastCard">
         <h3><span class="stepn">2</span>Import your past logbook</h3>
         <p class="hint step-sub">Your last CrewBase Log CSV, or an export from another logbook app.</p>
+        <div class="field" style="max-width:360px;margin:0 0 10px"><label for="appPick">Where is your logbook now?</label><select id="appPick">
+          <option value="">Choose your logbook app…</option><option value="logten">LogTen Pro</option><option value="crewlounge">CrewLounge PILOTLOG (mccPILOTLOG)</option>
+          <option value="safelog">Safelog</option><option value="wader">Wader Pilot Logbook</option><option value="flylog">Flylog</option><option value="ecrew">eCrew / AIMS (my airline)</option>
+          <option value="crewbase">CrewBase Log (my last CSV)</option><option value="sheet">A spreadsheet or another app</option><option value="paper">A paper logbook</option></select></div>
+        <div class="notice hidden" id="appGuide" style="margin:0 0 12px"></div>
         <div class="drop" id="drop"><b>Drop your past logbook here</b><br><span class="hint">or tap to choose · .csv, .xlsx, .pdf</span>
           <input type="file" id="impFile" accept=".csv,.txt,.tsv,.xlsx,.xls,.pdf,.json,.zip" multiple class="hidden"></div>
         <details style="margin-top:12px"><summary class="more">Which files work?</summary>
           <div class="hint" style="margin-top:10px;font-size:14px;line-height:1.6">
-            <p style="margin:0 0 8px">Read automatically: <b>CrewBase Log</b> CSV, <b>Flylog</b> CSV and EASA / JAR PDF, <b>CrewLounge PILOTLOG</b> (mccPILOTLOG) CSV and PDF, <b>Safelog</b> CSV, <b>eCrew</b> Pilot LogBook report. Any other CSV or Excel file: you match the columns once.</p>
+            <p style="margin:0 0 8px">Read automatically: <b>CrewBase Log</b> CSV, <b>Flylog</b> CSV and EASA / JAR PDF, <b>CrewLounge PILOTLOG</b> (mccPILOTLOG) CSV and PDF, <b>Safelog</b> CSV, <b>LogTen Pro</b> Export Flights (Tab) and PDF, <b>Wader</b> PDF, <b>eCrew</b> Pilot LogBook report. Any other CSV or Excel file: you match the columns once.</p>
             <p style="margin:0 0 8px">Scanned paper pages can't be read: enter their totals in step 1.</p>
             <p style="margin:0 0 10px"><b>Next time:</b> drop the CrewBase Log CSV you downloaded here, then your new eCrew file. Duplicates are skipped.</p>
             <label style="display:flex;gap:8px;align-items:center;font-weight:400;margin:0 0 8px;font-size:14px"><input type="checkbox" id="impManual" autocomplete="off" style="width:auto"> Let me match the columns myself (if a file was read wrongly)</label>
@@ -1149,6 +1154,7 @@ function enterApp(){
   if (moved) $('[data-p="overview"] h2').insertAdjacentHTML("afterend", '<div class="notice" style="margin:0 0 16px"><b>Your logbook is now with your account.</b> Everything you started without an account came along.</div>');
   adData = null; $("#tabAdmin").classList.toggle("hidden", !isAdmin());
   renderMyReports();
+  $("#appPick").value = data.profile.fromApp || ""; showAppGuide($("#appPick").value);
   // once a month per device: "active" (the month is remembered in this logbook only)
   if (fresh) usage("start");
   const month = todayISO().slice(0, 7); if (user.id !== "sample" && data.usageMonth !== month) { data.usageMonth = month; save(); usage("active"); }
@@ -2511,6 +2517,31 @@ $("#aimsFile").addEventListener("change", e => { handleFiles(e.target.files); e.
 ["dragenter","dragover"].forEach(ev => dropAims.addEventListener(ev, e => { e.preventDefault(); dropAims.classList.add("over"); }));
 ["dragleave","drop"].forEach(ev => dropAims.addEventListener(ev, e => { e.preventDefault(); dropAims.classList.remove("over"); }));
 dropAims.addEventListener("drop", e => handleFiles(e.dataTransfer.files));
+/* ---------- where to get the file from each logbook app (the same steps as switch-pilot-logbook-app.html) ---------- */
+const APP_GUIDES = {
+  logten: ["LogTen Pro", ["Open <b>Reports</b> and choose <b>Exporters</b>, then <b>Export Flights (Tab)</b>. Not Dynamic Export: it leaves out the fields your logbook view hides.",
+    "On iPhone or iPad: under Configure Report set Entry Type and Filter Group to <b>All</b> and the date range to <b>All</b>, tap Generate and save or share the file. On a Mac: Save As.",
+    "Drop the .txt file here. The logbook PDF in the EASA or SACAA layout works too."], "logten"],
+  crewlounge: ["CrewLounge PILOTLOG", ["Check that PILOTLOG records your times in <b>UTC</b>.",
+    "Open your logbook, tap <b>Query</b>, leave the date range empty (the whole logbook) and choose <b>Export Data</b>, then <b>CSV</b>.",
+    "Drop the CSV here. The logbook PDF works too. A database backup (.mdb or JSON) can't be read."], "crewlounge"],
+  safelog: ["Safelog", ["Use Safelog's export to save your flights as a <b>CSV</b> file (not a Safelog backup).", "Drop the CSV here."], "safelog"],
+  wader: ["Wader Pilot Logbook", ["Export your logbook from Wader as the <b>EASA logbook PDF</b>, the one with Date, Departure, Arrival … on the left page.", "Drop the PDF here."], "wader"],
+  flylog: ["Flylog", ["In Flylog's sync settings connect <b>Dropbox</b> and choose the <b>CSV export</b>. The file, exportCSV.csv, appears in your Dropbox.",
+    "Drop it here. The EASA or JAR logbook PDF from Flylog works too."], "flylog"],
+  ecrew: ["eCrew / AIMS", ["In eCrew open <b>Reports</b>, then <b>Pilot LogBook report</b>. Set the period (up to 2 years at a time), press Go, then <b>Export</b> as CSV, Excel or PDF.",
+    "Drop it in <b>step 3</b> below. For more than 2 years, drop one file per 2 years."], "/ecrew-logbook-export.html"],
+  crewbase: ["CrewBase Log", ["Drop the <b>crewbaselog-….csv</b> you downloaded last time. If you kept a full backup (.json), restore it in step 0 instead."]],
+  sheet: ["another app or a spreadsheet", ["Export your flights as <b>CSV or Excel</b>, or the logbook as a PDF in the EASA layout.",
+    "Drop it here. A spreadsheet you match once, by column; next time it is recognised."]],
+  paper: ["a paper logbook", ["Scanned pages can't be read. Enter the totals from its last page under <b>Previous experience</b> in step 1."]]
+};
+function showAppGuide(k){
+  const g = APP_GUIDES[k], box = $("#appGuide"); box.classList.toggle("hidden", !g); if (!g) return;
+  box.innerHTML = `<b>From ${g[0]}</b><ol style="margin:6px 0 4px;padding-left:20px">${g[1].map(t => `<li>${t}</li>`).join("")}</ol>` +
+    `<span class="hint" style="font-size:13px">${g[2] ? `<a href="${g[2].startsWith("/") ? g[2] : "/switch-pilot-logbook-app.html#" + g[2]}" target="_blank" rel="noopener">Full guide</a> · ` : ""}Doesn't work? Use <a href="#" data-scroll="#repPick" data-go="import">Help us read it</a> and we'll make it work.</span>`;
+}
+$("#appPick").addEventListener("change", e => { data.profile.fromApp = e.target.value; save(); showAppGuide(e.target.value); });
 /* ---------- "Help us read it": a pilot sends a file the app can't read (with consent) ---------- */
 const failedFiles = new Map();
 let repCur = null;
