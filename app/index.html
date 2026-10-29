@@ -263,6 +263,9 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
     <a class="logo" href="/"><svg viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#0b3d5c"/><path d="M12 38l40-14-10 22-8-6-6 8v-10z" fill="#f2b544"/></svg>CrewBase Log</a>
     <h1 id="authTitle">Log in</h1>
     <p class="sub" id="authSub">Welcome back. Your logbook stays on your device.</p>
+    <button class="btn block" id="btnLocal" type="button">Start without an account</button>
+    <p class="hint" style="text-align:center;margin:8px 0 18px;font-size:13.5px">Your logbook stays on this device. Create an account any time to share rosters with friends.</p>
+    <div class="or">or use an account</div>
     <div id="gisBtn" class="hidden" style="display:flex;justify-content:center;min-height:44px"></div>
     <button class="btn google block" id="btnGoogle" type="button">
       <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>
@@ -704,6 +707,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
         </div>
         <div class="row-actions"><button class="btn ghost" id="cbFAdd" type="button">Add friend</button>
           <button class="btn ghost" id="cbFLoadBtn" type="button">Load a roster a friend sent me</button><input type="file" id="cbFLoad" accept=".pdf,application/pdf,.json" class="hidden"><span id="cbFMsg" class="hint"></span></div>
+        <div class="notice hidden" id="cbNoAcct" style="margin:0 0 12px">Sharing rosters automatically needs a free account. <a href="#" id="cbMakeAcct">Create one</a>: your logbook comes along. Without one, send each other your roster files (Export to send to a friend, Load a roster a friend sent me).</div>
         <div class="hint" style="margin-bottom:12px">Add each other by the email you log in with: once you have both added each other, your rosters appear here side by side and stay up to date. Your roster is saved to your account only for this; your logbook stays on this device. A friend without an account can still send you their roster PDF to load.</div>
         <p class="err hidden" id="cbSyncMsg" style="margin:0 0 10px"></p>
         <div class="tablewrap"><table><thead><tr><th>Show</th><th>Name</th><th>Email</th><th>Base</th><th>Roster</th><th></th></tr></thead><tbody id="cbFRows"></tbody></table></div>
@@ -990,7 +994,9 @@ $("#btnResend").addEventListener("click", async () => {
   catch (x) { $("#verifyMsg").textContent = x.message; }
 });
 $("#btnBack").addEventListener("click", () => { setMode("login"); show("#vAuth"); });
-$("#btnOut").addEventListener("click", () => Auth.signOut());
+$("#btnOut").addEventListener("click", () => { if (isLocal()) { setMode("signup"); show("#vAuth"); $("#btnLocal").textContent = "Back to my logbook"; } else Auth.signOut(); });
+$("#btnLocal").addEventListener("click", startLocal);
+document.addEventListener("click", e => { if (e.target.id === "cbMakeAcct") { e.preventDefault(); $("#btnOut").click(); } });
 
 /* ---------- tabs ---------- */
 function tab(t){
@@ -1004,9 +1010,19 @@ $("#tabs").addEventListener("click", e => { if (e.target.dataset.t) tab(e.target
 /* ---------- activity: what each signed-in pilot did, for the site owner (Admin tab). Counts and formats only:
    never flights, file names or file contents. Rules in supabase/admin_activity.sql ---------- */
 const ADMIN_EMAIL = "t.d.szucs@gmail.com";
-const isAdmin = () => !!(Auth.live && user && user.id !== "sample" && String(user.email || "").toLowerCase() === ADMIN_EMAIL);
+// a pilot without an account: everything works on this device; logging in later takes the logbook along
+const LOCAL_ID = "local", isLocal = () => user?.id === LOCAL_ID, hasAccount = () => !!(user && user.id !== "sample" && user.id !== LOCAL_ID);
+const localLabel = () => $("#btnLocal").textContent = store.get("cbl_data_" + LOCAL_ID, null) ? "Continue without an account" : "Start without an account";
+function startLocal(){ store.set("cbl_local", 1); user = { id: LOCAL_ID, email: "" }; enterApp(); }
+// first log-in after starting without an account: the logbook moves to the account (unless the account already has one here)
+function adoptLocal(){
+  const loc = store.get("cbl_data_" + LOCAL_ID, null); if (!loc || !hasAccount()) return false;
+  if (store.get(key(), null)) return false;
+  store.set(key(), loc); store.del("cbl_data_" + LOCAL_ID); store.del("cbl_local"); return true;
+}
+const isAdmin = () => !!(Auth.live && hasAccount() && String(user.email || "").toLowerCase() === ADMIN_EMAIL);
 function logEvent(event, detail = {}){
-  if (!Auth.live || !user || user.id === "sample") return;
+  if (!Auth.live || !hasAccount()) return;
   try { Auth.db()?.from("activity").insert({ user_id: user.id, email: user.email, event, detail }).then(() => {}, () => {}); } catch {}
 }
 // Admin tab
@@ -1094,7 +1110,11 @@ $("#adWho").addEventListener("change", () => renderAdmin()); $("#adWhat").addEve
 $("#adUsers").addEventListener("click", e => { const r = e.target.closest("[data-aduser]"); if (!r) return; $("#adWho").value = r.dataset.aduser; renderAdmin(); $("#adLog").scrollIntoView({ behavior: "smooth", block: "start" }); });
 const nLines = () => ({ flights: data.flights.filter(f => !isSim(f)).length, sims: data.flights.filter(isSim).length });
 function enterApp(){
-  load(); show("#vApp"); $("#whoEmail").textContent = user.email; tab("overview");
+  const moved = adoptLocal();
+  load(); show("#vApp"); tab("overview");
+  $("#whoEmail").textContent = isLocal() ? "On this device only" : user.email;
+  $("#btnOut").textContent = isLocal() ? "Create account / Log in" : "Log out";
+  if (moved) $('[data-p="overview"] h2').insertAdjacentHTML("afterend", '<div class="notice" style="margin:0 0 16px"><b>Your logbook is now with your account.</b> Everything you started without an account came along.</div>');
   adData = null; $("#tabAdmin").classList.toggle("hidden", !isAdmin());
   renderMyReports();
   logEvent("open", { ...nLines(), phone: matchMedia("(max-width:640px)").matches, prev: !!hasPrev() });
@@ -2415,13 +2435,14 @@ dropAims.addEventListener("drop", e => handleFiles(e.dataTransfer.files));
 /* ---------- "Help us read it": a pilot sends a file the app can't read (with consent) ---------- */
 const failedFiles = new Map();
 let repCur = null;
-const repOnline = () => !!(Auth.live && Auth.db() && user && user.id !== "sample");
+const repOnline = () => !!(Auth.live && Auth.db() && hasAccount());
 function openReport(file, error = "", kind = "logbook"){
   if (!file) return;
   if (file.size > 20 * 1048576) return alert("That file is over 20 MB. Please email it to us instead.");
   repCur = { file, error };
   $("#repName").textContent = `${file.name} · ${file.size >= 1048576 ? (file.size / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(file.size / 1024)) + " KB"}`;
-  $("#repKind").value = kind; $("#repNote").value = ""; $("#repAgree").checked = false; $("#repErr").textContent = ""; $("#repSend").disabled = false; $("#repSend").textContent = "Send file";
+  $("#repSend").textContent = repOnline() ? "Send file" : "Email it to us";
+  $("#repKind").value = kind; $("#repNote").value = ""; $("#repAgree").checked = false; $("#repErr").textContent = ""; $("#repSend").disabled = false;
   $("#repDlg").showModal();
 }
 document.addEventListener("click", e => { const b = e.target.closest("[data-report]"); if (!b) return; const x = failedFiles.get(b.dataset.report); if (x) openReport(x.file, x.error, "logbook"); });
@@ -2966,6 +2987,7 @@ function cbRosters(){
 }
 
 function renderCrewBase(){
+  $("#cbNoAcct").classList.toggle("hidden", !isLocal());
   if (cbPulledFor !== user.id && cbOnline()) { cbPulledFor = user.id; cbSync(); }
   const C = cb();
   if (document.activeElement !== $("#cbName")) $("#cbName").value = C.me.name || data.profile.name || "";
@@ -3029,7 +3051,7 @@ function cbRenderFriends(){
 }
 /* Sharing through accounts (Supabase, see supabase/crew_base_sharing.sql): my roster and friends list are saved
    to my account; a friend's roster comes back only if that friend has added my email. Logbook data never leaves the device. */
-const cbOnline = () => !!(Auth.live && Auth.db() && user && user.id !== "sample");
+const cbOnline = () => !!(Auth.live && Auth.db() && hasAccount());
 let cbSyncMsg = "", cbPushT = null, cbPulledFor = null;
 function cbPush(){ if (!cbOnline()) return; clearTimeout(cbPushT); cbPushT = setTimeout(() => cbSync(false), 600); }
 async function cbSync(pull = true){
@@ -3686,11 +3708,13 @@ $("#btnSample").addEventListener("click", e => {
 (async () => {
   $("#demoBanner").classList.toggle("hidden", Auth.live);
   try { await Auth.init(); } catch (x) { console.error(x); }
-  Auth.onChange(u => { user = u; if (u) enterApp(); else { setMode("login"); show("#vAuth"); } });
+  Auth.onChange(u => { if (!u && (isLocal() || user?.id === "sample")) return; user = u; if (u) enterApp(); else { setMode("login"); localLabel(); show("#vAuth"); } });
   try { user = await Auth.current(); } catch (x) { user = null; $("#authErr").textContent = "Couldn't reach the sign-in service. Check your connection and reload."; }
   if (user) enterApp();
   else if (location.hash === "#sample") $("#btnSample").click();
+  else if (location.hash === "#start" || store.get("cbl_local", null)) startLocal();
   else { setMode(location.hash === "#signup" ? "signup" : "login"); show("#vAuth"); }
+  if (!user) localLabel();
   if ("serviceWorker" in navigator && (location.protocol === "https:" || ["localhost", "127.0.0.1"].includes(location.hostname))) navigator.serviceWorker.register("sw.js").catch(e => console.warn("service worker", e));
 })();
 </script>
