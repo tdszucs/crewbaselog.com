@@ -96,6 +96,21 @@ h2{font-size:24px;letter-spacing:-.02em;margin:0 0 6px}
 .fixrows{margin-top:10px}
 .fixrows td{vertical-align:middle}
 .fixrows tr.fixed td{background:var(--ok-soft)}
+/* Review page: Troubleshooting on its own, one card per line (readable on a phone) */
+[data-p="import"].reviewing > :not(#fixCard){display:none}
+[data-p="import"].reviewing #fixBox > summary,[data-p="import"].reviewing .fixintro{display:none}
+.fixhead{margin:0 0 14px}.fixhead h2{margin:10px 0 4px}.fixhead p{margin:0;color:var(--muted);font-size:15px}
+.fixline{border:1px solid var(--line);border-radius:12px;padding:12px;margin:0 0 10px;background:var(--surface)}
+.fixline.fixed{background:var(--ok-soft)}
+.fixline.editing{border-color:var(--accent)}
+.fl-top{font-weight:600;font-size:15px;overflow-wrap:anywhere}
+.fl-what{font-size:14px;margin:4px 0 0;overflow-wrap:anywhere}
+.fl-btns{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:10px 0 0}
+.fixline .rowbtn{border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:14px;color:var(--ink);min-height:38px}
+.fixline .rowbtn.sug{border-color:var(--accent);color:var(--accent)}
+.fixline .rowbtn.del{color:var(--bad)}
+.fixline .rowbtn:hover{text-decoration:none;background:var(--bg)}
+.fixnote{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:12px 0 0}
 .pvgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0 14px}
 @media (max-width:640px){ .pvgrid{grid-template-columns:repeat(2,minmax(0,1fr))} }
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;padding:3px;margin:0 0 14px;background:var(--bg)}
@@ -517,7 +532,8 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
 
       <div class="card hidden" id="fixCard">
         <details id="fixBox"><summary class="cardsum"><h3>Troubleshooting</h3> <span class="hint" id="fixState"></span></summary>
-        <p class="hint" style="margin:12px 0 14px;font-size:14px">Every line of your logbook is checked for the usual import mistakes. Edit, delete or mark each line as correct. A file read completely wrongly: undo the import, tick <b>Let me match the columns myself</b> under "Which files work?" in step 2 and drop it again.</p>
+        <div class="fixhead hidden" id="fixHead"><button class="btn ghost small" type="button" id="fixBack">← Back to Your data</button><h2>Review your logbook</h2><p id="fixHeadSub"></p></div>
+        <p class="hint fixintro" style="margin:12px 0 14px;font-size:14px">Every line of your logbook is checked for the usual import mistakes. Edit, delete or mark each line as correct. A file read completely wrongly: undo the import, tick <b>Let me match the columns myself</b> under "Which files work?" in step 2 and drop it again.</p>
         <div class="notice hidden" id="undoBox" style="margin:0 0 14px"></div>
         <div id="fixList"></div>
         </details>
@@ -1012,6 +1028,7 @@ document.addEventListener("click", e => { if (e.target.id === "cbMakeAcct") { e.
 
 /* ---------- tabs ---------- */
 function tab(t){
+  if (t !== "import") closeReview?.();
   $$("#tabs button").forEach(b => b.classList.toggle("on", b.dataset.t === t));
   $$("[data-p]").forEach(p => p.classList.toggle("hidden", p.dataset.p !== t));
   ({ overview: renderOverview, profile: () => { renderProfile(); renderExpiries(); renderSignature(); }, logbook: renderLogbook, import: renderYourData, stats: renderStats, crewbase: renderCrewBase, admin: renderAdmin })[t]?.();
@@ -2075,7 +2092,7 @@ async function nextFile(){
     added: impBatch.added, updated: impBatch.updated, problems: impErrs, ...nLines() });
   const gaps = importGaps(); if (gaps.length) $("#impDoneLog").insertAdjacentHTML("beforeend", `<br>${gapMsg(gaps)}`);
   $("#impDoneLog").insertAdjacentHTML("beforeend", aptAskHTML());
-  renderFix().then(n => { if (n) $("#impDoneLog").insertAdjacentHTML("beforeend", `<br><b style="color:var(--warn)">${n} line${n === 1 ? " looks" : "s look"} wrong.</b> <a href="#" data-go="import" data-scroll="#fixBox">Review and fix them</a>.`); });
+  renderFix().then(n => { if (n) $("#impDoneLog").insertAdjacentHTML("beforeend", `<div class="notice fixnote"><span><b style="color:var(--warn)">⚠ We found ${n.toLocaleString()} line${n === 1 ? "" : "s"} to check</b> in your logbook: possible mistakes from the import.</span><button class="btn small" type="button" data-review>Review them</button></div>`); });
 }
 // long stretches without a flight inside the period just imported (or between it and the flights before it):
 // a 2-year eCrew export that was missed, or leave. Shown as a hint, never changed.
@@ -2429,6 +2446,7 @@ async function renderFix(){
   await loadAirports();
   const any = data.flights.length > 0;
   $("#fixCard").classList.toggle("hidden", (!any && !data.lastImport) || (restoredView() && !data.lastImport));
+  if ($("#fixCard").classList.contains("hidden")) closeReview();   // nothing left to review (e.g. the import was undone)
   const L = data.lastImport;
   $("#undoBox").classList.toggle("hidden", !L);
   if (L) $("#undoBox").innerHTML = `<b>Last import</b> (${fmtDate(L.date)}): ${L.names.map(esc).join(", ")}: ${L.added.toLocaleString()} line${L.added === 1 ? "" : "s"} added${L.updated ? `, ${L.updated} updated` : ""}. <button class="btn ghost small" type="button" id="undoImp">Undo this import</button>`;
@@ -2437,29 +2455,41 @@ async function renderFix(){
   const okMsg = total0 => total0 ? "" : `<p style="margin:0 0 10px;color:var(--ok);font-weight:600">✓ No problems left in ${data.flights.length.toLocaleString()} lines.</p>`;
   const left = groups.reduce((s, [, H]) => s + H.length, 0);
   $("#fixState").innerHTML = left ? `<b style="color:var(--warn)">· ${left} line${left === 1 ? "" : "s"} to check</b>` : `<span style="color:var(--ok)">· no problems found</span>`;
-  // open by itself the first time there is something to fix
-  if (left && !$("#fixBox").dataset.seen) { $("#fixBox").open = true; $("#fixBox").dataset.seen = 1; }
+  $("#fixHeadSub").innerHTML = left ? `${left.toLocaleString()} line${left === 1 ? "" : "s"} may be wrong. For each one: fix it, edit it, or tell us it's correct. Whole file read wrongly? Undo the import below and drop it again with <b>Let me match the columns myself</b> ticked.` : "";
   if (fixEditCtx) lbCloseEdit();
   $("#fixList").innerHTML = aptAskHTML() + okMsg(left) + groups.map(([c, H, G]) => {
     total += H.length;
     const rows = H.slice(0, 200).map(f => {
       const i = data.flights.indexOf(f), sg = c.roles ? suggestRole(f) : null;
       // function-time lines: what the line says, the suggestion and its reason, then one button per function
-      const why = c.roles ? `<div class="hint" style="margin:3px 0 0;font-size:12.5px">${sg ? `Suggested: <b>${ROLE_PICK.find(x => x[0] === sg[0])[1]}</b> (${esc(sg[1])})` : "No PIC name or remarks to go by: check this flight."}</div>` : "";
-      const roleBtns = c.roles ? `<div style="margin:4px 0 0"><span class="hint" style="margin:0 2px 0 0;font-size:12.5px">You were:</span>` + ROLE_PICK.map(([r, l]) => `<button class="rowbtn${sg && sg[0] === r ? " sug" : ""}" type="button" data-role="${r}" data-i="${i}">${l}</button>`).join("") + "</div>" : "";
-      return `<tr><td style="white-space:nowrap">${fmtDate(f.date)}</td><td>${esc(flightLabel(f).replace(fmtDate(f.date), "").trim())}</td><td>${esc(c.detail ? c.detail(f, data.flights) : "")}${why}${roleBtns}</td><td class="r" style="white-space:nowrap">` +
-      ((c.fix && (!c.can || c.can(f))) ? `<button class="rowbtn sug" type="button" data-fix1="${c.id}" data-i="${i}">${FIX_ONE[c.id] || "Fix"}</button>` : "") + `<button class="rowbtn" type="button" data-fixedit="${i}">Edit</button>` +
-      (c.del ? `<button class="rowbtn del" type="button" data-fixdel="${i}">${FIX_ONE[c.id] || "Delete"}</button>` : "") + `<button class="rowbtn" type="button" data-fixok="${c.id}" data-i="${i}" title="Stop flagging this line">It's correct</button></td></tr>`; }).join("");
+      const why = c.roles ? `<div class="hint" style="margin:4px 0 0;font-size:13.5px">${sg ? `Suggested: <b>${ROLE_PICK.find(x => x[0] === sg[0])[1]}</b> (${esc(sg[1])})` : "No PIC name or remarks to go by: check this flight."}</div>` : "";
+      const roleBtns = c.roles ? `<div class="fl-btns"><span class="hint" style="margin:0;font-size:13.5px">You were:</span>` + ROLE_PICK.map(([r, l]) => `<button class="rowbtn${sg && sg[0] === r ? " sug" : ""}" type="button" data-role="${r}" data-i="${i}">${l}</button>`).join("") + "</div>" : "";
+      return `<div class="fixline"><div class="fl-top">${fmtDate(f.date)} · ${esc(flightLabel(f).replace(fmtDate(f.date), "").trim())}</div><div class="fl-what">${esc(c.detail ? c.detail(f, data.flights) : "")}</div>${why}${roleBtns}<div class="fl-btns">` +
+      ((c.fix && (!c.can || c.can(f))) ? `<button class="rowbtn sug" type="button" data-fix1="${c.id}" data-i="${i}">${FIX_ONE[c.id] || "Fix"}</button>` : "") +
+      (c.del ? `<button class="rowbtn del" type="button" data-fixdel="${i}">${FIX_ONE[c.id] || "Delete"}</button>` : "") + `<button class="rowbtn" type="button" data-fixedit="${i}">Edit</button>` +
+      `<button class="rowbtn" type="button" data-fixok="${c.id}" data-i="${i}" title="Stop flagging this line">It's correct</button></div></div>`; }).join("");
     // lines already corrected stay in the list: the corrected line, what it was, and an undo
-    const done = G.map((g, j) => `<tr class="fixed"><td style="white-space:nowrap">${fmtDate(g.copy.date)}</td><td>${esc(flightLabel(g.copy).replace(fmtDate(g.copy.date), "").trim())}</td>` +
-      `<td><b style="color:var(--ok)">✓ ${esc(g.msg)}</b>${g.kind === "mod" ? `<div style="font-size:12.5px;margin-top:2px">Now: ${esc(lineSum(g.f))}</div><div class="hint" style="margin:1px 0 0;font-size:12.5px">Was: ${esc(lineSum(g.copy))}</div>` : `<div class="hint" style="margin:2px 0 0;font-size:12.5px">${esc(lineSum(g.copy))}</div>`}</td>` +
-      `<td class="r"><button class="rowbtn" type="button" data-undo="${c.id}:${j}">Undo</button></td></tr>`).join("");
+    const done = G.map((g, j) => `<div class="fixline fixed"><div class="fl-top">${fmtDate(g.copy.date)} · ${esc(flightLabel(g.copy).replace(fmtDate(g.copy.date), "").trim())}</div>` +
+      `<div class="fl-what"><b style="color:var(--ok)">✓ ${esc(g.msg)}</b>${g.kind === "mod" ? `<div style="font-size:13.5px;margin-top:2px">Now: ${esc(lineSum(g.f))}</div><div class="hint" style="margin:1px 0 0;font-size:13.5px">Was: ${esc(lineSum(g.copy))}</div>` : `<div class="hint" style="margin:2px 0 0;font-size:13.5px">${esc(lineSum(g.copy))}</div>`}</div>` +
+      `<div class="fl-btns"><button class="rowbtn" type="button" data-undo="${c.id}:${j}">Undo</button></div></div>`).join("");
     return `<div class="fixgrp"><div class="fixhd"><b>${c.title}</b><span class="tag">${H.length ? `${H.length.toLocaleString()} to check` : "all checked"}${G.length ? ` · ${G.length} corrected` : ""}</span>` +
       `<button class="btn ghost small" type="button" data-fixshow="${c.id}">${fixClosed.has(c.id) ? "Show lines" : "Hide lines"}</button></div>` +
-      `<p class="hint">${c.why}</p><div class="fixrows tablewrap${fixClosed.has(c.id) ? " hidden" : ""}"><table><tbody>${rows}${done}</tbody></table>${H.length > 200 ? `<p class="hint" style="padding:8px">Showing the first 200 of ${H.length.toLocaleString()}; the rest appear as these are done.</p>` : ""}</div></div>`;
+      `<p class="hint">${c.why}</p><div class="fixrows${fixClosed.has(c.id) ? " hidden" : ""}">${rows}${done}${H.length > 200 ? `<p class="hint" style="padding:8px">Showing the first 200 of ${H.length.toLocaleString()}; the rest appear as these are done.</p>` : ""}</div></div>`;
   }).join("");
   return total;
 }
+// Review page: Troubleshooting alone on the Your data tab, from the button after an import or the card's heading
+function openReview(){
+  const P = $('[data-p="import"]'); if (P.classList.contains("hidden")) tab("import");
+  P.classList.add("reviewing"); $("#fixHead").classList.remove("hidden"); $("#fixBox").open = true;
+  // a long list: the first kind of problem open, the others folded
+  const kinds = FIX_CHECKS.filter(c => fixHits(c).length); fixClosed = new Set(kinds.length > 1 && kinds.reduce((s, c) => s + fixHits(c).length, 0) > 8 ? kinds.slice(1).map(c => c.id) : []);
+  renderFix().then(() => window.scrollTo(0, $("#fixCard").getBoundingClientRect().top + scrollY - ($("#vApp .top")?.offsetHeight || $(".top")?.offsetHeight || 0) - 8));
+}
+function closeReview(){ const P = $('[data-p="import"]'); if (!P.classList.contains("reviewing")) return; P.classList.remove("reviewing"); $("#fixHead").classList.add("hidden"); $("#fixBox").open = false; lbCloseEdit(); window.scrollTo(0, 0); }
+document.addEventListener("click", e => { if (e.target.closest("[data-review]")) { e.preventDefault(); openReview(); } });
+$("#fixBack").addEventListener("click", closeReview);
+$("#fixBox").addEventListener("toggle", () => { if ($("#fixBox").open && !$('[data-p="import"]').classList.contains("reviewing") && FIX_CHECKS.some(c => fixHits(c).length)) openReview(); });
 // one line in short, to show a correction: type, registration, route, times, function, landings
 const lineSum = f => isSim(f) ? `simulator ${f.fstdType || ""} ${fmtMin(f.fstdTime)}`.replace(/\s+/g, " ") :
   [f.acType, f.reg, f.from || f.to ? `${f.from || "?"}–${f.to || "?"}` : "", `total ${fmtMin(f.total)}`, ...["pic","copilot","dual","instructor"].filter(k => f[k]).map(k => `${ROLE_LABEL[k]} ${fmtMin(f[k])}`),
@@ -2816,12 +2846,12 @@ function lbCloseEdit(){ lbEditing = null; $("#lbEdit").classList.add("hidden"); 
 let fixEditCtx = null; const lbEditHome = document.createComment("lbEdit home");
 function parkEdit(){
   if (!fixEditCtx) return; const box = $("#lbEdit").closest(".fixedit"); lbEditHome.after($("#lbEdit")); box?.remove();
-  document.querySelectorAll("#fixList tr.editing").forEach(r => r.classList.remove("editing")); fixEditCtx = null;
+  document.querySelectorAll("#fixList .editing").forEach(r => r.classList.remove("editing")); fixEditCtx = null;
 }
 function fixOpenEdit(i, btn){
   lbCloseEdit();
-  const tr = btn.closest("tr"), id = btn.closest(".fixgrp").querySelector("[data-fixshow]").dataset.fixshow, box = document.createElement("div");
-  box.className = "fixedit"; btn.closest(".fixrows").after(box); tr.classList.add("editing");
+  const tr = btn.closest(".fixline"), id = btn.closest(".fixgrp").querySelector("[data-fixshow]").dataset.fixshow, box = document.createElement("div");
+  box.className = "fixedit"; tr.after(box); tr.classList.add("editing");
   if (!lbEditHome.parentNode) $("#lbEdit").before(lbEditHome);
   box.appendChild($("#lbEdit")); fixEditCtx = { id, copy: JSON.parse(JSON.stringify(data.flights[i])) };
   lbOpenEdit(i);
