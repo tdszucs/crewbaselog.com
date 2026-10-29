@@ -10,6 +10,7 @@ create or replace function public.cbl_is_admin()
 returns boolean
 language sql
 stable
+set search_path = ''
 as $$
   select lower(coalesce(auth.jwt() ->> 'email', '')) = 't.d.szucs@gmail.com';
 $$;
