@@ -43,6 +43,7 @@ create table if not exists public.file_reports (
   updated_at  timestamptz not null default now()
 );
 create index if not exists file_reports_created on public.file_reports (created_at desc);
+alter table public.file_reports add column if not exists emailed_at timestamptz;   -- when the pilot was emailed about the result
 
 grant select, insert, update, delete on public.file_reports to authenticated;
 alter table public.file_reports enable row level security;

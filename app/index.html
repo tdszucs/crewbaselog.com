@@ -722,7 +722,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
       </div>
       <p class="err" id="adErr"></p>
       <div class="stats" id="adTiles"></div>
-      <div class="card"><h3>Files sent for help</h3><p class="hint" style="margin:0 0 10px;font-size:14px">Files pilots sent because the app couldn't read them. Download one, give it to Claude to add the format, then set it to <b>Works now</b>: the pilot sees it next time they open the app. Delete the file once done (at the latest after 90 days, as promised).</p><div class="tablewrap" id="adReps"></div></div>
+      <div class="card"><h3>Files sent for help</h3><p class="hint" style="margin:0 0 10px;font-size:14px">Files pilots sent because the app couldn't read them. Download one, give it to Claude to add the format, then set it to <b>Works now</b> and press Save: your email app opens with a message to the pilot, ready to send, and they also see it next time they open the app. Delete the file once done (at the latest after 90 days, as promised).</p><div class="tablewrap" id="adReps"></div></div>
       <div class="card"><h3>Registered pilots</h3><p class="hint" style="margin:0 0 10px;font-size:14px">Tap a pilot to see only their actions.</p><div class="tablewrap" id="adUsers"></div></div>
       <div class="card">
         <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 10px"><h3 style="margin:0">Activity</h3>
@@ -1044,6 +1044,17 @@ async function renderAdmin(force){
     : '<p class="hint" style="margin:0">No actions recorded yet. They appear here as pilots use the app.</p>';
   $("#adMore").textContent = L.length > 500 ? `Showing the latest 500 of ${L.length.toLocaleString()}.` : "";
 }
+// an email to the pilot, ready in the site owner's mail app: the file works now (or why it can't)
+async function repMail(r){
+  const when = fmtDate(r.created_at.slice(0, 10)), step = { ecrew: " in step 3 (Import new flights from eCrew)", roster: " on the Crew Base tab", logbook: " in step 2 (Import your past logbook)" }[r.kind] || "";
+  const body = r.status === "done"
+    ? `Hello,\n\nThank you for sending us ${r.file_name} on ${when}. Good news: CrewBase Log can now read it.\n\nTo add your flights, open https://crewbaselog.com/app/ , go to Your data and drop the file again${step}. If anything still looks wrong, reply to this email.\n${r.admin_note ? `\n${r.admin_note}\n` : ""}${r.file_deleted ? "\nThe copy you sent us has been deleted.\n" : ""}\nHappy flying,\nTamas\nCrewBase Log`
+    : `Hello,\n\nThank you for sending us ${r.file_name} on ${when}. Unfortunately we couldn't make CrewBase Log read this file.\n${r.admin_note ? `\n${r.admin_note}\n` : ""}\nIf the app you use can export your flights another way (CSV, Excel or a PDF logbook), please try that, or reply to this email and we'll help.\n${r.file_deleted ? "\nThe copy you sent us has been deleted.\n" : ""}\nHappy flying,\nTamas\nCrewBase Log`;
+  const subj = r.status === "done" ? "CrewBase Log can now read your file" : "About the file you sent to CrewBase Log";
+  location.href = `mailto:${encodeURIComponent(r.email || "")}?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(body)}`;
+  const t = new Date().toISOString(), x = await Auth.db().from("file_reports").update({ emailed_at: t }).eq("id", r.id);
+  if (!x.error) { r.emailed_at = t; renderAdReps(); }
+}
 function renderAdReps(){
   const R = adData.reps, box = $("#adReps");
   if (!R) { box.innerHTML = '<p class="hint" style="margin:0">Run supabase/file_reports.sql in Supabase (SQL Editor) to receive files.</p>'; return; }
@@ -1055,14 +1066,18 @@ function renderAdReps(){
     <td style="min-width:200px">${r.error ? `<div style="color:var(--bad);font-size:13px">${esc(r.error)}</div>` : ""}${r.note ? `<div style="font-size:13px">“${esc(r.note)}”</div>` : ""}</td>
     <td><select data-repstatus style="width:auto">${Object.entries(REP_STATUS).map(([k, [t]]) => `<option value="${k}"${k === r.status ? " selected" : ""}>${t}</option>`).join("")}</select>
       <input data-repnote placeholder="Note to the pilot (optional)" value="${esc(r.admin_note || "")}" style="margin-top:6px;min-width:180px"><button class="rowbtn" type="button" data-repsave>Save</button></td>
-    <td style="white-space:nowrap">${r.file_deleted ? '<span class="hint">file deleted</span>' : `<button class="rowbtn sug" type="button" data-repget>Download</button><button class="rowbtn del" type="button" data-repdel>Delete file</button>`}</td></tr>`).join("") + "</tbody></table>";
+    <td style="white-space:nowrap">${r.file_deleted ? '<span class="hint">file deleted</span>' : `<button class="rowbtn sug" type="button" data-repget>Download</button><button class="rowbtn del" type="button" data-repdel>Delete file</button>`}
+      ${r.status === "done" || r.status === "cannot" ? `<div style="margin-top:4px"><button class="rowbtn${r.emailed_at ? "" : " sug"}" type="button" data-repmail>Email the pilot</button>${r.emailed_at ? `<div class="hint" style="font-size:12px;margin:0">emailed ${fmtDate(r.emailed_at.slice(0, 10))}</div>` : ""}</div>` : ""}</td></tr>`).join("") + "</tbody></table>";
 }
 $("#adReps").addEventListener("click", async e => {
   const b = e.target.closest("button"), tr = e.target.closest("[data-rep]"); if (!b || !tr) return;
   const r = adData.reps.find(x => String(x.id) === tr.dataset.rep), db = Auth.db(); if (!r) return;
   if (b.hasAttribute("data-repget")) { const s = await db.storage.from("file-reports").createSignedUrl(r.path, 120, { download: r.file_name }); if (s.error) return alert("Couldn't open the file: " + s.error.message); location.href = s.data.signedUrl; }
   if (b.hasAttribute("data-repsave")) { const u = { status: tr.querySelector("[data-repstatus]").value, admin_note: tr.querySelector("[data-repnote]").value.trim() || null, updated_at: new Date().toISOString() };
-    const x = await db.from("file_reports").update(u).eq("id", r.id); if (x.error) return alert(x.error.message); Object.assign(r, u); b.textContent = "Saved"; setTimeout(() => b.textContent = "Save", 1200); }
+    const was = r.status, x = await db.from("file_reports").update(u).eq("id", r.id); if (x.error) return alert(x.error.message); Object.assign(r, u); renderAdReps();
+    // just marked as working (or not possible): write the email to the pilot
+    if (u.status !== was && (u.status === "done" || u.status === "cannot") && !r.emailed_at) repMail(r); }
+  if (b.hasAttribute("data-repmail")) repMail(r);
   if (b.hasAttribute("data-repdel")) { if (!confirm(`Delete ${r.file_name} from storage? The report stays in the list.`)) return;
     const d = await db.storage.from("file-reports").remove([r.path]); if (d.error) return alert(d.error.message);
     await db.from("file_reports").update({ file_deleted: true, updated_at: new Date().toISOString() }).eq("id", r.id); r.file_deleted = true; renderAdReps(); }
