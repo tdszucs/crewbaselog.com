@@ -236,6 +236,11 @@ td.r,th.r{text-align:right}
   .exp-head{display:none!important}
 }
 @media (max-width:520px){ .who span{display:none} }
+dialog.repdlg{width:min(480px,calc(100vw - 32px));max-height:calc(100dvh - 32px);overflow:auto;padding:22px;border:0;border-radius:14px;background:var(--surface);color:var(--ink);box-shadow:0 20px 60px rgba(0,0,0,.35)}
+dialog.repdlg::backdrop{background:rgba(8,20,30,.55)}
+.repfile{font:500 14px "JetBrains Mono",monospace;background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:9px 12px;margin:0 0 14px;word-break:break-all}
+.repok{display:flex;gap:10px;align-items:flex-start;font-weight:400;font-size:14px;margin:4px 0 0}.repok input{width:18px;height:18px;min-width:18px;padding:0;margin:2px 0 0;flex:none;accent-color:var(--brand)}
+#repMine table{margin-top:14px}
 dialog.kofi{width:min(440px,calc(100vw - 32px));max-height:calc(100dvh - 32px);padding:0;border:0;border-radius:14px;background:#fff;color:#1a1f24;box-shadow:0 20px 60px rgba(0,0,0,.35);overflow:hidden}
 dialog.kofi::backdrop{background:rgba(8,20,30,.55)}
 .kofi-hd{display:flex;align-items:center;justify-content:space-between;padding:12px 14px 10px 18px;font-size:16px}
@@ -585,8 +590,10 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
       </div>
       <div class="card">
         <h3>Doesn't look right?</h3>
-        <p class="hint step-sub">Send us your logbook, roster or eCrew file and we'll make CrewBase Log read it correctly.</p>
-        <a class="btn ghost small" id="airMail" href="#">Email us your files</a> <span class="hint">Attach the files before sending.</span>
+        <p class="hint step-sub">Send us the file that isn't read correctly: a logbook from another app, an eCrew or airline report, or a roster. We'll make CrewBase Log read it, for free, and tell you here when it works.</p>
+        <div class="row-actions" style="margin:0"><button class="btn small" type="button" id="repPick">Send us a file</button><a class="hint" id="airMail" href="#">or email it to us</a></div>
+        <input type="file" id="repFile" class="hidden">
+        <div id="repMine"></div>
       </div>
     </div>
 
@@ -715,6 +722,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
       </div>
       <p class="err" id="adErr"></p>
       <div class="stats" id="adTiles"></div>
+      <div class="card"><h3>Files sent for help</h3><p class="hint" style="margin:0 0 10px;font-size:14px">Files pilots sent because the app couldn't read them. Download one, give it to Claude to add the format, then set it to <b>Works now</b>: the pilot sees it next time they open the app. Delete the file once done (at the latest after 90 days, as promised).</p><div class="tablewrap" id="adReps"></div></div>
       <div class="card"><h3>Registered pilots</h3><p class="hint" style="margin:0 0 10px;font-size:14px">Tap a pilot to see only their actions.</p><div class="tablewrap" id="adUsers"></div></div>
       <div class="card">
         <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 10px"><h3 style="margin:0">Activity</h3>
@@ -725,6 +733,19 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
     </div>
   </main>
 </section>
+
+<dialog class="repdlg" id="repDlg" aria-labelledby="repTitle">
+  <form method="dialog" id="repForm">
+    <h3 id="repTitle" style="margin:0 0 6px">Help us read your file</h3>
+    <p class="hint" style="margin:0 0 12px;font-size:14px">Every logbook app and airline system writes its files a little differently. Send us this one and we'll teach CrewBase Log to read it. It's free, and every pilot using the same app or airline benefits.</p>
+    <div class="repfile" id="repName"></div>
+    <div class="field"><label for="repKind">What is it?</label><select id="repKind"><option value="logbook">A logbook from another app or a spreadsheet</option><option value="ecrew">An eCrew / AIMS or other airline report</option><option value="roster">A roster for Crew Base</option><option value="other">Something else</option></select></div>
+    <div class="field"><label for="repNote">Anything we should know? <span class="hint" style="font-weight:400">(optional)</span></label><textarea id="repNote" rows="3" maxlength="1500" placeholder="Which app or airline it's from, and what went wrong"></textarea></div>
+    <label class="repok"><input type="checkbox" id="repAgree"> <span>I agree to send this file to CrewBase Log. It is stored privately, used only to make the app read this kind of file, never shared, and deleted once that works (at the latest after 90 days).</span></label>
+    <p class="err" id="repErr" style="margin:6px 0 0"></p>
+    <div class="row-actions" style="margin:12px 0 0"><button class="btn" type="button" id="repSend">Send file</button><button class="btn ghost" type="button" id="repCancel">Cancel</button></div>
+  </form>
+</dialog>
 
 <dialog class="kofi" id="kofiDlg" aria-label="Support CrewBase Log">
   <div class="kofi-hd"><b>Support CrewBase Log</b><button type="button" class="kofi-x" aria-label="Close">×</button></div>
@@ -993,7 +1014,7 @@ const AD_EV = {
   add_flight: () => "Added a flight by hand", add_sim: () => "Added a simulator session by hand", edit_flight: d => `Edited a flight (${d.where})`,
   fix: d => `Troubleshooting · ${FIX_CHECKS.find(c => c.id === d.check)?.title || d.check} · ${{ mod: "fixed", del: "deleted", move: "moved to previous experience", ok: "marked correct" }[d.action] || d.action}`,
   start_over: () => "Cleared the logbook (start over)", roster_saved: d => `Saved Crew Base roster · ${d.days} days`, friend_added: d => `Added a Crew Base friend · ${d.friends} in total`,
-  feedback: () => "Sent feedback", profile_saved: d => `Saved profile${d.name ? "" : " (no name)"}`, airport_codes: d => `Airport codes: ${d.style}`
+  feedback: () => "Sent feedback", file_report: d => `Sent a file for help · ${d.kind}, ${d.kb} KB${d.failed ? " · import had failed" : ""}`, profile_saved: d => `Saved profile${d.name ? "" : " (no name)"}`, airport_codes: d => `Airport codes: ${d.style}`
 };
 let adData = null;
 async function renderAdmin(force){
@@ -1001,10 +1022,12 @@ async function renderAdmin(force){
   const db = Auth.db(), err = $("#adErr"); err.textContent = "";
   if (!adData || force) {
     $("#adTiles").innerHTML = '<p class="hint">Loading…</p>';
-    const [u, a] = await Promise.all([db.rpc("cbl_admin_users"), db.from("activity").select("user_id,email,event,detail,created_at").order("created_at", { ascending: false }).limit(2000)]);
+    const [u, a, f] = await Promise.all([db.rpc("cbl_admin_users"), db.from("activity").select("user_id,email,event,detail,created_at").order("created_at", { ascending: false }).limit(2000),
+      db.from("file_reports").select("*").order("created_at", { ascending: false }).limit(300)]);
     if (u.error || a.error) { err.textContent = "Couldn't load: " + (u.error || a.error).message + ". Has supabase/admin_activity.sql been run in Supabase (SQL Editor)?"; $("#adTiles").innerHTML = ""; return; }
-    adData = { users: u.data || [], log: a.data || [] };
+    adData = { users: u.data || [], log: a.data || [], reps: f.error ? null : f.data || [] };
   }
+  renderAdReps();
   const { users, log } = adData, ago = d => Date.now() - 864e5 * d, dt = s => s ? new Date(s).toLocaleString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "–";
   const act7 = new Set(log.filter(e => Date.parse(e.created_at) > ago(7)).map(e => e.user_id));
   $("#adTiles").innerHTML = [["Registered", users.length], ["Verified", users.filter(u => u.confirmed_at).length], ["New in 7 days", users.filter(u => Date.parse(u.created_at) > ago(7)).length],
@@ -1021,6 +1044,29 @@ async function renderAdmin(force){
     : '<p class="hint" style="margin:0">No actions recorded yet. They appear here as pilots use the app.</p>';
   $("#adMore").textContent = L.length > 500 ? `Showing the latest 500 of ${L.length.toLocaleString()}.` : "";
 }
+function renderAdReps(){
+  const R = adData.reps, box = $("#adReps");
+  if (!R) { box.innerHTML = '<p class="hint" style="margin:0">Run supabase/file_reports.sql in Supabase (SQL Editor) to receive files.</p>'; return; }
+  if (!R.length) { box.innerHTML = '<p class="hint" style="margin:0">No files yet.</p>'; return; }
+  const age = s => Math.floor((Date.now() - Date.parse(s)) / 864e5);
+  box.innerHTML = `<table><thead><tr><th>Sent</th><th>From</th><th>File</th><th>What happened</th><th>Status</th><th></th></tr></thead><tbody>` + R.map(r => `<tr data-rep="${r.id}">
+    <td style="white-space:nowrap">${fmtDate(r.created_at.slice(0, 10))}${!r.file_deleted && age(r.created_at) > 60 ? `<div style="color:var(--bad);font-size:12px">${age(r.created_at)} days: delete soon</div>` : ""}</td>
+    <td>${esc(r.email || "")}</td><td>${esc(r.file_name)}<div class="hint" style="font-size:12px;margin:0">${esc(r.kind || "")} · ${Math.max(1, Math.round((r.size || 0) / 1024))} KB</div></td>
+    <td style="min-width:200px">${r.error ? `<div style="color:var(--bad);font-size:13px">${esc(r.error)}</div>` : ""}${r.note ? `<div style="font-size:13px">“${esc(r.note)}”</div>` : ""}</td>
+    <td><select data-repstatus style="width:auto">${Object.entries(REP_STATUS).map(([k, [t]]) => `<option value="${k}"${k === r.status ? " selected" : ""}>${t}</option>`).join("")}</select>
+      <input data-repnote placeholder="Note to the pilot (optional)" value="${esc(r.admin_note || "")}" style="margin-top:6px;min-width:180px"><button class="rowbtn" type="button" data-repsave>Save</button></td>
+    <td style="white-space:nowrap">${r.file_deleted ? '<span class="hint">file deleted</span>' : `<button class="rowbtn sug" type="button" data-repget>Download</button><button class="rowbtn del" type="button" data-repdel>Delete file</button>`}</td></tr>`).join("") + "</tbody></table>";
+}
+$("#adReps").addEventListener("click", async e => {
+  const b = e.target.closest("button"), tr = e.target.closest("[data-rep]"); if (!b || !tr) return;
+  const r = adData.reps.find(x => String(x.id) === tr.dataset.rep), db = Auth.db(); if (!r) return;
+  if (b.hasAttribute("data-repget")) { const s = await db.storage.from("file-reports").createSignedUrl(r.path, 120, { download: r.file_name }); if (s.error) return alert("Couldn't open the file: " + s.error.message); location.href = s.data.signedUrl; }
+  if (b.hasAttribute("data-repsave")) { const u = { status: tr.querySelector("[data-repstatus]").value, admin_note: tr.querySelector("[data-repnote]").value.trim() || null, updated_at: new Date().toISOString() };
+    const x = await db.from("file_reports").update(u).eq("id", r.id); if (x.error) return alert(x.error.message); Object.assign(r, u); b.textContent = "Saved"; setTimeout(() => b.textContent = "Save", 1200); }
+  if (b.hasAttribute("data-repdel")) { if (!confirm(`Delete ${r.file_name} from storage? The report stays in the list.`)) return;
+    const d = await db.storage.from("file-reports").remove([r.path]); if (d.error) return alert(d.error.message);
+    await db.from("file_reports").update({ file_deleted: true, updated_at: new Date().toISOString() }).eq("id", r.id); r.file_deleted = true; renderAdReps(); }
+});
 $("#adRefresh").addEventListener("click", () => renderAdmin(true));
 $("#adWho").addEventListener("change", () => renderAdmin()); $("#adWhat").addEventListener("change", () => renderAdmin());
 $("#adUsers").addEventListener("click", e => { const r = e.target.closest("[data-aduser]"); if (!r) return; $("#adWho").value = r.dataset.aduser; renderAdmin(); $("#adLog").scrollIntoView({ behavior: "smooth", block: "start" }); });
@@ -1028,6 +1074,7 @@ const nLines = () => ({ flights: data.flights.filter(f => !isSim(f)).length, sim
 function enterApp(){
   load(); show("#vApp"); $("#whoEmail").textContent = user.email; tab("overview");
   adData = null; $("#tabAdmin").classList.toggle("hidden", !isAdmin());
+  renderMyReports();
   logEvent("open", { ...nLines(), phone: matchMedia("(max-width:640px)").matches, prev: !!hasPrev() });
   navigator.storage?.persist?.().catch(() => {});   // ask the browser to keep this site's data
 }
@@ -1879,7 +1926,8 @@ async function handleFiles(list){
 async function nextFile(){
   while (impQueue.length) {
     const f = impQueue.shift(), err = await handleFile(f);
-    if (err) { impLog.push(`<b>${esc(f.name)}</b>: <span style="color:var(--bad)">${esc(err)}</span>`); impErrs++; continue; }
+    if (err) { const k = "f" + failedFiles.size; failedFiles.set(k, { file: f, error: err });
+      impLog.push(`<b>${esc(f.name)}</b>: <span style="color:var(--bad)">${esc(err)}</span> <button class="rowbtn sug" type="button" data-report="${k}">Help us read it</button>`); impErrs++; continue; }
     if (imp?.own || imp?.auto) { doImport(); imp = null; continue; }
     if (imp) return; // waiting for the column check
   }
@@ -2336,6 +2384,54 @@ $("#aimsFile").addEventListener("change", e => { handleFiles(e.target.files); e.
 ["dragenter","dragover"].forEach(ev => dropAims.addEventListener(ev, e => { e.preventDefault(); dropAims.classList.add("over"); }));
 ["dragleave","drop"].forEach(ev => dropAims.addEventListener(ev, e => { e.preventDefault(); dropAims.classList.remove("over"); }));
 dropAims.addEventListener("drop", e => handleFiles(e.dataTransfer.files));
+/* ---------- "Help us read it": a pilot sends a file the app can't read (with consent) ---------- */
+const failedFiles = new Map();
+let repCur = null;
+const repOnline = () => !!(Auth.live && Auth.db() && user && user.id !== "sample");
+function openReport(file, error = "", kind = "logbook"){
+  if (!file) return;
+  if (file.size > 20 * 1048576) return alert("That file is over 20 MB. Please email it to us instead.");
+  repCur = { file, error };
+  $("#repName").textContent = `${file.name} · ${file.size >= 1048576 ? (file.size / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(file.size / 1024)) + " KB"}`;
+  $("#repKind").value = kind; $("#repNote").value = ""; $("#repAgree").checked = false; $("#repErr").textContent = ""; $("#repSend").disabled = false; $("#repSend").textContent = "Send file";
+  $("#repDlg").showModal();
+}
+document.addEventListener("click", e => { const b = e.target.closest("[data-report]"); if (!b) return; const x = failedFiles.get(b.dataset.report); if (x) openReport(x.file, x.error, "logbook"); });
+$("#repPick").addEventListener("click", () => $("#repFile").click());
+$("#repFile").addEventListener("change", e => { openReport(e.target.files[0], "", "logbook"); e.target.value = ""; });
+$("#repCancel").addEventListener("click", () => $("#repDlg").close());
+$("#repSend").addEventListener("click", async () => {
+  const err = $("#repErr"), btn = $("#repSend"); err.textContent = "";
+  if (!$("#repAgree").checked) return err.textContent = "Tick the box to agree to send the file.";
+  if (!repOnline()) { $("#repDlg").close(); return $("#airMail").click(); }   // sample profile or no sign-in service: email instead
+  btn.disabled = true; btn.textContent = "Sending…";
+  const { file, error } = repCur, db = Auth.db(), safe = file.name.replace(/[^\w.\-]+/g, "_").slice(-80), path = `${user.id}/${Date.now()}-${safe}`;
+  const up = await db.storage.from("file-reports").upload(path, file, { contentType: file.type || "application/octet-stream", upsert: false });
+  if (up.error) { btn.disabled = false; btn.textContent = "Send file"; return err.textContent = "Couldn't send the file: " + authMsg(up.error) + " You can email it to us instead."; }
+  const row = { user_id: user.id, email: user.email, file_name: file.name, path, size: file.size, kind: $("#repKind").value, error: error || null, note: $("#repNote").value.trim() || null };
+  const ins = await db.from("file_reports").insert(row);
+  if (ins.error) { btn.disabled = false; btn.textContent = "Send file"; return err.textContent = "Couldn't send the file: " + ins.error.message; }
+  logEvent("file_report", { kind: row.kind, kb: Math.round(file.size / 1024), failed: !!error });
+  // a heads-up email for the site owner (the file itself stays in private storage)
+  fetch("https://formsubmit.co/ajax/" + FEEDBACK_TO, { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ _subject: "CrewBase Log: a file to read", _template: "table", from: user.email, file: file.name, kind: row.kind, size_kb: Math.round(file.size / 1024), error: error || "(sent from Doesn't look right?)", note: row.note || "", open: "Admin tab on crewbaselog.com/app" }) }).catch(() => {});
+  $("#repDlg").close(); renderMyReports(true);
+});
+const REP_STATUS = { new: ["Received", "var(--muted)"], working: ["We're working on it", "var(--warn)"], done: ["Works now: drop it again", "var(--ok)"], cannot: ["Can't be read", "var(--bad)"] };
+// the pilot's own sent files, with their status; news when one now works
+async function renderMyReports(justSent){
+  const box = $("#repMine"); if (!repOnline()) { box.innerHTML = ""; return; }
+  const r = await Auth.db().from("file_reports").select("id,file_name,status,admin_note,created_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(20);
+  if (r.error || !r.data?.length) { box.innerHTML = justSent ? '<p class="ok-msg" style="margin:12px 0 0">Thank you, your file was sent.</p>' : ""; return; }
+  box.innerHTML = (justSent ? '<p class="ok-msg" style="margin:12px 0 0">Thank you, your file was sent. You\'ll see here when it works.</p>' : "") +
+    `<div class="tablewrap"><table><thead><tr><th>Sent</th><th>File</th><th>Status</th></tr></thead><tbody>` + r.data.map(x => { const [t, c] = REP_STATUS[x.status] || [x.status, ""];
+      return `<tr><td style="white-space:nowrap">${fmtDate(x.created_at.slice(0, 10))}</td><td>${esc(x.file_name)}</td><td><b style="color:${c}">${t}</b>${x.admin_note ? `<div class="hint" style="margin:2px 0 0;font-size:13px">${esc(x.admin_note)}</div>` : ""}</td></tr>`; }).join("") + "</tbody></table></div>";
+  // good news shown once on the Overview
+  const seen = new Set(data.repSeen || []), news = r.data.filter(x => (x.status === "done" || x.status === "cannot") && !seen.has(x.id));
+  if (news.length) { const n = news[0];
+    $("#repNews")?.remove(); $('[data-p="overview"] h2').insertAdjacentHTML("afterend", `<div class="notice" id="repNews" style="margin:0 0 16px">${n.status === "done" ? `<b>Good news: CrewBase Log can now read ${esc(n.file_name)}.</b> <a href="#" data-go="import">Drop it again in Your data</a>.` : `<b>About ${esc(n.file_name)}:</b> ${esc(n.admin_note || "we couldn't make this file readable.")}`} <a href="#" id="repNewsOk">OK</a></div>`);
+    $("#repNewsOk").onclick = e => { e.preventDefault(); data.repSeen = [...seen, ...news.map(x => x.id)]; save(); $("#repNews").remove(); }; }
+}
 $("#airMail").addEventListener("click", e => {
   e.preventDefault();
   const body = `Hello,\n\nMy import into CrewBase Log doesn't seem to work correctly.\n\nAirline:\nCrew system (AIMS, eCrew, other):\nWhat went wrong:\n\nAttached:\n- my logbook\n- my roster\n- my flights exported from the crew system\n\nThank you`;
