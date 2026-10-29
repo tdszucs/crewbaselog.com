@@ -2150,7 +2150,7 @@ const roleDetail = f => ["pic","copilot","dual","instructor"].filter(k => f[k]).
 const ROLE_PICK = [["pic", "PIC"], ["picus", "PICUS"], ["copilot", "Co-pilot"], ["dual", "Dual"], ["instructor", "Instructor"]];
 // what the line itself says about the pilot's function: the PIC's name, PICUS or training in the remarks -> [role, reason]
 /* Is this PIC name the pilot who owns the logbook? Many pilots write their own name instead of SELF.
-   1. the profile name, in any order or with initials: "Cameron Williams", "WILLIAMS Cameron", "C. Williams", "Williams, C"
+   1. the profile name, in any order or with initials: "Alex Morgan", "MORGAN Alex", "A. Morgan", "Morgan, A"
    2. the logbook itself: a name logged as PIC on many lines where PIC time was logged is the owner */
 const nameTokens = n => String(n || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z\s'-]/g, " ").split(/\s+/).filter(Boolean);
 function sameName(a, b){
@@ -2707,7 +2707,7 @@ async function cbParseRosterPDF(buf){
   // "(All times in UTC)", or a local-time roster that has to be converted
   const tz = text.match(/all times in ([^)]{1,40})\)/i);
   meta.tzLabel = tz ? tz[1].trim() : "UTC"; meta.utc = !tz || /\b(UTC|GMT|Z|Zulu)\b/i.test(tz[1]);
-  // crew line "19016 SZUCS Tamas David AUH-CP-789": name and base
+  // crew line "12345 MORGAN Alex James AUH-CP-789": name and base
   const crew = text.match(/\b\d{3,7}\s+([A-Za-z][A-Za-z' .-]*?)\s+([A-Z]{3})-(CP|FO|SFO|CPT|CA|SO|FE)\b/);
   if (crew) { meta.name = crew[1].trim(); meta.base = crew[2]; }
   // Each column is read top to bottom as segments: duty (flights, sims, training), standby/available, off/rest.
