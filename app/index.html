@@ -2095,7 +2095,7 @@ async function handleFile(f){
   if (ec && works(ec)) { imp = { headers, rows: body, map: ec, sig, name: f.name, auto: true }; return; }
   const map = saved ? { ...saved } : (ec || guessMap(headers, body));
   // nothing in the file reads as a flight (no dates): not a logbook, so no matching screen
-  if (!saved && !works(map)) return "This doesn't look like a logbook: no flight dates were found in it. Drop a logbook export (CSV, Excel or PDF) or the eCrew Pilot LogBook report. If it is a logbook, tick “Let me match the columns myself” under Which files work? and drop it again.";
+  if (!saved && !works(map)) return "CrewBase Log can't read this file yet. Press “Help us read it” and we'll teach the app this format, usually within a day. Or tick “Let me match the columns myself” under Which files work? and drop it again.";
   imp = { headers, rows: body, map, sig, name: f.name, fromTemplate: !!saved, ecrew: !!ec };
   renderMapping();
 }
