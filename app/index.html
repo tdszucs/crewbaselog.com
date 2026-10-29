@@ -1599,7 +1599,7 @@ function rowToFlight(r, map, fmt){
 const isSim = f => !!f.fstdTime && !f.total;
 
 /* airport positions (IATA and ICAO codes, OurAirports, public domain), loaded when first needed.
-   airfields.json: small airfields with an ICAO code only (LHBS, EDFZ...); marked [lat, lon, 1] */
+   airfields.json: small airfields (LHBS, EDFZ, MYF...) and closed airports old logbooks still name (OMUQ); marked [lat, lon, 1] */
 let AIRPORTS = null;
 const isAirfield = c => !!AIRPORTS?.[c]?.[2];
 async function loadAirports(){
@@ -1655,7 +1655,7 @@ const aptKey = c => (AIRPORTS && AIRPORTS[c] ? AIRPORTS[c].join(",") : c);
 let APT_ALT = null;
 function aptAlt(){
   if (APT_ALT || !AIRPORTS) return APT_ALT || {};
-  const at = {}; for (const [c, v] of Object.entries(AIRPORTS)) if (!v[2]) ((at[v[0] + "," + v[1]] ||= { 3: [], 4: [] })[c.length] ||= []).push(c);
+  const at = {}; for (const [c, v] of Object.entries(AIRPORTS)) ((at[v[0] + "," + v[1]] ||= { 3: [], 4: [] })[c.length] ||= []).push(c);
   APT_ALT = {}; for (const g of Object.values(at)) if (g[3]?.length === 1 && g[4]?.length === 1) { APT_ALT[g[3][0]] = g[4][0]; APT_ALT[g[4][0]] = g[3][0]; }
   return APT_ALT;
 }
@@ -2838,7 +2838,7 @@ async function cbParseRosterPDF(buf){
   // "↓" at the top continues the segment still running at midnight; "→" at the end runs it to midnight.
   // e.g. 24/10 "↓ AUH A00:41 [789] 01:11 SBY 19:00 →" = a landing, then standby from 19:00 into the next day.
   const isFree = x => kind[x] ? kind[x] === "free" : CB_FREE.test(x), isSby = x => kind[x] ? kind[x] === "sby" : CB_SBY.test(x);
-  const isApt = x => /^[A-Z]{3}$/.test(x) && !!AIRPORTS?.[x] && !kind[x] && !CB_CODE.test(x) && !CB_FREE.test(x) && !CB_SBY.test(x);
+  const isApt = x => /^[A-Z]{3}$/.test(x) && !!AIRPORTS?.[x] && !isAirfield(x) && !kind[x] && !CB_CODE.test(x) && !CB_FREE.test(x) && !CB_SBY.test(x);
   let carry = null;
   cols.forEach((c, k) => {
     // skip "Delay 00:45" (a duration, not a clock time); actual times "A07:10" count like planned ones
