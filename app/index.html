@@ -1744,7 +1744,9 @@ async function parseEasaLogbookPDF(buf){
   for (let n = 1; n <= doc.numPages; n++) {
     const pg = await doc.getPage(n), h = pg.getViewport({ scale: 1 }).height, W = [];
     for (const it of (await pg.getTextContent()).items) {
-      const str = it.str; if (!str.trim()) continue;
+      let str = it.str; if (!str.trim()) continue;
+      // some logbook PDFs write dates as "25. 02. 09" and thousands as "1 566:02": one word each
+      if (/^\s*\d{1,2}\.\s+\d{1,2}\.\s+\d{2,4}\s*$/.test(str) || /^\s*\d{1,3}(?: \d{3})+(?::\d{2})?\s*$/.test(str)) str = str.replace(/\s+/g, "");
       const re = /\S+/g; let m;
       while ((m = re.exec(str))) W.push({ s: m[0], x: it.transform[4] + it.width * m.index / str.length, w: it.width * m[0].length / str.length, y: h - it.transform[5] });
     }
