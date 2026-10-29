@@ -236,6 +236,10 @@ td.r,th.r{text-align:right}
   .exp-head{display:none!important}
 }
 @media (max-width:520px){ .who span{display:none} }
+.ugrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 24px}
+@media (max-width:640px){ .ugrid{grid-template-columns:1fr} }
+.ubar{display:grid;grid-template-columns:minmax(0,9em) 1fr auto;gap:8px;align-items:center;font-size:13px;margin:3px 0}
+.ubar span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ubar i{display:block;height:8px;border-radius:4px;background:var(--accent)}
 .repcard{border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:0 0 12px;background:var(--bg)}
 .rephd{display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap;word-break:break-all}
 .repctl{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;margin-top:8px}
@@ -446,6 +450,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
         <label style="display:flex;gap:8px;align-items:flex-start;font-weight:400;margin:0 0 8px"><input type="checkbox" id="pIfr" style="width:auto;margin-top:3px"> <span>Airline flights are IFR: a flight between two airports gets IFR time equal to its total time.</span></label>
         <label style="display:flex;gap:8px;align-items:flex-start;font-weight:400;margin:0 0 14px"><input type="checkbox" id="pNight" style="width:auto;margin-top:3px"> <span>Work out night time from the block times and airports (times in UTC). Night is when the sun is more than 6° below the horizon, along the route.</span></label>
         <div class="row-actions" style="margin:0"><button class="btn ghost" type="button" id="pApply">Apply to flights already in my logbook</button><span id="pApplyMsg" class="ok-msg"></span></div>
+        <label style="display:flex;gap:8px;align-items:flex-start;font-weight:400;margin:18px 0 0;padding-top:14px;border-top:1px solid var(--line)"><input type="checkbox" id="pUsage" style="width:auto;margin-top:3px"> <span>Help CrewBase Log with anonymous counts: once a month, the app sends that it was used, with your main aircraft family, licence type, a range of total hours and your time zone. Never your name, email, logbook or anything that links two months together. <a href="/privacy.html#usage" target="_blank">More</a></span></label>
       </div>
       <div class="card" id="acSection">
         <h3>Aircraft types</h3>
@@ -731,6 +736,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
       </div>
       <p class="err" id="adErr"></p>
       <div class="stats" id="adTiles"></div>
+      <div class="card"><h3>Usage</h3><p class="hint" style="margin:0 0 12px;font-size:14px">Every pilot, with or without an account, counted anonymously: once a month per device (active), and each import, PDF, backup, restore and Crew Base roster. Pilots can switch this off in Profile.</p><div id="adUsage"></div></div>
       <div class="card"><h3>Files sent for help</h3><p class="hint" style="margin:0 0 12px;font-size:14px">Files pilots sent because the app couldn't read them. Claude checks new ones every 8 hours, fixes the reader, marks them <b>Works now</b> and deletes them. Any file still here after 30 days is deleted automatically. A file also turns to Works now by itself when its pilot imports it successfully. Then press <b>Email the pilot</b>: your email app opens with the message ready.</p><div id="adReps"></div></div>
       <div class="card"><h3>Registered pilots</h3><p class="hint" style="margin:0 0 10px;font-size:14px">Tap a pilot to see only their actions.</p><div class="tablewrap" id="adUsers"></div></div>
       <div class="card">
@@ -1022,6 +1028,7 @@ function adoptLocal(){
 }
 const isAdmin = () => !!(Auth.live && hasAccount() && String(user.email || "").toLowerCase() === ADMIN_EMAIL);
 function logEvent(event, detail = {}){
+  if (USAGE_KINDS[event]) usage(USAGE_KINDS[event]);
   if (!Auth.live || !hasAccount()) return;
   try { Auth.db()?.from("activity").insert({ user_id: user.id, email: user.email, event, detail }).then(() => {}, () => {}); } catch {}
 }
@@ -1043,12 +1050,12 @@ async function renderAdmin(force){
   const db = Auth.db(), err = $("#adErr"); err.textContent = "";
   if (!adData || force) {
     $("#adTiles").innerHTML = '<p class="hint">Loading…</p>';
-    const [u, a, f] = await Promise.all([db.rpc("cbl_admin_users"), db.from("activity").select("user_id,email,event,detail,created_at").order("created_at", { ascending: false }).limit(2000),
+    const [g, u, a, f] = await Promise.all([db.rpc("cbl_usage_summary"),db.rpc("cbl_admin_users"), db.from("activity").select("user_id,email,event,detail,created_at").order("created_at", { ascending: false }).limit(2000),
       db.from("file_reports").select("*").order("created_at", { ascending: false }).limit(300)]);
     if (u.error || a.error) { err.textContent = "Couldn't load: " + (u.error || a.error).message + ". Has supabase/admin_activity.sql been run in Supabase (SQL Editor)?"; $("#adTiles").innerHTML = ""; return; }
-    adData = { users: u.data || [], log: a.data || [], reps: f.error ? null : f.data || [] };
+    adData = { users: u.data || [], log: a.data || [], reps: f.error ? null : f.data || [], usage: g.error ? null : g.data };
   }
-  renderAdReps();
+  renderAdReps(); renderAdUsage();
   const { users, log } = adData, ago = d => Date.now() - 864e5 * d, dt = s => s ? new Date(s).toLocaleString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "–";
   const act7 = new Set(log.filter(e => Date.parse(e.created_at) > ago(7)).map(e => e.user_id));
   $("#adTiles").innerHTML = [["Registered", users.length], ["Verified", users.filter(u => u.confirmed_at).length], ["New in 7 days", users.filter(u => Date.parse(u.created_at) > ago(7)).length],
@@ -1075,6 +1082,18 @@ async function repMail(r){
   location.href = `mailto:${encodeURIComponent(r.email || "")}?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(body)}`;
   const t = new Date().toISOString(), x = await Auth.db().from("file_reports").update({ emailed_at: t }).eq("id", r.id);
   if (!x.error) { r.emailed_at = t; renderAdReps(); }
+}
+function renderAdUsage(){
+  const U = adData.usage, box = $("#adUsage");
+  if (!U) { box.innerHTML = '<p class="hint" style="margin:0">Waiting for the usage table in Supabase (supabase/usage.sql).</p>'; return; }
+  const M = U.months || [], now = M[M.length - 1] || {}, mon = m => new Date(m + "T00:00:00").toLocaleString("en-GB", { month: "short", year: "numeric" });
+  const tiles = [["Active pilots this month", now.active || 0], ["…with an account", now.active_account || 0], ["New logbooks this month", now.start || 0], ["PDFs this month", now.pdf || 0]];
+  const bars = (title, o) => { const e = Object.entries(o || {}).sort((a, b) => b[1] - a[1]).slice(0, 8), t = e.reduce((s, [, n]) => s + n, 0) || 1;
+    return `<div><h4 style="margin:14px 0 6px">${title}</h4>${e.length ? e.map(([k, n]) => `<div class="ubar"><span>${esc(k)}</span><i style="width:${Math.max(3, Math.round(n / t * 100))}%"></i><b>${n}</b></div>`).join("") : '<p class="hint" style="margin:0">None yet.</p>'}</div>`; };
+  box.innerHTML = `<div class="stats">${tiles.map(([k, v]) => `<div class="stat"><div class="k">${k}</div><div class="v">${v.toLocaleString()}</div></div>`).join("")}</div>` +
+    (M.length ? `<div class="tablewrap" style="margin-top:12px"><table><thead><tr><th>Month</th><th class="r">Active</th><th class="r">With account</th><th class="r">New</th><th class="r">Imports</th><th class="r">PDFs</th><th class="r">Backups</th><th class="r">Restores</th><th class="r">Crew Base</th></tr></thead><tbody>` +
+      [...M].reverse().map(m => `<tr><td>${mon(m.month)}</td>${["active", "active_account", "start", "import", "pdf", "backup", "restore", "crewbase"].map(k => `<td class="r">${m[k] || 0}</td>`).join("")}</tr>`).join("") + "</tbody></table></div>" : "") +
+    `<p class="hint" style="margin:12px 0 0;font-size:13px">This month's active pilots by:</p><div class="ugrid">${bars("Aircraft", U.family)}${bars("Licence", U.licence)}${bars("Total hours", U.hours)}${bars("Time zone", U.tz)}</div>`;
 }
 function renderAdReps(){
   const R = adData.reps, box = $("#adReps");
@@ -1108,15 +1127,30 @@ $("#adReps").addEventListener("click", async e => {
 $("#adRefresh").addEventListener("click", () => renderAdmin(true));
 $("#adWho").addEventListener("change", () => renderAdmin()); $("#adWhat").addEventListener("change", () => renderAdmin());
 $("#adUsers").addEventListener("click", e => { const r = e.target.closest("[data-aduser]"); if (!r) return; $("#adWho").value = r.dataset.aduser; renderAdmin(); $("#adLog").scrollIntoView({ behavior: "smooth", block: "start" }); });
+/* ---------- anonymous usage counts (usage_events): no ID, no email; monthly "active" plus key actions ---------- */
+const USAGE_KINDS = { import: "import", download_pdf: "pdf", download_backup: "backup", restore_backup: "restore", roster_saved: "crewbase" };
+function usageFacts(){
+  const n = acTypesFlown(), top = Object.keys(n).sort((a, b) => n[b] - n[a])[0] || "";
+  const hrs = withPrev(statTotals(data.flights)).total / 60, band = hrs < 500 ? "under 500" : hrs < 1500 ? "500-1,500" : hrs < 5000 ? "1,500-5,000" : hrs < 10000 ? "5,000-10,000" : "over 10,000";
+  return { family: (acFamily(top) || top).slice(0, 40) || null, licence: (String(data.profile.type || "").toUpperCase().match(/ATPL|CPL|MPL|PPL|LAPL/) || [null])[0],
+    hours: data.flights.length || hasPrev() ? band : "none yet", tz: (Intl.DateTimeFormat().resolvedOptions().timeZone || "").slice(0, 40) || null };
+}
+function usage(kind){
+  if (!Auth.live || !Auth.db() || !user || user.id === "sample" || data?.profile?.usage === false) return;
+  try { Auth.db().from("usage_events").insert({ kind, ...usageFacts(), account: hasAccount() }).then(() => {}, () => {}); } catch {}
+}
 const nLines = () => ({ flights: data.flights.filter(f => !isSim(f)).length, sims: data.flights.filter(isSim).length });
 function enterApp(){
-  const moved = adoptLocal();
+  const moved = adoptLocal(), fresh = user.id !== "sample" && !store.get(key(), null);
   load(); show("#vApp"); tab("overview");
   $("#whoEmail").textContent = isLocal() ? "On this device only" : user.email;
   $("#btnOut").textContent = isLocal() ? "Create account / Log in" : "Log out";
   if (moved) $('[data-p="overview"] h2').insertAdjacentHTML("afterend", '<div class="notice" style="margin:0 0 16px"><b>Your logbook is now with your account.</b> Everything you started without an account came along.</div>');
   adData = null; $("#tabAdmin").classList.toggle("hidden", !isAdmin());
   renderMyReports();
+  // once a month per device: "active" (the month is remembered in this logbook only)
+  if (fresh) usage("start");
+  const month = todayISO().slice(0, 7); if (user.id !== "sample" && data.usageMonth !== month) { data.usageMonth = month; save(); usage("active"); }
   logEvent("open", { ...nLines(), phone: matchMedia("(max-width:640px)").matches, prev: !!hasPrev() });
   navigator.storage?.persist?.().catch(() => {});   // ask the browser to keep this site's data
 }
@@ -1212,9 +1246,9 @@ $("#acDefault").addEventListener("change", e => { data.profile.crew = e.target.v
 function renderProfile(){
   renderAcTypes();
   for (const [id,k] of Object.entries(PF)) $("#"+id).value = data.profile[k] || ""; $("#profSaved").textContent = "";
-  $("#pRole").value = data.profile.role || "PIC"; $("#pIfr").checked = data.profile.autoIfr !== false; $("#pApt").value = data.profile.apt || ""; $("#pAptMsg").textContent = ""; $("#pNight").checked = data.profile.autoNight !== false; $("#pApplyMsg").textContent = "";
+  $("#pRole").value = data.profile.role || "PIC"; $("#pIfr").checked = data.profile.autoIfr !== false; $("#pUsage").checked = data.profile.usage !== false; $("#pApt").value = data.profile.apt || ""; $("#pAptMsg").textContent = ""; $("#pNight").checked = data.profile.autoNight !== false; $("#pApplyMsg").textContent = "";
 }
-$("#defCard").addEventListener("change", () => { data.profile.role = $("#pRole").value; data.profile.autoIfr = $("#pIfr").checked; data.profile.autoNight = $("#pNight").checked; save(); });
+$("#defCard").addEventListener("change", () => { data.profile.role = $("#pRole").value; data.profile.autoIfr = $("#pIfr").checked; data.profile.autoNight = $("#pNight").checked; data.profile.usage = $("#pUsage").checked; save(); });
 // choosing the airport-code style converts the logbook straight away
 async function setAptStyle(pref){
   await loadAirports(); data.profile.apt = pref; data.profile.aptAsked = true; logEvent("airport_codes", { style: pref || "as in files" });
