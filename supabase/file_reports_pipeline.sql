@@ -61,13 +61,14 @@ $$;
 revoke all on function public.cbl_report_works(text) from public, anon;
 grant execute on function public.cbl_report_works(text) to authenticated;
 
--- every day: files 30 days old, or handled and not yet deleted, are deleted with every copy
+-- every day: files 30 days old, or handled and not yet deleted, are deleted with every copy; reports that work now leave the list 5 days after their file was deleted
 create extension if not exists pg_cron;
 create or replace function private.report_expire()
 returns int
 language sql
 set search_path = ''
 as $$
+  delete from public.file_reports where status = 'done' and file_deleted and updated_at < now() - interval '5 days';
   with due as (
     select id from public.file_reports
     where not file_deleted and (created_at < now() - interval '30 days' or status in ('done', 'cannot')))
