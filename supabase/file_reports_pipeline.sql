@@ -60,3 +60,18 @@ as $$
 $$;
 revoke all on function public.cbl_report_works(text) from public, anon;
 grant execute on function public.cbl_report_works(text) to authenticated;
+
+-- every day: files 30 days old, or handled and not yet deleted, are deleted with every copy
+create extension if not exists pg_cron;
+create or replace function private.report_expire()
+returns int
+language sql
+set search_path = ''
+as $$
+  with due as (
+    select id from public.file_reports
+    where not file_deleted and (created_at < now() - interval '30 days' or status in ('done', 'cannot')))
+  select count(private.report_call(jsonb_build_object('action', 'cleanup', 'report_id', id)))::int from due;
+$$;
+revoke all on function private.report_expire() from public, anon, authenticated;
+select cron.schedule('cbl-report-expire', '17 3 * * *', 'select private.report_expire()');

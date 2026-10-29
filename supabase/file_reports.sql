@@ -4,7 +4,7 @@
 --
 -- A pilot who ticks the consent box uploads the file to a private storage bucket, in a folder named after their account,
 -- with one row in file_reports. The pilot can see and withdraw their own reports; only the admin can open the files,
--- change the status and delete them. Files are deleted once the format is supported, at the latest after 90 days.
+-- change the status and delete them. Files are deleted once the format is supported, at the latest after 30 days (private.report_expire, daily).
 
 -- private bucket, files up to 20 MB
 insert into storage.buckets (id, name, public, file_size_limit)

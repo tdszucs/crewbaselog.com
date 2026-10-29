@@ -727,7 +727,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
       </div>
       <p class="err" id="adErr"></p>
       <div class="stats" id="adTiles"></div>
-      <div class="card"><h3>Files sent for help</h3><p class="hint" style="margin:0 0 12px;font-size:14px">Files pilots sent because the app couldn't read them. Claude checks new ones every 8 hours, fixes the reader, marks them <b>Works now</b> and deletes them. A file also turns to Works now by itself when its pilot imports it successfully. Then press <b>Email the pilot</b>: your email app opens with the message ready.</p><div id="adReps"></div></div>
+      <div class="card"><h3>Files sent for help</h3><p class="hint" style="margin:0 0 12px;font-size:14px">Files pilots sent because the app couldn't read them. Claude checks new ones every 8 hours, fixes the reader, marks them <b>Works now</b> and deletes them. Any file still here after 30 days is deleted automatically. A file also turns to Works now by itself when its pilot imports it successfully. Then press <b>Email the pilot</b>: your email app opens with the message ready.</p><div id="adReps"></div></div>
       <div class="card"><h3>Registered pilots</h3><p class="hint" style="margin:0 0 10px;font-size:14px">Tap a pilot to see only their actions.</p><div class="tablewrap" id="adUsers"></div></div>
       <div class="card">
         <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 10px"><h3 style="margin:0">Activity</h3>
@@ -746,7 +746,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
     <div class="repfile" id="repName"></div>
     <div class="field"><label for="repKind">What is it?</label><select id="repKind"><option value="logbook">A logbook from another app or a spreadsheet</option><option value="ecrew">An eCrew / AIMS or other airline report</option><option value="roster">A roster for Crew Base</option><option value="other">Something else</option></select></div>
     <div class="field"><label for="repNote">Anything we should know? <span class="hint" style="font-weight:400">(optional)</span></label><textarea id="repNote" rows="3" maxlength="1500" placeholder="Which app or airline it's from, and what went wrong"></textarea></div>
-    <label class="repok"><input type="checkbox" id="repAgree"> <span>I agree to send this file to CrewBase Log. It is stored privately, used only to make the app read this kind of file, never shared, and deleted once that works (at the latest after 90 days).</span></label>
+    <label class="repok"><input type="checkbox" id="repAgree"> <span>I agree to send this file to CrewBase Log. It is stored privately, used only to make the app read this kind of file, never shared, and deleted once that works, and at the latest after 30 days.</span></label>
     <p class="err" id="repErr" style="margin:6px 0 0"></p>
     <div class="row-actions" style="margin:12px 0 0"><button class="btn" type="button" id="repSend">Send file</button><button class="btn ghost" type="button" id="repCancel">Cancel</button></div>
   </form>
@@ -1066,10 +1066,10 @@ function renderAdReps(){
   if (!R.length) { box.innerHTML = '<p class="hint" style="margin:0">No files yet.</p>'; return; }
   const age = s => Math.floor((Date.now() - Date.parse(s)) / 864e5);
   // one card per file: what was sent, what happened, then the status, note and actions
-  box.innerHTML = R.map(r => { const st = REP_STATUS[r.status] || [r.status, ""], old = !r.file_deleted && age(r.created_at) > 60;
+  box.innerHTML = R.map(r => { const st = REP_STATUS[r.status] || [r.status, ""], old = !r.file_deleted && age(r.created_at) > 20;
     return `<div class="repcard" data-rep="${r.id}">
     <div class="rephd"><b>${esc(r.file_name)}</b><span class="tag" style="color:${st[1]}">${st[0]}</span></div>
-    <div class="hint" style="margin:2px 0 6px;font-size:13px">${esc(r.email || "")} · sent ${fmtDate(r.created_at.slice(0, 10))} · ${esc(r.kind || "")} · ${Math.max(1, Math.round((r.size || 0) / 1024))} KB${r.file_deleted ? " · file deleted" : ""}${old ? ` · <b style="color:var(--bad)">${age(r.created_at)} days old: delete soon</b>` : ""}</div>
+    <div class="hint" style="margin:2px 0 6px;font-size:13px">${esc(r.email || "")} · sent ${fmtDate(r.created_at.slice(0, 10))} · ${esc(r.kind || "")} · ${Math.max(1, Math.round((r.size || 0) / 1024))} KB${r.file_deleted ? " · file deleted" : ""}${old ? ` · <b style="color:var(--bad)">${age(r.created_at)} days old: deleted automatically at 30</b>` : ""}</div>
     ${r.error ? `<div style="color:var(--bad);font-size:13px;margin:0 0 4px">App said: ${esc(r.error)}</div>` : ""}${r.note ? `<div style="font-size:13px;margin:0 0 4px">Pilot's note: “${esc(r.note)}”</div>` : ""}
     <div class="repctl"><select data-repstatus>${Object.entries(REP_STATUS).map(([k, [t]]) => `<option value="${k}"${k === r.status ? " selected" : ""}>${t}</option>`).join("")}</select>
       <input data-repnote placeholder="Note to the pilot (optional)" value="${esc(r.admin_note || "")}"><button class="btn small" type="button" data-repsave>Save</button></div>
