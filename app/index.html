@@ -2095,7 +2095,7 @@ async function handleFile(f){
   if (ec && works(ec)) { imp = { headers, rows: body, map: ec, sig, name: f.name, auto: true }; return; }
   const map = saved ? { ...saved } : (ec || guessMap(headers, body));
   // nothing in the file reads as a flight (no dates): not a logbook, so no matching screen
-  if (!saved && !works(map)) return "CrewBase Log can't read this file yet. Press “Help us read it” and we'll teach the app this format, usually within a day. Or tick “Let me match the columns myself” under Which files work? and drop it again.";
+  if (!saved && !works(map)) return "We can't read this file yet, but you can help us learn it: press “Help us read it”. We'll email you once your file imports correctly.";
   imp = { headers, rows: body, map, sig, name: f.name, fromTemplate: !!saved, ecrew: !!ec };
   renderMapping();
 }
