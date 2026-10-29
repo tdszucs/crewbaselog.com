@@ -1512,6 +1512,31 @@ function safelogFlights(headers, rows){
   }
   return { flights, classes };
 }
+/* LogTen Pro "Export Flights (Tab)": one flight per line, columns named flight_flightDate, flight_from, flight_totalTime ...
+   and aircraft_aircraftID, aircraftType_type. Simulator sessions have flight_simulator time and no total time.
+   Cruise relief time counts as co-pilot time (EASA). */
+function logtenFlights(headers, rows){
+  const at = appCols(headers); if (at.flight_flightdate === undefined || at.flight_totaltime === undefined || at.flight_from === undefined) return null;
+  const flights = [], classes = {};
+  for (const r of rows) {
+    const g = k => at[k] === undefined ? "" : String(r[at[k]] ?? "").trim(), d = k => parseDur(g(k));
+    const date = parseDate(g("flight_flightdate"), "YMD") || parseDate(g("flight_flightdate"), "DMY"); if (!date) continue;
+    const type = acTypeName(g("aircrafttype_type").toUpperCase()), sim = d("flight_simulator"), total = d("flight_totaltime"), remarks = g("flight_remarks");
+    if (sim && !total) { flights.push({ ...emptyFlight(), date, fstdTime: sim, fstdType: [type, g("aircraft_aircraftid")].filter(Boolean).join(" ").toUpperCase(), remarks }); continue; }
+    const picus = d("flight_p1us"), f = { ...emptyFlight(), date, flightNo: g("flight_flightnumber").toUpperCase(), from: g("flight_from").toUpperCase(), to: g("flight_to").toUpperCase(),
+      out: parseTime(g("flight_actualdeparturetime") || g("flight_scheduleddeparturetime")), off: parseTime(g("flight_takeofftime")),
+      on: parseTime(g("flight_landingtime")), in: parseTime(g("flight_actualarrivaltime") || g("flight_scheduledarrivaltime")),
+      acType: type, reg: g("aircraft_aircraftid").toUpperCase(), picName: g("flight_selectedcrewpic") || g("flight_selectedcrewcommander"),
+      total, pic: d("flight_pic") + picus, copilot: d("flight_sic") || d("flight_relief"), dual: d("flight_dualreceived"), instructor: d("flight_dualgiven"),
+      night: d("flight_night"), ifr: d("flight_ifr") || d("flight_actualinstrument") + d("flight_simulatedinstrument"),
+      ldgDay: parseInt(g("flight_daylandings")) || 0, ldgNight: parseInt(g("flight_nightlandings")) || 0, remarks: [picus ? "PIC(US)" : "", remarks].filter(Boolean).join(" ") };
+    // the class only when LogTen says so; otherwise CrewBase Log guesses it from the type (airliners are multi-pilot)
+    const cls = g("aircrafttype_selectedaircraftclass");
+    if (total && type && !classes[type]) { if (d("flight_multipilot")) classes[type] = "MP"; else if (/single/i.test(cls)) classes[type] = "SPSE"; else if (/multi/i.test(cls) && /piston|turboprop/i.test(g("aircrafttype_selectedenginetype"))) classes[type] = "SPME"; }
+    flights.push(f);
+  }
+  return flights.length ? { flights, classes } : null;
+}
 /* Logbook app CSV exports, read column by column by name. -> { flights, classes, prev?, note? } or null */
 const appCols = headers => { const at = {}; headers.forEach((h, i) => at[String(h).trim().toLowerCase()] = i); return at; };
 const emptyFlight = () => ({ date: "", flightNo: "", from: "", to: "", out: "", off: "", on: "", in: "", acType: "", reg: "", picName: "", total: 0, pic: 0, copilot: 0, dual: 0, instructor: 0, night: 0, ifr: 0, ldgDay: 0, ldgNight: 0, remarks: "" });
@@ -1800,6 +1825,9 @@ function parseOnePageLogbook(pages){
   if (out.check) { out.check.ifr -= out.simIfr || 0; out.check.ldgDay -= out.simLdgDay || 0; out.check.ldgNight -= out.simLdgNight || 0; }
   return out.flights.length ? out : null;
 }
+const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+const PDF_HEADS = new Set(["DATE", "DEPARTURE", "ARRIVAL", "PLACE", "TIME", "AIRCRAFT", "MAKE,", "REGISTRATION", "MULTI-PILOT", "TOTAL", "NAME", "TAKEOFFS",
+  "LANDINGS", "THIS", "PREVIOUS", "NIGHT", "IFR", "CO-PILOT", "DUAL", "INSTRUCTOR", "REMARKS", "FUNCTION", "TYPE"]);
 async function parseEasaLogbookPDF(buf){
   if (!window.pdfjsLib) { await loadScript(PDFJS + "pdf.min.js"); pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS + "pdf.worker.min.js"; }
   const doc = await pdfjsLib.getDocument({ data: new Uint8Array(buf) }).promise, pages = [];
@@ -1809,10 +1837,22 @@ async function parseEasaLogbookPDF(buf){
       let str = it.str; if (!str.trim()) continue;
       // some logbook PDFs write dates as "25. 02. 09" and thousands as "1 566:02": one word each
       if (/^\s*\d{1,2}\.\s+\d{1,2}\.\s+\d{2,4}\s*$/.test(str) || /^\s*\d{1,3}(?: \d{3})+(?::\d{2})?\s*$/.test(str)) str = str.replace(/\s+/g, "");
+      // and dates as "25 Feb 2009" (Wader)
+      const dm = str.match(/^\s*(\d{1,2}) ([A-Za-z]{3})[a-z]* (\d{4})\s*$/), mo = dm && MONTHS.indexOf(dm[2].toUpperCase()) + 1;
+      if (mo) str = `${dm[1]}/${mo}/${dm[3]}`;
       const re = /\S+/g; let m;
       while ((m = re.exec(str))) W.push({ s: m[0], x: it.transform[4] + it.width * m.index / str.length, w: it.width * m[0].length / str.length, y: h - it.transform[5] });
     }
     W.forEach(w => w.c = w.x + w.w / 2);
+    // headings in mixed case ("Date", "Departure", "Name(s) PIC": Wader): read as the usual capitals. Only on pages
+    // without capital headings, so nothing changes for the others
+    // and only above the first line and, for the total labels, below the last one: names and remarks keep their case
+    if (!W.some(w => w.s === "DATE" || w.s === "NIGHT")) {
+      const ys = W.filter(w => /^\d{1,2}:\d{2}$|^\d{1,2}\/\d{1,2}\/\d{4}$/.test(w.s)).map(w => w.y), dy = W.filter(w => /^\d{1,2}\/\d{1,2}\/\d{4}$/.test(w.s)).map(w => w.y);
+      const first = ys.length ? Math.min(...ys) - 2 : 1e9, last = dy.length ? Math.max(...dy) + 4 : 1e9;
+      for (const w of W) { const u = w.s.toUpperCase().replace(/\(S\)$/, "");
+        if (PDF_HEADS.has(u) && (w.y < first || w.y > last && ["TOTAL", "THIS", "PREVIOUS", "TIME"].includes(u))) w.s = u; }
+    }
     const has = s => W.some(w => w.s === s);
     pages.push({ W, kind: has("DEPARTURE") && has("ARRIVAL") ? "L" : (has("REMARKS") || has("FUNCTION")) && has("NIGHT") ? "R" : "" });
   }
@@ -2076,12 +2116,12 @@ async function handleFile(f){
   // the pilot asked to match the columns: no format detection, straight to the matching screen
   if ($("#impManual").checked) {
     // a format CrewBase Log reads by itself: say so, matching it by hand loses what it adds up (day + night columns ...)
-    const known = flylogFlights(headers, body) ? "Flylog" : crewloungeFlights(headers, body) ? "CrewLounge PILOTLOG" : safelogFlights(headers, body) ? "Safelog" : ecrewListMap(headers) || ecrewMap(headers) ? "eCrew" : "";
+    const known = flylogFlights(headers, body) ? "Flylog" : crewloungeFlights(headers, body) ? "CrewLounge PILOTLOG" : safelogFlights(headers, body) ? "Safelog" : logtenFlights(headers, body) ? "LogTen Pro" : ecrewListMap(headers) || ecrewMap(headers) ? "eCrew" : "";
     imp = { headers, rows: body, map: guessMap(headers, body), sig, name: f.name, manual: true, known }; renderMapping(); return;
   }
   const app = flylogFlights(headers, body) || crewloungeFlights(headers, body);
   if (app) { imp = { name: f.name, flights: app.flights, classes: app.classes, appPrev: app.prev, note: app.note, auto: true }; return; }
-  const sl = safelogFlights(headers, body);
+  const sl = safelogFlights(headers, body) || logtenFlights(headers, body);
   if (sl) { imp = { name: f.name, flights: sl.flights, classes: sl.classes, auto: true }; return; }
   const ecl = ecrewListMap(headers);
   if (ecl) { imp = { headers, rows: body, map: ecl, sig, name: f.name, auto: true, fmt: "DMY" }; return; }

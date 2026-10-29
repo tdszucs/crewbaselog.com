@@ -2,7 +2,7 @@
 // kept in public.report_settings. It never returns file contents; results go to tables only the database owner can read.
 //   { action: "copy" }                          copy waiting files (status new/working) from storage to report_blobs
 //   { action: "extract", report_id, pages }     PDF: text and positions of the pages (negative = from the end);
-//                                               CSV/TXT: first 80 lines; Excel: first 60 rows; into report_text
+//                                               CSV/TXT: first 80 lines (lines, line_len to see more); Excel: first 60 rows; into report_text
 //   { action: "cleanup", report_id }            delete the stored file, its copy and extract; mark file_deleted
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { encodeBase64, decodeBase64 } from "jsr:@std/encoding@1/base64";
@@ -55,8 +55,8 @@ Deno.serve(async (req) => {
       }
       let text = "";
       try { text = new TextDecoder("utf-8", { fatal: true }).decode(bytes); } catch { text = new TextDecoder("windows-1252").decode(bytes); }
-      const lines = text.replace(/^﻿/, "").split(/\r?\n/).slice(0, 80);
-      await sb.from("report_text").upsert({ report_id: id, page: 0, items: { kind: "text", lines: lines.map((l) => l.slice(0, 600)), total_lines: text.split(/\n/).length } });
+      const lines = text.replace(/^\uFEFF/, "").split(/\r?\n/).slice(0, Math.min(Number(body.lines) || 80, 400));
+      await sb.from("report_text").upsert({ report_id: id, page: 0, items: { kind: "text", lines: lines.map((l) => l.slice(0, Math.min(Number(body.line_len) || 600, 20000))), total_lines: text.split(/\n/).length } });
       return Response.json({ kind: "text", lines: lines.length });
     }
     if (body.action === "cleanup") {
