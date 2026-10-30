@@ -138,7 +138,9 @@ h2{font-size:24px;letter-spacing:-.02em;margin:0 0 6px}
 .mmtab{width:100%;min-width:0;border-collapse:collapse;font:inherit;font-size:14px;margin:0}
 .mmtab th,.mmtab td{padding:5px 4px;font:inherit;text-transform:none;letter-spacing:0;white-space:nowrap;border:0;border-bottom:1px solid var(--line);background:none}
 .mmtab th{font-size:12.5px;color:var(--muted);font-weight:600}.mmtab td:first-child{white-space:normal}
-.lbcards{display:none}
+.lbcards{display:none}.lbcards.hlast{display:block}
+.hlast .lbcard{display:block;width:100%;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px;font:inherit;color:var(--ink);cursor:pointer}
+.hlast .lbcard .l1{display:flex;justify-content:space-between;gap:10px;font-weight:600;font-size:15px}.hlast .lbcard .l2{display:block;color:var(--muted);font-size:13px;margin-top:2px}
 @media (max-width:700px){
   .lbcards{display:block}.lbwide{display:none}
   /* the flights near the top: totals in one compact row, no explanations */
@@ -150,6 +152,18 @@ h2{font-size:24px;letter-spacing:-.02em;margin:0 0 6px}
   .lbcard .l1{display:flex;justify-content:space-between;gap:10px;font-weight:600;font-size:15px}.lbcard .l1 b{font-family:"JetBrains Mono",monospace}
   .lbcard .l2{display:block;color:var(--muted);font-size:13px;margin-top:2px;overflow-wrap:anywhere}
 }
+/* the home screen */
+.howbox{margin:0 0 16px}.howbox>summary{cursor:pointer;list-style:none;padding:14px 16px;border:1px solid var(--line);border-radius:12px;background:var(--surface);font-size:15px;color:var(--muted)}
+.howbox>summary::-webkit-details-marker{display:none}.howbox>summary b{color:var(--ink)}.howbox[open]>summary{margin:0 0 14px}
+.hgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:0 0 14px}
+.htile{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px}.htile .k{font-size:12px;color:var(--muted)}
+.htile .v{font:600 22px "JetBrains Mono",monospace;margin:2px 0}.htile .lim{font-size:12px;color:var(--muted)}
+.htile .bar{height:5px;border-radius:3px;background:var(--line);margin-top:6px;overflow:hidden}.htile .bar i{display:block;height:100%;background:var(--ok)}
+.htile.warn .bar i{background:var(--warn)}.htile.bad .bar i{background:var(--bad)}.htile.bad .v{color:var(--bad)}
+.hrow{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 0}
+.hcard{margin:0 0 14px}.hcard h3{margin:0 0 8px}
+.rrow{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 0;border-top:1px solid var(--line);font-size:15px}.rrow:first-of-type{border-top:0}
+@media (max-width:700px){ .hgrid{grid-template-columns:1fr 1fr;gap:8px}.htile{padding:10px}.htile .v{font-size:19px} }
 .fixnote{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:12px 0 0}
 .pvgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0 14px}
 @media (max-width:640px){ .pvgrid{grid-template-columns:repeat(2,minmax(0,1fr))} }
@@ -409,6 +423,8 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
       <h2 id="hello">Welcome</h2>
       <p class="lead">A logbook that stays with you: nothing about your flying is uploaded.</p>
       <div id="setupNotice" class="notice hidden"></div>
+      <div id="homeDash"></div>
+      <details id="howBox" class="howbox"><summary>First time here? <b>How CrewBase Log works</b></summary>
       <div class="card flow">
         <h3>How CrewBase Log works</h3>
         <a class="fbox fstart" href="#" data-go="profile"><svg class="fic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg><div><b>First, set up your profile</b><small>Name, licence, signature and expiry dates. They go on the cover and every page of your PDF logbook.</small></div></a>
@@ -451,6 +467,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
         </div>
         <div class="row-actions" style="margin:16px 0 0"><button class="btn ghost" type="button" data-go="crewbase">Open Crew Base</button></div>
       </div>
+      </details>
       <div class="card"><h3>Pilot jobs</h3><div class="hint" style="font-size:14px">No jobs posted yet. <a href="#" data-go="jobs">Why jobs?</a></div></div>
       <div class="card"><h3>Support CrewBase Log</h3><p class="hint" style="margin:0 0 12px;font-size:14px">CrewBase Log is free and stays free. Nobody has to pay. If it saves you time and you'd like to help with the running costs, you can buy us a coffee.</p><a class="btn ghost" href="https://ko-fi.com/tamas25712" target="_blank" rel="noopener" data-kofi>Buy us a coffee</a></div>
       <form class="card" id="fbForm">
@@ -1264,7 +1281,83 @@ const fmtDate = iso => {
 };
 
 /* ---------- overview ---------- */
+/* The home screen: what a pilot checks every day.
+   Flight time against the EASA limits (ORO.FTL.210: 100 h in 28 days, 900 h in a calendar year, 1,000 h in 12 months),
+   counted as block time (off-block to on-block) where the line has it, else its total; landings recency per aircraft type
+   (3 in 90 days); the last flight, adding a flight and the PDF */
+const blockOf = f => f.out && f.in ? tdiff(f.out, f.in) : f.total || 0;
+function ftlSum(from, to = "9999"){ return data.flights.reduce((s, f) => s + (!isSim(f) && f.date >= from && f.date <= to ? blockOf(f) : 0), 0); }
+const isoDaysAgo = n => new Date(Date.now() - n * 864e5).toISOString().slice(0, 10);
+// per aircraft type flown in the last 12 months: landings in 90 days, and the day the third-last landing drops out of the 90 days
+function typeRecency(){
+  const since = isoDaysAgo(365), byType = {};
+  for (const f of data.flights) if (!isSim(f) && f.acType && f.date >= since) (byType[f.acType] ||= []).push(f);
+  return Object.entries(byType).map(([type, F]) => {
+    const L = F.filter(f => f.ldgDay || f.ldgNight).sort((a, b) => b.date.localeCompare(a.date));
+    let n = 0, third = null; for (const f of L) { n += (f.ldgDay || 0) + (f.ldgNight || 0); if (n >= 3) { third = f.date; break; } }
+    const until = third && new Date(Date.parse(third) + 90 * 864e5).toISOString().slice(0, 10), in90 = L.filter(f => f.date >= isoDaysAgo(90)).reduce((s, f) => s + (f.ldgDay || 0) + (f.ldgNight || 0), 0);
+    return { type, in90, until, ok: !!until && until >= todayISO(), last: F.reduce((m, f) => f.date > m ? f.date : m, "") };
+  }).sort((a, b) => b.last.localeCompare(a.last));
+}
+/* Roster flights to log: legs of the Crew Base roster in the last 7 days (and today) that the logbook doesn't have yet
+   (same route within a day). Add opens the form filled in; Not flown hides one for good */
+function rosterPending(){
+  const out = [], skip = new Set(data.rosterSkip || []);
+  for (let n = 7; n >= 0; n--) { const iso = isoDaysAgo(n);
+    for (const l of rosterLegs(iso)) { const key = `${iso} ${l.from}-${l.to} ${l.no}`; if (skip.has(key)) continue;
+      if (!data.flights.some(f => !isSim(f) && Math.abs(Date.parse(f.date) - Date.parse(iso)) <= 864e5 && sameApt(f.from, l.from) && sameApt(f.to, l.to))) out.push({ ...l, date: iso, key }); } }
+  return out;
+}
+function rosterAddHTML(){
+  const P = rosterPending(); if (!P.length) return "";
+  return `<div class="card hcard"><h3>From your roster: ${P.length === 1 ? "a flight" : P.length + " flights"} to log</h3>` + P.slice(0, 5).map((l, j) =>
+    `<div class="rrow"><span><b>${fmtDate(l.date).slice(0, 5)}</b> · ${esc(withAirline(l.no) || "")} ${esc(l.from)} → ${esc(l.to)}</span><span class="fl-btns" style="margin:0"><button class="btn small" type="button" data-rosteradd="${j}">Add</button><button class="btn ghost small" type="button" data-rosterskip="${j}">Not flown</button></span></div>`).join("") +
+    (P.length > 5 ? `<p class="hint" style="margin:6px 0 0">${P.length - 5} more after these.</p>` : "") + `</div>`;
+}
+document.addEventListener("click", e => {
+  const a = e.target.closest("[data-rosteradd]"), k = e.target.closest("[data-rosterskip]"); if (!a && !k) return;
+  const l = rosterPending()[+(a || k).dataset[a ? "rosteradd" : "rosterskip"]]; if (!l) return;
+  if (k) { (data.rosterSkip ||= []).push(l.key); data.rosterSkip = data.rosterSkip.slice(-200); save(); renderHome(); return; }
+  tab("add"); addFormReset(); dropDraft();
+  const set = (id, v) => { const i = $("#n_" + id); if (i) { i.value = v; i.dispatchEvent(new Event("input", { bubbles: true })); } };
+  set("date", l.date); if (l.no) set("flightNo", withAirline(l.no)); set("from", l.from); set("to", l.to);
+  const o = $("#n_out"); o.scrollIntoView({ behavior: "smooth", block: "center" }); o.focus();
+});
+// the last flight on the home screen opens like a logbook line
+document.addEventListener("click", e => { const c = e.target.closest("#homeDash [data-edit]"); if (!c) return; tab("logbook"); lbCloseEdit(); lbOpenEdit(+c.dataset.edit); });
+/* the PDF logbook in one tap (format and pages as set on Your data): the share sheet where the phone has one
+   (mail, Files, print), else a download */
+async function pdfNow(btn){
+  const was = btn?.textContent; if (btn) { btn.disabled = true; btn.textContent = "Building PDF…"; }
+  try {
+    if (!prFmt) renderPrint();   // the PDF options on Your data, as the profile sets them
+    const bytes = await makePdf(), name = `crewbaselog-logbook-${prFmt.toLowerCase()}-${todayISO()}.pdf`, file = new File([bytes], name, { type: "application/pdf" });
+    logEvent("download_pdf", { format: prFmt, range: "home", kb: Math.round(bytes.length / 1024), ...nLines() });
+    if (navigator.canShare?.({ files: [file] }) && matchMedia("(pointer:coarse)").matches) { try { await navigator.share({ files: [file], title: "Pilot logbook" }); } catch (x) { if (x.name !== "AbortError") throw x; } }
+    else { const a = document.createElement("a"); a.href = URL.createObjectURL(file); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); }
+  } catch (x) { console.error(x); alert(x.message || "Couldn't build the PDF."); }
+  if (btn) { btn.disabled = false; btn.textContent = was; }
+}
+document.addEventListener("click", e => { const b = e.target.closest("[data-pdfnow]"); if (b) pdfNow(b); });
+function renderHome(){
+  const box = $("#homeDash"), F = data.flights; if (!box) return;
+  // roster legs and logbook lines compare by airport (FCO and LIRF are the same): the airport list first
+  if (!AIRPORTS && data.crew?.me?.days && Object.keys(data.crew.me.days).length) { loadAirports().then(() => AIRPORTS && renderHome()); }
+  $("#howBox").open = !F.length; $('[data-p="overview"] .lead')?.classList.toggle("hidden", !!F.length);
+  if (!F.length) { box.innerHTML = ""; return; }
+  const yr = todayISO().slice(0, 4);
+  const tile = (k, v, lim, note) => { const pc = lim ? v / (lim * 60) : 0, c = !lim ? "" : pc > 1 ? " bad" : pc >= 0.8 ? " warn" : "";
+    return `<div class="htile${c}"><div class="k">${k}</div><div class="v">${fmtHrs(v)}</div><div class="lim">${lim ? `limit ${lim.toLocaleString()} h` : note || ""}</div>${lim ? `<div class="bar"><i style="width:${Math.min(100, Math.round(pc * 100))}%"></i></div>` : ""}</div>`; };
+  const last = [...F].filter(f => !isSim(f)).sort((a, b) => (b.date + b.out).localeCompare(a.date + a.out))[0], li = last ? F.indexOf(last) : -1;
+  const rec = typeRecency(), hasLdg = F.some(f => f.ldgDay || f.ldgNight);
+  box.innerHTML = rosterAddHTML() +
+    `<div class="hgrid">${tile("Last 28 days", ftlSum(isoDaysAgo(27)), 100)}${tile("This year", ftlSum(yr + "-01-01"), 900)}${tile("Last 12 months", ftlSum(isoDaysAgo(364)), 1000)}${tile("Total time", F.reduce((s, f) => s + (f.total || 0), 0) + (data.prev?.total || 0), 0, "all time")}</div>` +
+    (hasLdg && rec.length ? `<div class="card hcard"><h3>Landings: 3 in 90 days</h3><div class="hrow">${rec.map(r => `<span class="chip ${r.ok ? "ok" : "bad"}">${esc(r.type)} · ${r.in90} in 90 days · ${r.ok ? "until " + fmtDate(r.until) : "not current"}</span>`).join("")}</div></div>` : "") +
+    (last ? `<div class="card hcard"><h3>Last flight</h3>${lbCards([{ f: last, i: li }], [{ f: last, i: li }]).replace('<div class="lbcards">', '<div class="lbcards hlast">').replace(/<div class="lbmonth">.*?<\/div>/, "")}` +
+      `<div class="row-actions" style="margin:10px 0 0"><button class="btn" type="button" data-go="add">+ Add flight</button><button class="btn ghost" type="button" data-pdfnow>PDF logbook</button><button class="btn ghost" type="button" data-go="logbook">All flights</button></div></div>` : "");
+}
 function renderOverview(){
+  renderHome();
   const fe = $("#fbEmail"); if (!fe.value || fe.value === fe.dataset.auto) fe.value = fe.dataset.auto = user.id === "sample" ? "" : user.email || "";
   const p = data.profile, first = (p.name || "").split(" ")[0];
   $("#hello").textContent = first ? `Welcome, ${first}` : "Welcome";
