@@ -164,8 +164,13 @@ h2{font-size:24px;letter-spacing:-.02em;margin:0 0 6px}
 .htile.warn .bar i{background:var(--warn)}.htile.bad .bar i{background:var(--bad)}.htile.bad .v{color:var(--bad)}
 .hrow{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 0}
 .hcard{margin:0 0 14px}.hcard h3{margin:0 0 8px}
-.obapps{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.obapps .btn{justify-content:center;text-align:center;white-space:normal}
-@media (max-width:420px){ .obapps{grid-template-columns:1fr} }
+.setup{position:fixed;inset:0;z-index:50;background:var(--bg);overflow:auto;padding:max(16px,env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom))}
+.setupin{max-width:520px;margin:0 auto}.suhead{display:flex;justify-content:space-between;align-items:center;margin:0 0 18px}.logo-sm{font-weight:700}
+.sudots{display:flex;gap:6px;margin:0 0 18px}.sudots i{flex:1;height:4px;border-radius:2px;background:var(--line)}.sudots i.on{background:var(--brand)}
+.setup h2{margin:0 0 6px}.setup .lead{margin:0 0 18px}.setup .drop{padding:34px 16px}
+.sunav{display:flex;justify-content:space-between;align-items:center;margin:22px 0 0}.sualt{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0 0}
+.suinfo{margin:14px 0 0}.suinfo>summary{cursor:pointer;color:var(--brand);font-weight:600}
+body.insetup .bbar{display:none}
 .rrow{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 0;border-top:1px solid var(--line);font-size:15px}.rrow:first-of-type{border-top:0}
 @media (max-width:700px){ .hgrid{grid-template-columns:1fr 1fr;gap:8px}.htile{padding:10px}.htile .v{font-size:19px} }
 .fixnote{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:12px 0 0}
@@ -422,6 +427,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
   <div class="moremenu hidden" id="moreMenu" role="menu">
     <button data-t="import">Your data</button><button data-t="crewbase">Crew Base</button><button data-t="jobs">Jobs</button><button data-t="expiry" id="moreExp">Expiry dates</button><button data-t="profile">Profile</button><button data-t="admin" id="moreAdmin" class="hidden">Admin</button>
   </div>
+  <div class="setup hidden" id="setup" role="dialog" aria-label="Set up CrewBase Log"><div class="setupin"><div class="suhead"><span class="logo-sm">CrewBase Log</span><button class="btn ghost small" type="button" data-su="skip">Skip setup</button></div><div id="setupBody"></div></div></div>
   <main>
     <!-- overview -->
     <div data-p="overview">
@@ -1116,6 +1122,7 @@ document.addEventListener("click", e => { if (e.target.id === "cbMakeAcct") { e.
 
 /* ---------- tabs ---------- */
 function tab(t){
+  if (t !== "overview" && !$("#setup")?.classList.contains("hidden")) closeSetup?.(false);
   if (t !== "import") closeReview?.();
   $$("#tabs button, #bbar [data-t], #moreMenu [data-t]").forEach(b => b.classList.toggle("on", b.dataset.t === t));
   $("#bbar [data-more]").classList.toggle("on", !!$(`#moreMenu [data-t="${t}"]`)); $("#moreMenu").classList.add("hidden");
@@ -1269,6 +1276,7 @@ function enterApp(){
   // the page that was open before a reload, else the overview
   const was = location.hash.slice(1), pages = $$("#tabs button").map(b => b.dataset.t).filter(t => t !== "admin" || isAdmin());
   load(); show("#vApp"); tab(pages.includes(was) ? was : "overview");
+  if (!data.onboarded && !data.flights.length && user.id !== "sample") openSetup();
   $("#whoEmail").textContent = isLocal() ? "On this device only" : user.email;
   $("#btnOut").textContent = isLocal() ? "Create account / Log in" : "Log out";
   if (moved) $('[data-p="overview"] h2').insertAdjacentHTML("afterend", '<div class="notice" style="margin:0 0 16px"><b>Your logbook is now with your account.</b> Everything you started without an account came along.</div>');
@@ -1373,43 +1381,65 @@ document.addEventListener("click", async e => {
   if (e.target.closest("[data-noinstall]")) { store.set("cbl_noinstall", 1); renderHome(); }
   if (e.target.closest("[data-install]") && installEvt) { installEvt.prompt(); await installEvt.userChoice.catch(() => {}); installEvt = null; renderHome(); }
 });
-/* First run: three short questions instead of a long page. 1 name and licence, 2 airline, home base and captain or first
-   officer, 3 where the logbook is now, which leads to the right drop zone with that app's export steps. Each can be skipped */
-let obStep = 1;
-function onboardHTML(){
-  if (data.onboarded || data.flights.length || user?.id === "sample") return "";
-  const p = data.profile, step = n => `<span class="hint" style="margin:0;font-size:13px">Step ${n} of 3</span>`, skip = `<button class="btn ghost small" type="button" data-obskip>Skip</button>`;
-  if (obStep === 1) return `<div class="card hcard ob"><h3>Welcome! Three quick questions</h3>${step(1)}
-    <div class="field" style="margin-top:10px"><label for="obName">Your name, as on your licence</label><input id="obName" autocomplete="name" value="${esc(p.name || "")}"></div>
-    <div class="fl-btns"><button class="btn" type="button" data-obnext>Next</button>${skip}</div></div>`;
-  if (obStep === 2) return `<div class="card hcard ob"><h3>Where do you fly?</h3>${step(2)}
-    <div class="lbgrid" style="margin-top:10px"><div class="field"><label for="obAirline">Airline code (IATA)</label><input id="obAirline" class="mono" maxlength="2" style="text-transform:uppercase" value="${esc(p.airline || "")}" placeholder="e.g. EY"></div>
-    <div class="field"><label for="obBase">Home base (ICAO)</label><input id="obBase" class="mono" maxlength="4" style="text-transform:uppercase" value="${esc(p.base || "")}" placeholder="e.g. OMAA"></div></div>
-    <div class="field"><label>You fly as</label><div class="seg" style="margin:0"><label><input type="radio" name="obRole" value="PIC"${p.role !== "CP" ? " checked" : ""}> Captain</label><label><input type="radio" name="obRole" value="CP"${p.role === "CP" ? " checked" : ""}> First officer</label></div></div>
-    <div class="fl-btns"><button class="btn" type="button" data-obnext>Next</button>${skip}</div></div>`;
-  return `<div class="card hcard ob"><h3>Where is your logbook now?</h3>${step(3)}
-    <div class="obapps">${[["logten", "LogTen Pro"], ["crewlounge", "CrewLounge PILOTLOG"], ["safelog", "Safelog"], ["wader", "Wader"], ["flylog", "Flylog"], ["ecrew", "eCrew / AIMS"], ["sheet", "A spreadsheet or another app"], ["paper", "A paper logbook"], ["none", "Nothing yet: I'm starting fresh"]]
-      .map(([k, l]) => `<button class="btn ghost" type="button" data-obapp="${k}">${l}</button>`).join("")}</div></div>`;
+/* First run: a full-screen assistant, one question per screen. 1 name, 2 base airport (airline code and captain or first
+   officer too), 3 drop the logbook (or start fresh, or paper totals), then the result and the totals check. Which files
+   work is there to open, not asked. Skip setup or any page change closes it */
+let suStep = 1;
+function openSetup(){ suStep = 1; renderSetup(); $("#setup").classList.remove("hidden"); document.body.classList.add("insetup"); }
+function closeSetup(done = true){ if ($("#setup").classList.contains("hidden")) return; $("#setup").classList.add("hidden"); document.body.classList.remove("insetup"); if (done) { data.onboarded = true; save(); } }
+function renderSetup(){
+  const p = data.profile, dots = `<div class="sudots">${[1, 2, 3, 4].map(n => `<i class="${n <= suStep ? "on" : ""}"></i>`).join("")}</div>`;
+  const nav = (back, next) => `<div class="sunav">${back ? '<button class="btn ghost" type="button" data-su="back">‹ Back</button>' : "<span></span>"}${next || ""}</div>`;
+  let h = "";
+  if (suStep === 1) h = `<h2>Welcome to CrewBase Log</h2><p class="lead">Your logbook in two minutes. First, your name, as on your licence: it goes on your PDF logbook.</p>
+    <div class="field"><label for="suName">Your name</label><input id="suName" autocomplete="name" value="${esc(p.name || "")}"></div>` + nav(false, '<button class="btn" type="button" data-su="next">Next ›</button>');
+  if (suStep === 2) h = `<h2>Where do you fly from?</h2><p class="lead">Your base airport comes first when you add a flight.</p>
+    <div class="field"><label for="suBase">Base airport (ICAO)</label><input id="suBase" class="mono" maxlength="4" style="text-transform:uppercase" placeholder="e.g. OMAA" value="${esc(p.base || "")}"></div>
+    <div class="field"><label for="suAirline">Airline code (IATA) <span class="hint" style="font-weight:400">optional</span></label><input id="suAirline" class="mono" maxlength="2" style="text-transform:uppercase" placeholder="e.g. EY" value="${esc(p.airline || "")}"><div class="hint">Goes in front of your flight numbers.</div></div>
+    <div class="field"><label>You fly as</label><div class="seg" style="margin:0"><label><input type="radio" name="suRole" value="PIC"${p.role !== "CP" ? " checked" : ""}> Captain</label><label><input type="radio" name="suRole" value="CP"${p.role === "CP" ? " checked" : ""}> First officer</label></div></div>` +
+    nav(true, '<button class="btn" type="button" data-su="next">Next ›</button>');
+  if (suStep === 3) h = `<h2>Drop your logbook</h2><p class="lead">From another app, a PDF logbook, a spreadsheet, an eCrew report or a CrewBase Log backup. It stays on this device.</p>
+    <div class="drop" id="suDrop"><b>Drop your file here</b><br><span class="hint">or tap to choose · several at once is fine</span><input type="file" id="suFile" accept=".csv,.txt,.tsv,.xlsx,.xls,.pdf,.json,.zip" multiple class="hidden"></div>
+    <p class="err" id="suErr" style="margin:10px 0 0"></p>
+    <details class="suinfo"><summary>Which files work?</summary><div class="hint" style="font-size:14px;line-height:1.6;margin-top:8px">Read automatically: <b>LogTen Pro</b> (Export Flights, Tab), <b>CrewLounge PILOTLOG</b> CSV or PDF, <b>Safelog</b> CSV, <b>Wader</b> PDF, <b>Flylog</b> CSV or PDF, <b>eCrew / AIMS</b> Pilot LogBook report, EASA logbook PDFs and <b>CrewBase Log</b> backups. Any other CSV or Excel file: you match the columns once.</div>
+      <div class="field" style="margin:10px 0 0"><label for="suApp">How to export from your app</label><select id="suApp"><option value="">Choose your app…</option>${Object.entries(APP_GUIDES).filter(([k]) => !["crewbase", "sheet", "paper"].includes(k)).map(([k, g]) => `<option value="${k}">${g[0]}</option>`).join("")}</select></div><div id="suGuide"></div></details>
+    <div class="sualt"><button class="btn ghost" type="button" data-su="paper">Paper logbook: enter its totals</button><button class="btn ghost" type="button" data-su="fresh">Start fresh, no logbook</button></div>` + nav(true);
+  if (suStep === 4) h = `<h2>Your logbook is in</h2><div class="sumlog" id="suResult">${$("#impDoneLog").innerHTML}</div>` + nav(false, '<button class="btn" type="button" data-su="done">Done</button>');
+  $("#setupBody").innerHTML = dots + h;
+  if (suStep === 3) {
+    const d = $("#suDrop");
+    d.addEventListener("click", () => $("#suFile").click()); $("#suFile").addEventListener("change", e => { $("#suErr").textContent = ""; handleFiles(e.target.files); e.target.value = ""; });
+    ["dragenter", "dragover"].forEach(ev => d.addEventListener(ev, e => { e.preventDefault(); d.classList.add("over"); }));
+    ["dragleave", "drop"].forEach(ev => d.addEventListener(ev, e => { e.preventDefault(); d.classList.remove("over"); }));
+    d.addEventListener("drop", e => { $("#suErr").textContent = ""; handleFiles(e.dataTransfer.files); });
+    $("#suApp").addEventListener("change", e => { const g = APP_GUIDES[e.target.value]; $("#suGuide").innerHTML = g ? `<ol style="margin:8px 0 0;padding-left:20px;font-size:14px">${g[1].map(t => `<li>${t}</li>`).join("")}</ol>` : ""; });
+  }
+  $("#setupBody").querySelector("input")?.focus?.();
 }
 document.addEventListener("click", e => {
-  const next = e.target.closest("[data-obnext]"), skip = e.target.closest("[data-obskip]"), app = e.target.closest("[data-obapp]"); if (!next && !skip && !app) return;
-  const p = data.profile;
-  if (next && obStep === 1) p.name = $("#obName").value.trim() || p.name;
-  if (next && obStep === 2) { p.airline = $("#obAirline").value.toUpperCase().replace(/[^A-Z0-9]/g, "") || p.airline || ""; p.base = $("#obBase").value.trim().toUpperCase() || p.base || ""; p.role = $('[name="obRole"]:checked')?.value || p.role; }
-  if (next || skip) { obStep++; save(); renderOverview(); return; }
-  // the logbook's place: the drop zone it goes to, with that app's export steps
-  const k = app.dataset.obapp; data.onboarded = true; if (k !== "none") p.fromApp = k; save();
-  if (k === "none") { renderOverview(); return tab("add"); }
-  tab("import"); if (APP_GUIDES[k]) { $("#appPick").value = k; showAppGuide(k); }
-  const t = k === "ecrew" ? $("#aimsCard") : k === "paper" ? $("#prevBox") : $("#pastCard"); if (t?.tagName === "DETAILS") t.open = true;
-  requestAnimationFrame(() => t?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  const b = e.target.closest("[data-su]"); if (!b) return; const a = b.dataset.su, p = data.profile;
+  if (a === "skip") { closeSetup(); return renderOverview(); }
+  if (a === "back") { suStep = Math.max(1, suStep - 1); return renderSetup(); }
+  if (a === "next" && suStep === 1) p.name = $("#suName").value.trim() || p.name || "";
+  if (a === "next" && suStep === 2) { p.base = $("#suBase").value.trim().toUpperCase() || p.base || ""; p.airline = $("#suAirline").value.toUpperCase().replace(/[^A-Z0-9]/g, "") || p.airline || ""; p.role = $('[name="suRole"]:checked')?.value || p.role; }
+  if (a === "next") { suStep++; save(); return renderSetup(); }
+  if (a === "fresh") { closeSetup(); return tab("add"); }
+  if (a === "paper") { closeSetup(); tab("import"); $("#prevBox").open = true; return requestAnimationFrame(() => $("#prevCard").scrollIntoView({ behavior: "smooth", block: "start" })); }
+  if (a === "done") { closeSetup(); tab("overview"); }
 });
+// the import's outcome, while the assistant is open
+addEventListener("cbl:imported", () => { if ($("#setup").classList.contains("hidden")) return; suStep = 4; renderSetup(); });
+addEventListener("cbl:importerr", () => { if ($("#setup").classList.contains("hidden") || suStep !== 3) return; $("#suErr").innerHTML = $("#impErr").innerHTML; });
+// a backup brings its own profile: the toast says what came back, the home screen shows it
+addEventListener("cbl:restored", () => { if ($("#setup").classList.contains("hidden")) return; closeSetup(); tab("overview"); });
+// a file whose columns have to be matched: Your data takes over
+addEventListener("cbl:mapping", () => { if ($("#setup").classList.contains("hidden")) return; closeSetup(); tab("import"); requestAnimationFrame(() => $("#mapCard").scrollIntoView({ behavior: "smooth", block: "start" })); });
 function renderHome(){
   const box = $("#homeDash"); if (!box || !data?.flights) return; const F = data.flights;
   // roster legs and logbook lines compare by airport (FCO and LIRF are the same): the airport list first
   if (!AIRPORTS && data.crew?.me?.days && Object.keys(data.crew.me.days).length) { loadAirports().then(() => AIRPORTS && renderHome()); }
   $("#howBox").open = !F.length; $('[data-p="overview"] .lead')?.classList.toggle("hidden", !!F.length);
-  if (!F.length) { box.innerHTML = onboardHTML() + installHTML(); return; }
+  if (!F.length) { box.innerHTML = installHTML(); return; }
   const yr = todayISO().slice(0, 4);
   const tile = (k, v, lim, note) => { const pc = lim ? v / (lim * 60) : 0, c = !lim ? "" : pc > 1 ? " bad" : pc >= 0.8 ? " warn" : "";
     return `<div class="htile${c}"><div class="k">${k}</div><div class="v">${fmtHrs(v)}</div><div class="lim">${lim ? `limit ${lim.toLocaleString()} h` : note || ""}</div>${lim ? `<div class="bar"><i style="width:${Math.min(100, Math.round(pc * 100))}%"></i></div>` : ""}</div>`; };
@@ -2347,12 +2377,13 @@ async function nextFile(){
   }
   $("#impManual").checked = false;
   if (!impLog.length) return;
-  if (impErrs === impLog.length) { $("#impErr").innerHTML = impLog.join("<br>"); $("#impErr").scrollIntoView({ behavior: "smooth", block: "center" }); return; }
+  if (impErrs === impLog.length) { $("#impErr").innerHTML = impLog.join("<br>"); dispatchEvent(new Event("cbl:importerr")); $("#impErr").scrollIntoView({ behavior: "smooth", block: "center" }); return; }
   const ns = data.flights.filter(isSim).length, nf = data.flights.length - ns;
   // a PDF that matched its own totals needs no check by hand
   const checked = impLog.some(l => l.includes("Matches your PDF's own totals"));
   $("#impDoneLog").innerHTML = impLog.map(l => l.startsWith("<div") ? l : `<div>${l}</div>`).join("") + (nf + ns === 0 ? `<div>Your logbook has no flights yet: nothing in ${impLog.length === 1 ? "this file" : "these files"} has been flown. Planned flights belong in <a href="#" data-go="crewbase">Crew Base</a>.</div>` : `<div><b>Your logbook now:</b> ${nf.toLocaleString()} flight${nf === 1 ? "" : "s"}` + (ns ? ` · ${ns.toLocaleString()} simulator session${ns === 1 ? "" : "s"}` : "") + (restoredView() || checked ? "" : `<div class="hint"><a href="#" data-go="import" data-scroll="#chkBox">Check the totals against your old logbook's last page</a></div>`) + `</div>`);
   $("#impDone").classList.remove("hidden"); $("#impDone").scrollIntoView({ behavior: "smooth", block: "start" });
+  setTimeout(() => dispatchEvent(new Event("cbl:imported")), 600);   // after the checks below have added their lines
   $("#chkUpto").value = ""; renderCheck();
   if (impBatch?.added && repGuest() && guestItems().length) for (const n of impBatch.names.filter(n => data.repSent.some(x => x.file_name === n)))
     guestCall("works", JSON.stringify({ items: guestItems(), file_name: n })).then(r => { if (!r.done) return;
@@ -2437,6 +2468,7 @@ async function handleFile(f){
   renderMapping();
 }
 function renderMapping(){
+  dispatchEvent(new Event("cbl:mapping"));
   $("#mapCard").classList.remove("hidden");
   $("#mapInfo").innerHTML = `<b>${esc(imp.name)}</b>: ${imp.rows.length.toLocaleString()} rows, ${imp.headers.length} columns. ` +
     (imp.manual ? (imp.known ? `<b style="color:var(--warn)">This is a ${imp.known} export, which CrewBase Log reads correctly by itself (adding up its day and night, single and multi-engine columns). Matching it yourself can lose times: cancel, untick “Let me match the columns myself” and drop the file again, unless it was read wrongly.</b> ` : "") + "Choose the column for each item; the example under each choice is the first value in your file." : imp.fromTemplate ? "We've seen this layout before and used your saved matching." : imp.ecrew ? "Recognised as an eCrew Pilot LogBook report. Check the preview, then import." : "We've guessed the matches. Check them, then import. Your choices are remembered for next time.");
@@ -3574,6 +3606,7 @@ async function restoreBackup(text){
   if (ok && !$('[data-p="import"]').classList.contains("hidden")) $("#aimsCard").scrollIntoView({ behavior: "smooth", block: "start" });
   logEvent("restore_backup", { ok, lines: F.length, gaps: gaps.length });
   $("#impErr").innerHTML = (ok ? `<span style="color:var(--ok)">Backup restored: ${F.length.toLocaleString()} lines, matching the backup file.</span>` : "Backup restored, but it doesn't fully match the file: see the message.") + (gaps.length ? `<br>${gapMsg(gaps)}` : "") + aptAskHTML();
+  dispatchEvent(new Event("cbl:restored"));
 }
 function restoreToast(ok, html, stay){
   let t = $("#restToast");
