@@ -2815,7 +2815,11 @@ function flightSuggest(pre, k){
     if ("SELF".startsWith(val)) { const i = list.findIndex(o => o.v === "SELF"), self = i >= 0 ? list.splice(i, 1)[0] : { v: "SELF", label: "SELF", note: "you were PIC" }; if (val || i >= 0 || !list.length) list.unshift(self); else list.splice(Math.min(1, list.length), 0, self); }
     return list.slice(0, 8);
   }
-  if (k === "acType") return count(f => f.acType).filter(([v]) => !val || v.startsWith(val)).slice(0, 8).map(([v, c]) => ({ v, label: v, note: n(c) }));
+  // aircraft types: the one flown last first
+  if (k === "acType") {
+    const last = new Map(); for (const f of F) if (f.acType && !(last.get(f.acType) > f.date)) last.set(f.acType, f.date);
+    return [...last.entries()].sort((a, b) => b[1].localeCompare(a[1])).filter(([v]) => !val || v.startsWith(val)).slice(0, 8).map(([v, d]) => ({ v, label: v, note: `last ${fmtDate(d)}` }));
+  }
   if (k === "reg") {
     const type = $("#" + pre + "acType").value.trim().toUpperCase(), last = new Map();
     for (const f of F) if (f.reg && (!type || f.acType === type)) last.set(f.reg, { date: f.date, type: f.acType, c: (last.get(f.reg)?.c || 0) + 1 });
