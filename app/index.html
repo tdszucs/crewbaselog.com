@@ -171,6 +171,7 @@ h2{font-size:24px;letter-spacing:-.02em;margin:0 0 6px}
 .sunav{display:flex;justify-content:space-between;align-items:center;margin:22px 0 0}.sualt{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0 0}
 .suinfo{margin:14px 0 0}.suinfo>summary{cursor:pointer;color:var(--brand);font-weight:600}
 body.insetup .bbar{display:none}
+input.clash,select.clash{border-color:var(--bad);box-shadow:0 0 0 1px var(--bad)}
 .times input.bad{border-color:var(--bad);box-shadow:0 0 0 1px var(--bad)}
 .rolerow{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px}.rolerow .seg{margin:0}
 .rolefield .roleneed{display:none;margin-top:6px}.rolefield.need .roleneed{display:block;color:var(--warn)}.rolefield.need .seg{border-color:var(--warn);box-shadow:0 0 0 1px var(--warn)}
@@ -3151,6 +3152,8 @@ function flightSuggest(pre, k){
     if (k !== "total" && tot && !list.some(o => o.v === fmtMin(tot))) list.push({ v: fmtMin(tot), note: "the total time" });
     // IFR with "Airline flights are IFR" on in the profile: the flight's total time first (the block time while no total is entered)
     if (k === "ifr" && data.profile.autoIfr !== false && list.length) { const o = tot ? list.find(x => x.v === fmtMin(tot)) : list[0]; list.splice(list.indexOf(o), 1); list.unshift({ v: o.v, note: "total time · your profile: airline flights are IFR" }); }
+    if (["pic", "copilot", "dual", "instructor"].includes(k)) { const whole = tot || blk, left = whole ? seatLeft(pre, k, whole) : 0;
+      if (whole && left < whole) return left && (!val || fmtMin(left).startsWith(val)) ? [{ v: fmtMin(left), label: fmtMin(left), note: "the rest of the flight" }] : []; }
     return list.filter(o => !val || o.v.startsWith(val)).map(o => ({ ...o, label: o.v }));
   }
   // night time: worked out from the date, the airports and the block times (sun more than 6° below the horizon along the route)
@@ -3248,6 +3251,41 @@ document.addEventListener("change", e => {
 /* Relief (the third choice next to pilot flying / monitoring): no landings, RELIEF in the remarks, and Total time and the
    function times offer half and a third of the block time. A relief pilot logs the time in a pilot's seat (AMC1 FCL.050) */
 const isRelief = pre => pfOf(pre) === "rel";
+/* Entries that can't happen together on one flight. Each: { msg, keys (the boxes to mark) }.
+   Editing a flight only stops for a clash the edit brings in, so an old imported line can still get, say, a new remark */
+function flightClash(f){
+  const out = [], add = (msg, keys) => out.push({ msg, keys }), T = f.total || 0, fm = fmtMin, self = /^self$/i.test((f.picName || "").trim());
+  const name = { pic: "PIC", copilot: "Co-pilot", dual: "Dual", instructor: "Instructor", night: "Night", ifr: "IFR" };
+  const TN = { out: "Off-block", off: "Take-off", on: "Landing", in: "On-block" };
+  // the times of day in their order: off-block, take-off, landing, on-block (a flight can cross midnight, but not run backwards)
+  const seq = ["out", "off", "on", "in"].filter(k => f[k]);
+  for (let i = 1; i < seq.length; i++) { const a = seq[i - 1], b = seq[i], d = tdiff(f[a], f[b]);
+    if (((a === "out" && b === "off") || (a === "on" && b === "in")) && d > 240) add(`${TN[b]} (${f[b]}) can't come before ${TN[a].toLowerCase()} (${f[a]}).`, [b]); }
+  if (!out.length && seq.length > 2 && seq.slice(1).reduce((s, k, i) => s + tdiff(f[seq[i]], f[k]), 0) >= 1440) add("The times are out of order: off-block, take-off, landing, on-block.", seq);
+  const blk = f.out && f.in ? tdiff(f.out, f.in) : 0;
+  if (blk && T > blk) add(`Total time ${fm(T)} can't be more than the block time ${fm(blk)} (off-block to on-block).`, ["total"]);
+  if (T) for (const k of ["pic", "copilot", "dual", "instructor", "night", "ifr"]) if (f[k] > T) add(`${name[k]} time ${fm(f[k])} can't be more than the total time ${fm(T)}.`, [k]);
+  // one seat at a time: PIC, co-pilot or under instruction
+  const fn = ["pic", "copilot", "dual"].filter(k => f[k]);
+  if (T && fn.length > 1 && fn.reduce((s, k) => s + f[k], 0) > T) add(`${fn.map((k, i) => i && k !== "pic" ? name[k].toLowerCase() : name[k]).join(" and ")} time together can't be more than the total time ${fm(T)}: you were one of them at a time. Split the flight, or keep only one.`, fn);
+  if (T && f.instructor && f.dual && f.instructor + f.dual > T) add("You can't give and receive instruction at the same time: instructor and dual time together are more than the total time.", ["instructor", "dual"]);
+  if (self && f.copilot) add("With yourself as PIC (SELF) there's no co-pilot time.", ["copilot", "picName"]);
+  if (self && f.dual) add("Dual time means an instructor was PIC: the PIC can't be SELF.", ["dual", "picName"]);
+  if (f.ldgNight && !f.night && (f.out || f.total)) add("A night landing needs night time on the flight.", ["ldgNight", "night"]);
+  if (f.ldgDay && T && f.night >= T) add("The whole flight was at night, so a day landing can't be: make it a night landing.", ["ldgDay", "night"]);
+  return out;
+}
+const clashNew = (f, was) => { const old = was ? new Set(flightClash(was).map(c => c.msg.replace(/[\d:]+/g, ""))) : null; return flightClash(f).filter(c => !old?.has(c.msg.replace(/[\d:]+/g, ""))); };
+function clashShow(pre){
+  const box = $("#" + pre + "clash"); if (!box) return;
+  const { f } = readFlightForm(pre, pre === "e_" ? lbEditing || {} : {}), list = clashNew(f, pre === "e_" ? lbEditing : null);
+  if (!f.total && f.out && f.in) f.total = tdiff(f.out, f.in);
+  $$(`[id^="${pre}"].clash`).forEach(x => x.classList.remove("clash"));
+  for (const c of list) for (const k of c.keys) $("#" + pre + k)?.classList.add("clash");
+  box.innerHTML = list.map(c => `<div>⚠ ${esc(c.msg)}</div>`).join(""); box.classList.toggle("hidden", !list.length);
+}
+document.addEventListener("input", e => { const m = (e.target.id || "").match(/^(n_|e_)/); if (m && e.target.closest("#addFields,#lbEditFields")) clashShow(m[1]); });
+document.addEventListener("change", e => { const m = (e.target.id || "").match(/^(n_|e_)/); if (m && e.target.closest("#addFields,#lbEditFields")) clashShow(m[1]); });
 /* The boxes with a "Log 3:34" button: one tap puts the block time in (the relief share once one is chosen; night: the night part) */
 const LOG_KEYS = ["total", "pic", "copilot", "dual", "instructor", "night", "ifr"];
 const blockMin = pre => { const t = x => parseTime($("#" + pre + x)?.value || ""); return t("out") && t("in") ? tdiff(t("out"), t("in")) : 0; };
@@ -3261,10 +3299,18 @@ function nightFull(pre){
 function logBtns(pre){
   const blk = blockMin(pre), tot = parseDur($("#" + pre + "total")?.value || "") || Math.round(blk * shareOf(pre)), nf = nightFull(pre);
   for (const b of $$(`[data-logfill^="${pre}"]`)) {
-    const k = b.dataset.logfill.slice(2), m = k === "total" ? Math.round(blk * shareOf(pre)) : k === "night" ? (nf == null ? 0 : Math.round(nf * shareOf(pre))) : tot;
+    const k = b.dataset.logfill.slice(2), m = k === "total" ? Math.round(blk * shareOf(pre)) : k === "night" ? (nf == null ? 0 : Math.round(nf * shareOf(pre))) : seatLeft(pre, k, tot);
     const show = m > 0 && parseDur($("#" + pre + k).value) !== m; b.classList.toggle("hidden", !show);
     if (show) { b.textContent = `Log ${fmtMin(m)}`; b.dataset.v = fmtMin(m); }
   }
+}
+// PIC, co-pilot and dual share the flight (one seat at a time), and SELF as PIC rules out co-pilot and dual: what's left for this box
+function seatLeft(pre, k, tot){
+  const v = x => parseDur($("#" + pre + x)?.value || ""), self = /^self$/i.test($("#" + pre + "picName")?.value.trim() || "");
+  if (self && (k === "copilot" || k === "dual")) return 0;
+  if (["pic", "copilot", "dual"].includes(k)) return Math.max(0, tot - ["pic", "copilot", "dual"].filter(x => x !== k).reduce((s, x) => s + v(x), 0));
+  if (k === "instructor") return Math.max(0, tot - v("dual"));
+  return tot;
 }
 const setVal = (pre, k, v) => { const i = $("#" + pre + k); if (i) i.value = v; };
 document.addEventListener("click", e => {
@@ -3308,14 +3354,21 @@ function roleShown(pre){
   // out of relief: the whole flight again
   if (v !== "rel" && box.dataset.share) { setShare(pre, ""); applyShare(pre, 1); delete box.dataset.keys; delete box.dataset.full; }
 }
+// a new total: the times that were the whole flight (PIC, co-pilot, dual, instructor, IFR equal to the old total) stay the whole flight
+function totalFollow(pre){
+  const tot = $("#" + pre + "total"), was = parseDur(tot.dataset.was || ""), now = parseDur(tot.value); tot.dataset.was = tot.value;
+  if (!was || !now || was === now) return;
+  for (const k of ["pic", "copilot", "dual", "instructor", "ifr"]) { const i = $("#" + pre + k); if (i && parseDur(i.value) === was) i.value = fmtMin(now); }
+}
+document.addEventListener("focusin", e => { const m = (e.target.id || "").match(/^(n_|e_)total$/); if (m) e.target.dataset.was = e.target.value; });
 // Total time is the block time by itself, until the pilot types another
 document.addEventListener("input", e => {
   const m = (e.target.id || "").match(/^(n_|e_)(out|in|total|from|to|date|pic|copilot|dual|instructor|night|ifr)$/); if (!m) return;
   const pre = m[1], tot = $("#" + pre + "total");
-  if (m[2] === "total" && e.isTrusted) delete tot.dataset.auto;
+  if (m[2] === "total" && e.isTrusted) { delete tot.dataset.auto; totalFollow(pre); }
   if ((m[2] === "out" || m[2] === "in") && tot) {
     if ($("#" + pre + "relShare")?.dataset.share && isRelief(pre)) applyShare(pre, shareOf(pre));
-    else if (blockMin(pre) && (!tot.value || tot.dataset.auto)) { tot.value = fmtMin(blockMin(pre)); tot.dataset.auto = "1"; }
+    else if (blockMin(pre) && (!tot.value || tot.dataset.auto)) { tot.value = fmtMin(blockMin(pre)); tot.dataset.auto = "1"; totalFollow(pre); }
   }
   logBtns(pre); if (/^(from|to|date|out|in)$/.test(m[2])) loadAirports().then(() => logBtns(pre));
 });
@@ -3600,7 +3653,8 @@ function flightFieldsHTML(pre, f = {}){
   const times = `<div class="field wide"><div class="times">${LB_TIME.map(k => `<div><label for="${pre}${k}">${{ out: "Off-block", off: "Take-off", on: "Landing", in: "On-block" }[k]}</label>${input(k)}</div>`).join("")}</div><p class="err hidden" id="${pre}timeErr" role="alert" style="margin:6px 0 0"></p></div>` + pfSeg +
     `<div class="field wide hidden" id="${pre}retNote"></div><div class="field wide hidden" id="${pre}gsNote"></div>`;
   const box = k => k === "date" ? `<span class="datewrap">${input(k)}</span>` : LOG_KEYS.includes(k) ? `<span class="logwrap">${input(k)}<button type="button" class="logbtn hidden" data-logfill="${pre}${k}"></button></span>` : input(k);
-  return FIELDS.filter(([k]) => !LB_TIME.includes(k)).map(([k, label]) => `<div class="field${k === "remarks" ? " wide" : ""}"><label for="${pre}${k}">${label}</label>${box(k)}</div>` + (k === "to" ? times : "")).join("");
+  return FIELDS.filter(([k]) => !LB_TIME.includes(k)).map(([k, label]) => `<div class="field${k === "remarks" ? " wide" : ""}"><label for="${pre}${k}">${label}</label>${box(k)}</div>` + (k === "to" ? times : "") +
+    (k === "ldgNight" ? `<div class="field wide err hidden" id="${pre}clash" role="alert" style="margin:0"></div>` : "")).join("");
 }
 // a simulator session: EASA FSTD columns (date, type, session time) and remarks
 function simFieldsHTML(pre, f = {}){
@@ -3630,7 +3684,7 @@ function readFlightForm(pre, base = {}){
   for (const k of ["ldgDay","ldgNight"]) f[k] = Math.max(0, parseInt(g(k)) || 0);
   if (!f.total && f.out && f.in) f.total = tdiff(f.out, f.in);
   const err = bad.length ? "Check: " + bad.map(k => FIELDS.find(x => x[0] === k)[1]).join(", ") + ". Times of day 00:00 to 23:59 (HH:MM), durations as H:MM."
-    : f.date > logToday() ? FUTURE_MSG : notFlown(f) ? NOT_YET_MSG : !valid(f) ? "A flight needs a date and a route or total time." : "";
+    : f.date > logToday() ? FUTURE_MSG : notFlown(f) ? NOT_YET_MSG : !valid(f) ? "A flight needs a date and a route or total time." : clashNew(f, pre === "e_" ? base : null)[0]?.msg || "";
   return { f, err };
 }
 const lbPad = makePad($("#lbSigPad")); let lbSigDrop = false;
