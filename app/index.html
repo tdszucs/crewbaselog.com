@@ -471,7 +471,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
     <button data-more><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg><span>More</span></button>
   </nav>
   <div class="moremenu hidden" id="moreMenu" role="menu">
-    <button data-t="import">Your data</button><button data-t="crewbase">Crew Base</button><button data-t="jobs">Jobs</button><button data-t="profile">Profile</button><button data-t="admin" id="moreAdmin" class="hidden">Admin</button><button data-t="help">Help</button>
+    <button data-t="profile">Profile</button><button data-t="import">Your data</button><button data-t="crewbase">Crew Base</button><button data-t="jobs">Jobs</button><button data-t="admin" id="moreAdmin" class="hidden">Admin</button><button data-t="help">Help</button>
   </div>
   <div class="setup hidden" id="setup" role="dialog" aria-label="Set up CrewBase Log"><div class="setupin"><div class="suhead"><span class="logo-sm">CrewBase Log</span><button class="btn ghost small" type="button" data-su="skip">Skip setup</button></div><div id="setupBody"></div></div></div>
   <main>
@@ -696,6 +696,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
     <!-- logbook -->
     <div data-p="add" class="hidden">
       <h2>Add a flight</h2>
+      <div class="card hidden" id="rosToday"></div>
       <div class="card hidden" id="unfCard">
         <h3 style="margin:0 0 4px">Unfinished entries</h3>
         <div id="unfList"></div>
@@ -1390,10 +1391,29 @@ document.addEventListener("click", e => {
   const a = e.target.closest("[data-rosteradd]"), k = e.target.closest("[data-rosterskip]"); if (!a && !k) return;
   const l = rosterPending()[+(a || k).dataset[a ? "rosteradd" : "rosterskip"]]; if (!l) return;
   if (k) { (data.rosterSkip ||= []).push(l.key); data.rosterSkip = data.rosterSkip.slice(-200); save(); renderHome(); return; }
-  stashForm(); tab("add"); addFormReset(); dropDraft();
+  stashForm(); tab("add"); addFormReset(); dropDraft(); rosterFill(l);
+});
+// what the roster knows about a leg goes into the form: date, flight number, From and To; then the off-block time
+function rosterFill(l){
   const set = (id, v) => { const i = $("#n_" + id); if (i) { i.value = v; i.dispatchEvent(new Event("input", { bubbles: true })); } };
   set("date", l.date); if (l.no) set("flightNo", withAirline(l.no)); set("from", l.from); set("to", l.to);
+  $("#rosToday")?.classList.add("hidden");
   const o = $("#n_out"); o.scrollIntoView({ behavior: "smooth", block: "center" }); o.focus();
+}
+/* The + page, empty form: a flight on today's roster not logged yet is offered, to fill in what the roster knows */
+function renderRosterToday(){
+  const box = $("#rosToday"); if (!box) return;
+  const T = rosterPending().filter(l => l.date === logToday()); if (!T.length || draftValues()) { box.classList.add("hidden"); return; }
+  if (!AIRPORTS && data.crew?.me?.days) loadAirports().then(() => AIRPORTS && renderRosterToday());   // roster and logbook airports compare once the list is in
+  box.innerHTML = `<h3 style="margin:0 0 4px">On your roster today</h3><p class="hint" style="margin:0 0 6px">Fill in what the roster knows: date, flight number and route.</p>` +
+    T.map(l => `<div class="unf"><div><b>${esc(withAirline(l.no) || "Flight")}</b> ${esc(l.from)} → ${esc(l.to)}</div><div class="fl-btns"><button class="btn small" type="button" data-rosfill="${esc(l.key)}">Fill in</button><button class="btn ghost small" type="button" data-rosnot="${esc(l.key)}">No</button></div></div>`).join("");
+  box.classList.remove("hidden");
+}
+document.addEventListener("click", e => {
+  const f = e.target.closest("[data-rosfill]"), n = e.target.closest("[data-rosnot]"); if (!f && !n) return;
+  const l = rosterPending().find(x => x.key === (f || n).dataset[f ? "rosfill" : "rosnot"]); if (!l) return;
+  if (n) { (data.rosterSkip ||= []).push(l.key); data.rosterSkip = data.rosterSkip.slice(-200); save(); return renderRosterToday(); }
+  stashForm(); addFormReset(); dropDraft(); rosterFill(l);
 });
 // the last flight on the home screen opens like a logbook line
 document.addEventListener("click", e => { const c = e.target.closest("#homeDash [data-edit]"); if (!c) return; tab("logbook"); lbCloseEdit(); lbShow(+c.dataset.edit); $(".lbdetail")?.scrollIntoView({ behavior: "smooth", block: "center" }); });
@@ -1564,7 +1584,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "30 Oct 2026 · 27";
+const APP_VERSION = "30 Oct 2026 · 28";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
@@ -3044,7 +3064,7 @@ function renderYourData(){
 // adding a flight by hand lives on the Logbook tab, behind a button: most airline pilots import everything
 function openAddForm(){
   if (!$("#addFields").children.length) { addFormReset(); restoreDraft(); }
-  renderUnfinished(); scrollTo({ top: 0 });
+  renderUnfinished(); renderRosterToday(); scrollTo({ top: 0 });
   Promise.all([loadAirports(), loadAptNames()]).then(() => { aptFlags("n_"); logBtns("n_"); }); roleByType("n_"); timeSum("n_");
   loadAirports().then(renderAddPreview);
 }
@@ -3071,13 +3091,14 @@ function restoreValues(v){
   renderAddPreview(); loadAirports().then(() => logBtns("n_")); loadAirports().then(() => gsCheck("n_"));
 }
 $("#addFields").addEventListener("input", saveDraft); $("#addFields").addEventListener("change", saveDraft);
+$("#addFields").addEventListener("input", () => { if (!$("#rosToday").classList.contains("hidden") && draftValues()) $("#rosToday").classList.add("hidden"); });
 /* Unfinished entries: + always opens a new, empty entry; one half filled in goes to the list at the bottom of the page,
    to complete or delete later (kept on this device) */
 const unfKey = () => "cbl_unfinished_" + (user?.id || "");
 const unfList = () => store.get(unfKey(), []);
 function unfSet(L){ store.set(unfKey(), L); renderUnfinished(); }
 function stashForm(){ const v = $("#addFields").children.length && draftValues(); if (v) unfSet([{ id: Date.now().toString(36), at: new Date().toISOString(), v }, ...unfList()]); }
-function newEntry(){ stashForm(); addFormReset(); dropDraft(); $("#addOk").textContent = ""; }
+function newEntry(){ stashForm(); addFormReset(); dropDraft(); $("#addOk").textContent = ""; renderRosterToday(); }
 function renderUnfinished(){
   const L = unfList(), box = $("#unfCard"); if (!box) return; box.classList.toggle("hidden", !L.length);
   $("#unfList").innerHTML = L.map(e => { const v = e.v, sim = v._kind === "sim";
