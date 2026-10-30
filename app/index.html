@@ -1533,7 +1533,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "30 Oct 2026 · 10";
+const APP_VERSION = "30 Oct 2026 · 11";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
@@ -3585,7 +3585,9 @@ const TIME_NAMES = { out: "Off-block", off: "Take-off", on: "Landing", in: "On-b
 function timeMsg(pre, html){ const b = $("#" + pre + "timeErr"); if (b) { b.innerHTML = html || ""; b.classList.toggle("hidden", !html); } }
 document.addEventListener("input", e => {
   const m = (e.target.id || "").match(TIME_BOX); if (!m) return;
-  const el = e.target, v = el.value.trim();
+  const el = e.target; let v = el.value.trim();
+  // a first digit above 2 can only be the hour's second one: 5 means 05, so 530 becomes 05:30
+  if (e.isTrusted && /^[3-9]$/.test(v)) el.value = v = "0" + v;
   if (timeStart(v)) { el.dataset.ok = v; if ((v && !formTime(v)) || (!v && !e.isTrusted)) return; el.classList.remove("bad"); if (!$$(`#${m[1]}out,#${m[1]}off,#${m[1]}on,#${m[1]}in`).some(x => x.classList.contains("bad"))) timeMsg(m[1], ""); return; }
   e.stopImmediatePropagation(); el.value = el.dataset.ok || "";
   timeMsg(m[1], `${TIME_NAMES[m[2]]}: a time from <b>00:00</b> to <b>23:59</b>, e.g. 0210 or 02:10.`);
