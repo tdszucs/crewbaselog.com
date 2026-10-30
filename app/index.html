@@ -1572,7 +1572,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "30 Oct 2026 · 5";
+const APP_VERSION = "30 Oct 2026 · 6";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
@@ -3338,8 +3338,17 @@ function flightSuggest(pre, k){
     const byDate = [...last.entries()].sort((a, b) => b[1].localeCompare(a[1])), fam = byDate.length ? acFamily(byDate[0][0]) : "";
     const same = fam ? byDate.slice(1).filter(([v]) => acFamily(v) === fam) : [];
     const order = byDate.length ? [byDate[0], ...same, ...byDate.slice(1).filter(x => !same.includes(x))] : [];
-    return withOut(order.filter(([v]) => !val || v.startsWith(val)).slice(0, 8).map(([v, d], i) => ({ v, label: v,
-      note: v === byDate[0][0] ? `flown last · ${fmtDate(d)}` : same.some(x => x[0] === v) ? `${fam} · ${fmtDate(d)}` : `last ${fmtDate(d)}` })));
+    const mine = order.filter(([v]) => typeHit([v, "", ""], val)).map(([v, d]) => ({ v, label: v,
+      note: v === byDate[0][0] ? `flown last · ${fmtDate(d)}` : same.some(x => x[0] === v) ? `${fam} · ${fmtDate(d)}` : `last ${fmtDate(d)}` }));
+    // then the common types: what is typed finds them; with nothing typed, the most flown ones while the logbook has none
+    const have = new Set(order.map(([v]) => v.toUpperCase()));
+    // each family together, in the order its most flown type comes (B: the 737s, then the 787s, then the 777s ...)
+    const famOf = t => acFamily(t) || t.replace(/[-\s].*$/, "").replace(/(neo|ER|LR)$/i, "");
+    const hits = val || !order.length ? COMMON_TYPES.filter(t => typeHit(t, val) && !have.has(t[0].toUpperCase())) : [], rank = new Map();
+    mine.forEach((o, i) => { if (!rank.has(famOf(o.v))) rank.set(famOf(o.v), i - 1000); });   // the families the pilot flies first
+    hits.forEach((t, i) => { if (!rank.has(famOf(t[0]))) rank.set(famOf(t[0]), i); });
+    const common = (val ? hits.map((t, i) => [t, i]).sort((a, b) => rank.get(famOf(a[0][0])) - rank.get(famOf(b[0][0])) || a[1] - b[1]).map(x => x[0]) : hits).map(t => ({ v: t[0], label: t[0], note: t[1] }));
+    return withOut([...mine.slice(0, 8), ...common].slice(0, 14));
   }
   if (k === "reg") {
     const type = $("#" + pre + "acType").value.trim().toUpperCase(), last = new Map();
@@ -3351,6 +3360,27 @@ function flightSuggest(pre, k){
   }
   return [];
 }
+/* Aircraft types offered when adding a flight, most flown first: [type as logged, maker, other names it is found by
+   (ICAO code, model words)]. The pilot's own types from the logbook always come before these. */
+const COMMON_TYPES = [
+  ["A320", "Airbus", "A320 Airbus"], ["B737-800", "Boeing", "B738 737 Boeing"], ["A321", "Airbus", "A321 Airbus"], ["A320neo", "Airbus", "A20N neo"], ["B737 MAX 8", "Boeing", "B38M 737 MAX"],
+  ["A319", "Airbus", "A319"], ["A321neo", "Airbus", "A21N neo XLR LR"], ["B787-9", "Boeing", "B789 787 Dreamliner"], ["B737-700", "Boeing", "B737 737"], ["B777-300ER", "Boeing", "B77W 777"],
+  ["A330-300", "Airbus", "A333 A330"], ["B787-8", "Boeing", "B788 787 Dreamliner"], ["A350-900", "Airbus", "A359 A350"], ["E190", "Embraer", "E190 ERJ Embraer"], ["ATR 72", "ATR", "AT76 AT75 ATR72"],
+  ["A330-200", "Airbus", "A332 A330"], ["B737-900", "Boeing", "B739 737"], ["B787-10", "Boeing", "B78X 787 Dreamliner"], ["E175", "Embraer", "E75L ERJ Embraer"], ["DHC-8-400", "De Havilland", "DH8D Q400 Dash 8"],
+  ["A220-300", "Airbus", "CS300 A220"], ["CRJ900", "Bombardier", "CRJ9 CRJ"], ["B777-200", "Boeing", "B772 777"], ["A330-900", "Airbus", "A339 A330neo"], ["B767-300", "Boeing", "B763 767"],
+  ["A350-1000", "Airbus", "A35K A350"], ["A380-800", "Airbus", "A388 A380"], ["B737 MAX 9", "Boeing", "B39M 737 MAX"], ["B757-200", "Boeing", "B752 757"], ["E195", "Embraer", "E195 ERJ Embraer"],
+  ["A319neo", "Airbus", "A19N neo"], ["A220-100", "Airbus", "CS100 A220"], ["E190-E2", "Embraer", "E290 E2 Embraer"], ["E195-E2", "Embraer", "E295 E2 Embraer"], ["CRJ700", "Bombardier", "CRJ7 CRJ"],
+  ["B747-400", "Boeing", "B744 747 Jumbo"], ["B747-8", "Boeing", "B748 747"], ["B777-200LR", "Boeing", "B77L 777"], ["B777-9", "Boeing", "B779 777X"], ["A318", "Airbus", "A318"],
+  ["A340-300", "Airbus", "A343 A340"], ["A340-600", "Airbus", "A346 A340"], ["B767-300ER", "Boeing", "B763 767"], ["ATR 42", "ATR", "AT45 AT43 ATR42"], ["E170", "Embraer", "E170 ERJ Embraer"],
+  ["ERJ-145", "Embraer", "E145 ERJ Embraer"], ["CRJ200", "Bombardier", "CRJ2 CRJ"], ["DHC-8-300", "De Havilland", "DH8C Dash 8"], ["SF340", "Saab", "Saab 340"], ["MD-11", "McDonnell Douglas", "MD11"],
+  ["C172", "Cessna", "C172 Skyhawk Cessna"], ["PA-28", "Piper", "P28A Warrior Archer Cherokee Piper"], ["DA40", "Diamond", "DA40 Diamond Star"], ["DA42", "Diamond", "DA42 Twin Star"], ["C152", "Cessna", "C152 Cessna"],
+  ["SR22", "Cirrus", "SR22 Cirrus"], ["PA-44", "Piper", "PA44 Seminole Piper"], ["PA-34", "Piper", "PA34 Seneca Piper"], ["C182", "Cessna", "C182 Skylane Cessna"], ["BE58", "Beechcraft", "BE58 Baron Beech"],
+  ["P2008", "Tecnam", "P2008 Tecnam"], ["C150", "Cessna", "C150 Cessna"], ["PC-12", "Pilatus", "PC12 Pilatus"], ["C208", "Cessna", "C208 Caravan Cessna"], ["BE20", "Beechcraft", "B200 King Air Beech"],
+  ["C525", "Cessna", "C525 Citation CJ"], ["C560XL", "Cessna", "C56X Citation XLS"], ["CL-605", "Bombardier", "CL60 Challenger"], ["GLEX", "Bombardier", "Global Express 6000"], ["G650", "Gulfstream", "GLF6 G650"],
+  ["R44", "Robinson", "R44 Robinson"], ["R22", "Robinson", "R22 Robinson"], ["EC135", "Airbus Helicopters", "EC35 H135"], ["AW139", "Leonardo", "A139 AW139"], ["H145", "Airbus Helicopters", "EC45 H145"]
+];
+// a type found by what is typed: the start of its name or of one of its other names, ignoring dashes and spaces (737 → B737-800)
+const typeHit = (t, val) => { const n = x => x.toUpperCase().replace(/[\s-]/g, ""), v = n(val); return !v || [t[0], ...t[2].split(" ")].some(w => n(w).startsWith(v) || n(w).replace(/^[AB](?=\d)/, "").startsWith(v)); };
 const FN_KEYS = ["total", "pic", "copilot", "dual", "instructor", "ifr"];
 // the airline's code in front of a bare flight number (101 → LH101), when the profile has one
 const withAirline = no => { const a = data.profile.airline || ""; return a && /^\d{1,4}[A-Z]?$/.test(no || "") ? a + no : no || ""; };
