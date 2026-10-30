@@ -434,6 +434,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
           <div class="field"><label for="pType">Licence type</label>
             <select id="pType"><option value="">Select…</option><option>ATPL(A)</option><option>CPL(A)</option><option>MPL(A)</option><option>PPL(A)</option><option>ATPL(H)</option><option>CPL(H)</option><option>Other</option></select></div>
           <div class="field"><label for="pBase">Home base (ICAO)</label><input id="pBase" class="mono" maxlength="4" placeholder="e.g. LIPZ"></div>
+          <div class="field"><label for="pAirline">Airline code (IATA)</label><input id="pAirline" class="mono" style="text-transform:uppercase" maxlength="2" placeholder="e.g. EY" autocapitalize="characters" autocomplete="off"><div class="hint" style="font-size:13px;margin:4px 0 0">Goes in front of the flight numbers you enter: 101 becomes EY101.</div></div>
         </div>
         <div class="row-actions"><button class="btn" type="submit">Save profile</button><span id="profSaved" class="ok-msg"></span></div>
       </form>
@@ -1250,7 +1251,7 @@ $("#fbForm").addEventListener("submit", async e => {
 document.addEventListener("click", e => { const g = e.target.closest("[data-go]"); if (!g) return; e.preventDefault(); tab(g.dataset.go); const t = g.dataset.scroll && $(g.dataset.scroll); if (t?.tagName === "DETAILS") t.open = true; if (t) t.scrollIntoView({ behavior: "smooth", block: "start" }); });
 
 /* ---------- profile ---------- */
-const PF = { pName: "name", pEmail: "email", pLic: "lic", pType: "type", pBase: "base" };
+const PF = { pName: "name", pEmail: "email", pLic: "lic", pType: "type", pBase: "base", pAirline: "airline" };
 const PF_DROPPED = ["auth", "phone", "employer", "location", "lic2", "auth2", "type2"];
 // the type family (one type rating) each variant belongs to: A319 and A320 -> Airbus A320 family, B787-10 -> Boeing 787
 function acFamily(t){
@@ -1309,7 +1310,7 @@ $("#profForm").addEventListener("submit", e => {
   e.preventDefault();
   for (const [id,k] of Object.entries(PF)) if (k !== "email") data.profile[k] = $("#"+id).value.trim();
   for (const k of PF_DROPPED) delete data.profile[k];
-  data.profile.base = data.profile.base.toUpperCase(); data.profile.lic = data.profile.lic.toUpperCase();
+  data.profile.base = data.profile.base.toUpperCase(); data.profile.lic = data.profile.lic.toUpperCase(); data.profile.airline = (data.profile.airline || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
   if (save()) { logEvent("profile_saved", { name: !!data.profile.name, licence: !!data.profile.lic }); $("#profSaved").textContent = "Saved on this device."; renderProfile(); $("#profSaved").textContent = "Saved on this device."; }
 });
 
@@ -2791,12 +2792,12 @@ function flightSuggest(pre, k){
     const recent = [...F].sort((a, b) => (b.date + b.out).localeCompare(a.date + a.out)), L = pre === "n_" ? lastFlight(pre) : null;
     const recentApts = []; for (const f of recent.slice(0, 5)) for (const c of [f.to, f.from]) if (c && !recentApts.includes(sty(c))) recentApts.push(sty(c));
     if (k === "from") {
-      for (const l of legs) add(l.from, `roster${l.no ? " · flight " + l.no : ""}`, { leg: l });
+      for (const l of legs) add(l.from, `roster${l.no ? " · flight " + withAirline(l.no) : ""}`, { leg: l });
       add(base, "home base");
       if (L) add(sty(L.to), `your last flight landed here`);
       for (const c of recentApts) add(c, "recent flight");
     } else {
-      for (const l of legs) if (!from || sameApt(l.from, from)) add(l.to, `roster${l.no ? " · flight " + l.no : ""}`);
+      for (const l of legs) if (!from || sameApt(l.from, from)) add(l.to, `roster${l.no ? " · flight " + withAirline(l.no) : ""}`);
       if (L && sameApt(L.to, from)) add(sty(L.from), `return flight`);
       if (!sameApt(base, from)) add(base, "home base");
       for (const c of recentApts) if (!sameApt(c, from)) add(c, "recent flight");
@@ -2854,6 +2855,15 @@ function flightSuggest(pre, k){
   return [];
 }
 const FN_KEYS = ["total", "pic", "copilot", "dual", "instructor", "ifr"];
+// the airline's code in front of a bare flight number (101 → EY101), when the profile has one
+const withAirline = no => { const a = data.profile.airline || ""; return a && /^\d{1,4}[A-Z]?$/.test(no || "") ? a + no : no || ""; };
+// the empty Flight no. box starts with the airline's code, ready for the number
+document.addEventListener("focusin", e => {
+  if (!/^(n_|e_)flightNo$/.test(e.target.id || "") || e.target.value || !data.profile.airline) return;
+  e.target.value = data.profile.airline; requestAnimationFrame(() => { try { e.target.setSelectionRange(99, 99); } catch {} });
+});
+// a box left with only the airline's code in it is empty
+document.addEventListener("focusout", e => { if (/^(n_|e_)flightNo$/.test(e.target.id || "") && e.target.value.trim().toUpperCase() === data.profile.airline) { e.target.value = ""; e.target.dispatchEvent(new Event("input", { bubbles: true })); } });
 // the flight before the one being entered (its date or earlier), and whether the route entered is its way back (within 3 days)
 function lastFlight(pre){
   const date = $("#" + pre + "date")?.value || logToday();
@@ -2962,7 +2972,7 @@ document.addEventListener("pointerdown", e => {
   const box = b.closest(".sugbox"), o = box._list[+b.dataset.sug], inp = box._inp, pre = inp.id.slice(0, 2);
   inp.value = o.v;
   // a roster departure also brings its flight number, if none was typed
-  if (o.leg?.no && $("#" + pre + "flightNo") && !$("#" + pre + "flightNo").value) $("#" + pre + "flightNo").value = o.leg.no;
+  const fn = $("#" + pre + "flightNo"); if (o.leg?.no && fn && (!fn.value || fn.value.toUpperCase() === data.profile.airline)) fn.value = withAirline(o.leg.no);
   inp.dispatchEvent(new Event("input", { bubbles: true })); hideSuggest();
   // next field: From → To, type → registration
   const next = { from: "to", acType: "reg" }[inp.id.slice(2)]; if (next && !$("#" + pre + next).value) $("#" + pre + next).focus();
@@ -3098,6 +3108,7 @@ function readFlightForm(pre, base = {}){
   const g = k => $("#" + pre + k).value.trim(), bad = [], f = { ...base };
   f.date = g("date"); if (!/^\d{4}-\d{2}-\d{2}$/.test(f.date)) bad.push("date");
   for (const k of ["flightNo","from","to","reg"]) f[k] = g(k).toUpperCase();
+  f.flightNo = withAirline(f.flightNo);
   f.from = aptStyle(f.from); f.to = aptStyle(f.to);
   f.acType = acTypeName(g("acType")); f.picName = g("picName"); f.remarks = g("remarks");
   for (const k of LB_TIME) { f[k] = parseTime(g(k)); if (g(k) && !f[k]) bad.push(k); }
