@@ -3326,13 +3326,31 @@ function renderStats(){
   $("#stInfo").textContent = (F.length ? `${T.n.toLocaleString()} flight${T.n === 1 ? "" : "s"}${T.sims ? ` and ${T.sims} simulator session${T.sims === 1 ? "" : "s"}` : ""}, ${fmtDate(F[0].date)} to ${fmtDate(F[F.length-1].date)}.` : "") +
     (hasPrev() ? ` All-time figures include ${h(data.prev.total)} brought forward from earlier logbooks.` : "");
 }
+/* The hours summary to paste or share (job applications): a plain list, most asked-for first, that reads well in a mail,
+   a note or a message. Totals, then each aircraft type (most hours first), then recent flying; lines with nothing are left out */
 function statSummary(){
-  const P = data.profile, T = withPrev(statTotals(data.flights)), h = fmtMin;
-  const lines = [`Flight hours summary${P.name ? " - " + P.name : ""}${P.lic ? " (" + P.lic + ")" : ""}`, `As of ${fmtDate(todayISO())}`, "",
-    `Total time: ${h(T.total)}`, `PIC: ${h(T.pic)}`, `Co-pilot (SIC): ${h(T.copilot)}`, `Multi-crew: ${h(T.mp)}`, `Multi-engine: ${h(T.me)}`,
-    `IFR: ${h(T.ifr)}`, `Night: ${h(T.night)}`, `Instructor: ${h(T.instructor)}`, `Sectors: ${T.n}`, `Landings: ${T.ldg}`, `Simulator (FSTD): ${h(T.fstd)}`, "",
-    ...[...$("#stPeriods").querySelectorAll("tr"), ...$("#stTypes").querySelectorAll("tr")].map(r => [...r.children].map(c => c.textContent).join("\t"))];
-  return lines.join("\n");
+  const P = data.profile, F = data.flights, T = withPrev(statTotals(F)), h = fmtHrs, nz = (label, v, extra = "") => v ? [`${label}: ${h(v)}${extra}`] : [];
+  const flown = F.filter(f => !isSim(f)), first = flown[0]?.date, lastF = flown.length ? flown.reduce((m, f) => f.date > m ? f.date : m, "") : "";
+  const out = [`FLIGHT HOURS${P.name ? " · " + P.name : ""}`,
+    [P.type, P.lic].filter(Boolean).join(" · "), `As of ${fmtDate(todayISO())}`].filter(Boolean);
+  out.push("", "TOTALS", `Total time: ${h(T.total)}`, ...nz("Multi-pilot", T.mp), ...nz("IFR", T.ifr), ...nz("PIC", T.pic), ...nz("Co-pilot", T.copilot), ...nz("Night", T.night),
+    ...nz("Multi-engine", T.me), ...nz("Single-engine", T.se), ...nz("Instructor", T.instructor), ...nz("Dual received", T.dual),
+    ...nz("Simulator (FSTD)", T.fstd, T.sims ? ` (${T.sims.toLocaleString()} session${T.sims === 1 ? "" : "s"})` : ""),
+    `Sectors: ${T.n.toLocaleString()} · Landings: ${T.ldg.toLocaleString()}`);
+  // each aircraft type, the most hours first
+  const by = {}; for (const f of flown) (by[f.acType || "Type not given"] ||= []).push(f);
+  const types = Object.entries(by).map(([t, fl]) => [t, statTotals(fl)]).sort((a, b) => b[1].total - a[1].total);
+  if (types.length) out.push("", "BY AIRCRAFT TYPE", ...types.map(([t, o]) => `${t}: ${h(o.total)}` +
+    [o.pic && `PIC ${h(o.pic)}`, o.copilot && `co-pilot ${h(o.copilot)}`, o.instructor && `instructor ${h(o.instructor)}`, o.dual && `dual ${h(o.dual)}`, `${o.n.toLocaleString()} sector${o.n === 1 ? "" : "s"}`, o.last && `last flown ${fmtDate(o.last).slice(3)}`].filter(Boolean).map(x => " · " + x).join("")));
+  // recent flying: only the periods with any
+  const ago = d => new Date(Date.now() - d * 864e5).toISOString().slice(0, 10);
+  const rec = [["Last 28 days", 28], ["Last 90 days", 90], ["Last 12 months", 365], ["Last 24 months", 730]].map(([k, d]) => [k, statTotals(F.filter(f => f.date >= ago(d)))]).filter(([, o]) => o.total);
+  out.push("", "RECENT FLYING", ...rec.map(([k, o]) => `${k}: ${h(o.total)}` + [o.pic && `PIC ${h(o.pic)}`, o.copilot && `co-pilot ${h(o.copilot)}`, `${o.n} sector${o.n === 1 ? "" : "s"}`].filter(Boolean).map(x => " · " + x).join("")),
+    ...(lastF ? [`Last flight: ${fmtDate(lastF)}`] : []));
+  if (rec.length === 0 && !lastF) out.splice(out.indexOf("RECENT FLYING") - 1, 2);
+  if (hasPrev() || first) out.push("", [first && `Logbook ${fmtDate(first)} to ${fmtDate(lastF)}`, hasPrev() && `includes ${h(data.prev.total)} brought forward from earlier logbooks`].filter(Boolean).join(", ") + ".");
+  out.push("From CrewBase Log");
+  return out.join("\n");
 }
 // the hours summary to the share sheet (mail, messages, notes) where the device has one, else copied
 $("#stShare").addEventListener("click", async () => {
