@@ -171,6 +171,7 @@ h2{font-size:24px;letter-spacing:-.02em;margin:0 0 6px}
 .sunav{display:flex;justify-content:space-between;align-items:center;margin:22px 0 0}.sualt{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0 0}
 .suinfo{margin:14px 0 0}.suinfo>summary{cursor:pointer;color:var(--brand);font-weight:600}
 body.insetup .bbar{display:none}
+input[style*="uppercase"]::placeholder{text-transform:none}
 input.clash,select.clash{border-color:var(--bad);box-shadow:0 0 0 1px var(--bad)}
 .times input.bad{border-color:var(--bad);box-shadow:0 0 0 1px var(--bad)}
 .rolerow{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px}.rolerow .seg{margin:0}
@@ -523,8 +524,8 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
           <div class="field"><label for="pLic">Licence number</label><input id="pLic" class="mono" placeholder="e.g. IT.FCL.12345"></div>
           <div class="field"><label for="pType">Licence type</label>
             <select id="pType"><option value="">Select…</option><option>ATPL(A)</option><option>CPL(A)</option><option>MPL(A)</option><option>PPL(A)</option><option>ATPL(H)</option><option>CPL(H)</option><option>Other</option></select></div>
-          <div class="field"><label for="pBase">Home base (ICAO)</label><input id="pBase" class="mono" maxlength="4" placeholder="e.g. LIPZ"></div>
-          <div class="field"><label for="pAirline">Airline code (IATA)</label><input id="pAirline" class="mono" style="text-transform:uppercase" maxlength="2" placeholder="e.g. EY" autocapitalize="characters" autocomplete="off"><div class="hint" style="font-size:13px;margin:4px 0 0">Goes in front of the flight numbers you enter: 101 becomes EY101.</div></div>
+          <div class="field"><label for="pBase">Home base (ICAO or IATA)</label><input id="pBase" class="mono" maxlength="4" style="text-transform:uppercase" placeholder="e.g. LIPZ or VCE" autocapitalize="characters" autocomplete="off"></div>
+          <div class="field"><label for="pAirline">Airline code (IATA or ICAO)</label><input id="pAirline" class="mono" style="text-transform:uppercase" maxlength="3" placeholder="e.g. EY or ETD" autocapitalize="characters" autocomplete="off"><div class="hint" style="font-size:13px;margin:4px 0 0">Goes in front of the flight numbers you enter: 101 becomes EY101.</div></div>
         </div>
         <div class="row-actions"><button class="btn" type="submit">Save profile</button><span id="profSaved" class="ok-msg"></span></div>
       </form>
@@ -552,7 +553,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
       <div class="card" id="defCard">
         <p class="hint" style="margin:0 0 14px;font-size:14px">Filled in automatically when an imported or added flight doesn't have them. A value already on a flight is never changed.</p>
         <div class="field" style="max-width:360px"><label for="pRole">I fly as</label>
-          <select id="pRole"><option value="PIC">Pilot in command (captain)</option><option value="CP">Co-pilot (first officer)</option></select>
+          <select id="pRole"><option value="">Not set (single pilot: time goes to PIC)</option><option value="PIC">Pilot in command (captain)</option><option value="CP">Co-pilot (first officer)</option></select>
           <div class="hint">Decides whether a flight's time goes to PIC or co-pilot. Files with their own PIC/co-pilot columns (like eCrew) keep their values.</div></div>
         <div class="field" style="max-width:360px"><label for="pApt">Airport codes</label>
           <select id="pApt"><option value="">As in my files</option><option value="ICAO">ICAO, 4 letters (EGLL, OMAA)</option><option value="IATA">IATA, 3 letters (LHR, AUH)</option></select>
@@ -1414,9 +1415,11 @@ function renderSetup(){
   if (suStep === 1) h = `<h2>Welcome to CrewBase Log</h2><p class="lead">Your logbook in two minutes. First, your name, as on your licence: it goes on your PDF logbook.</p>
     <div class="field"><label for="suName">Your name</label><input id="suName" autocomplete="name" value="${esc(p.name || "")}"></div>` + nav(false, '<button class="btn" type="button" data-su="next">Next ›</button>');
   if (suStep === 2) h = `<h2>Where do you fly from?</h2><p class="lead">Your base airport comes first when you add a flight.</p>
-    <div class="field"><label for="suBase">Base airport (ICAO)</label><input id="suBase" class="mono" maxlength="4" style="text-transform:uppercase" placeholder="e.g. OMAA" value="${esc(p.base || "")}"></div>
-    <div class="field"><label for="suAirline">Airline code (IATA) <span class="hint" style="font-weight:400">optional</span></label><input id="suAirline" class="mono" maxlength="2" style="text-transform:uppercase" placeholder="e.g. EY" value="${esc(p.airline || "")}"><div class="hint">Goes in front of your flight numbers.</div></div>
-    <div class="field"><label>You fly as</label><div class="seg" style="margin:0"><label><input type="radio" name="suRole" value="PIC"${p.role !== "CP" ? " checked" : ""}> Captain</label><label><input type="radio" name="suRole" value="CP"${p.role === "CP" ? " checked" : ""}> First officer</label></div></div>` +
+    <div class="field"><label for="suBase">Base airport <span class="hint" style="font-weight:400">ICAO or IATA</span></label><input id="suBase" class="mono" maxlength="4" style="text-transform:uppercase" placeholder="e.g. OMAA or AUH" autocapitalize="characters" autocomplete="off" value="${esc(p.base || "")}"></div>
+    <div class="field"><label for="suAirline">Airline code <span class="hint" style="font-weight:400">IATA or ICAO · optional</span></label><input id="suAirline" class="mono" maxlength="3" style="text-transform:uppercase" placeholder="e.g. EY or ETD" autocapitalize="characters" autocomplete="off" value="${esc(p.airline || "")}"><div class="hint">Goes in front of your flight numbers: 101 becomes EY101.</div></div>
+    <div class="field"><label>You fly as <span class="hint" style="font-weight:400">optional</span></label><div class="seg" style="margin:0;flex-wrap:wrap">${[["PIC", "Captain"], ["CP", "First officer"], ["", "Neither"]].map(([v, l]) => `<label><input type="radio" name="suRole" value="${v}"${(p.role || "") === v ? " checked" : ""}> ${l}</label>`).join("")}</div>
+      <div class="hint">For airline crews: decides whether a flight's time goes to PIC or co-pilot. Flying single-pilot (a Cessna, say)? Leave it on Neither: your time goes to PIC.</div></div>
+    <p class="err" id="suErr2" style="margin:4px 0 0"></p>` +
     nav(true, '<button class="btn" type="button" data-su="next">Next ›</button>');
   if (suStep === 3) h = `<h2>Drop your logbook</h2><p class="lead">From another app, a PDF logbook, a spreadsheet, an eCrew report or a CrewBase Log backup. It stays on this device.</p>
     <div class="drop" id="suDrop"><b>Drop your file here</b><br><span class="hint">or tap to choose · several at once is fine</span><input type="file" id="suFile" accept=".csv,.txt,.tsv,.xlsx,.xls,.pdf,.json,.zip" multiple class="hidden"></div>
@@ -1426,6 +1429,7 @@ function renderSetup(){
     <div class="sualt"><button class="btn ghost" type="button" data-su="paper">Paper logbook: enter its totals</button><button class="btn ghost" type="button" data-su="fresh">Start fresh, no logbook</button></div>` + nav(true);
   if (suStep === 4) h = `<h2>Your logbook is in</h2><div class="sumlog" id="suResult">${$("#impDoneLog").innerHTML}</div>` + nav(false, '<button class="btn" type="button" data-su="done">Done</button>');
   $("#setupBody").innerHTML = dots + h;
+  if (suStep === 2) loadAirports();   // to check the base airport
   if (suStep === 3) {
     const d = $("#suDrop");
     d.addEventListener("click", () => $("#suFile").click()); $("#suFile").addEventListener("change", e => { $("#suErr").textContent = ""; handleFiles(e.target.files); e.target.value = ""; });
@@ -1445,7 +1449,11 @@ document.addEventListener("click", e => {
   if (a === "skip") { closeSetup(); return renderOverview(); }
   if (a === "back") { suStep = Math.max(1, suStep - 1); return renderSetup(); }
   if (a === "next" && suStep === 1) p.name = $("#suName").value.trim() || p.name || "";
-  if (a === "next" && suStep === 2) { p.base = $("#suBase").value.trim().toUpperCase() || p.base || ""; p.airline = $("#suAirline").value.toUpperCase().replace(/[^A-Z0-9]/g, "") || p.airline || ""; p.role = $('[name="suRole"]:checked')?.value || p.role; }
+  if (a === "next" && suStep === 2) {
+    const base = $("#suBase").value.trim().toUpperCase(), airline = $("#suAirline").value.trim().toUpperCase(), why = codeProblem(base, airline);
+    if (why) { $("#suErr2").textContent = why; return; }
+    p.base = base; p.airline = airline; p.role = $('[name="suRole"]:checked')?.value || "";
+  }
   if (a === "next") { suStep++; save(); return renderSetup(); }
   if (a === "fresh") { closeSetup(); return tab("add"); }
   if (a === "paper") { closeSetup(); tab("import"); $("#prevBox").open = true; return requestAnimationFrame(() => $("#prevCard").scrollIntoView({ behavior: "smooth", block: "start" })); }
@@ -1525,6 +1533,13 @@ $("#fbForm").addEventListener("submit", async e => {
 document.addEventListener("click", e => { const g = e.target.closest("[data-go]"); if (!g) return; e.preventDefault(); tab(g.dataset.go); const t = g.dataset.scroll && $(g.dataset.scroll); if (t?.tagName === "DETAILS") t.open = true; if (t) t.scrollIntoView({ behavior: "smooth", block: "start" }); });
 
 /* ---------- profile ---------- */
+// base airport: ICAO (4) or IATA (3); airline: IATA (2, may hold a digit) or ICAO (3 letters). Empty is fine
+function codeProblem(base, airline){
+  if (base && !/^[A-Z]{4}$|^[A-Z]{3}$/.test(base)) return "Base airport: 4 letters (ICAO, e.g. OMAA) or 3 letters (IATA, e.g. AUH).";
+  if (base && AIRPORTS && !AIRPORTS[base]) return `Base airport: ${base} isn't an airport we know. Check it, e.g. OMAA or AUH.`;
+  if (airline && !/^(?=[A-Z0-9]{2}$)[A-Z0-9]*[A-Z][A-Z0-9]*$|^[A-Z]{3}$/.test(airline)) return "Airline code: 2 characters (IATA, e.g. EY) or 3 letters (ICAO, e.g. ETD).";
+  return "";
+}
 const PF = { pName: "name", pEmail: "email", pLic: "lic", pType: "type", pBase: "base", pAirline: "airline" };
 const PF_DROPPED = ["auth", "phone", "employer", "location", "lic2", "auth2", "type2"];
 // the type family (one type rating) each variant belongs to: A319 and A320 -> Airbus A320 family, B787-10 -> Boeing 787
@@ -1566,7 +1581,7 @@ $("#wipeBtn").addEventListener("click", async () => {
 function renderProfile(){
   renderAcTypes();
   for (const [id,k] of Object.entries(PF)) $("#"+id).value = data.profile[k] || ""; $("#profSaved").textContent = "";
-  $("#pRole").value = data.profile.role || "PIC"; $("#pIfr").checked = data.profile.autoIfr !== false; $("#pUsage").checked = data.profile.usage !== false; $("#pApt").value = data.profile.apt || ""; $("#pAptMsg").textContent = ""; $("#pNight").checked = data.profile.autoNight !== false; $("#pApplyMsg").textContent = "";
+  $("#pRole").value = data.profile.role || ""; $("#pIfr").checked = data.profile.autoIfr !== false; $("#pUsage").checked = data.profile.usage !== false; $("#pApt").value = data.profile.apt || ""; $("#pAptMsg").textContent = ""; $("#pNight").checked = data.profile.autoNight !== false; $("#pApplyMsg").textContent = "";
 }
 $("#defCard").addEventListener("change", () => { data.profile.role = $("#pRole").value; data.profile.autoIfr = $("#pIfr").checked; data.profile.autoNight = $("#pNight").checked; data.profile.usage = $("#pUsage").checked; save(); });
 // choosing the airport-code style converts the logbook straight away
@@ -1594,6 +1609,7 @@ $("#profForm").addEventListener("submit", e => {
   for (const [id,k] of Object.entries(PF)) if (k !== "email") data.profile[k] = $("#"+id).value.trim();
   for (const k of PF_DROPPED) delete data.profile[k];
   data.profile.base = data.profile.base.toUpperCase(); data.profile.lic = data.profile.lic.toUpperCase(); data.profile.airline = (data.profile.airline || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const why = codeProblem(data.profile.base, data.profile.airline); if (why) { load(); $("#profSaved").innerHTML = `<span style="color:var(--bad)">${esc(why)}</span>`; return; }
   const fn = $("#n_flightNo"); if (fn && !fn.value && data.profile.airline) fn.value = data.profile.airline;   // an open "add a flight" form gets the code too
   if (save()) { logEvent("profile_saved", { name: !!data.profile.name, licence: !!data.profile.lic }); $("#profSaved").textContent = "Saved on this device."; renderProfile(); $("#profSaved").textContent = "Saved on this device."; }
 });
