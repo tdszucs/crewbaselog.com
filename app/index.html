@@ -171,6 +171,13 @@ h2{font-size:24px;letter-spacing:-.02em;margin:0 0 6px}
 .sunav{display:flex;justify-content:space-between;align-items:center;margin:22px 0 0}.sualt{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0 0}
 .suinfo{margin:14px 0 0}.suinfo>summary{cursor:pointer;color:var(--brand);font-weight:600}
 body.insetup .bbar{display:none}
+.rolerow{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px}.rolerow .seg{margin:0}
+.rolefield .roleneed{display:none;margin-top:6px}.rolefield.need .roleneed{display:block;color:var(--warn)}.rolefield.need .seg{border-color:var(--warn);box-shadow:0 0 0 1px var(--warn)}
+.rolefield.flash .seg{animation:roleflash .5s 3}@keyframes roleflash{50%{box-shadow:0 0 0 4px var(--warn)}}
+.relshare{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin-top:10px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);font-size:14px}
+.relshare .btn{min-width:48px;justify-content:center;font-size:16px}.relshare .btn[aria-pressed="true"]{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.logwrap{position:relative;display:block}.logwrap .logbtn{position:absolute;right:6px;top:50%;transform:translateY(-50%);margin:0;padding:6px 10px}
+.logbtn{border:1px solid var(--line);background:var(--surface);color:var(--brand);border-radius:999px;padding:2px 9px;font:600 12px "JetBrains Mono",monospace;cursor:pointer;white-space:nowrap;margin-bottom:4px}.logbtn:hover{background:var(--bg)}
 .sulist{margin:0;padding-left:22px}.sulist>li{margin:2px 0}.sufile{all:unset;box-sizing:border-box;cursor:pointer;display:flex;flex-wrap:wrap;gap:2px 8px;align-items:baseline;width:100%;padding:7px 0;min-height:36px}.sufile:focus-visible{outline:2px solid var(--accent,#2563eb);outline-offset:2px}.sufile .hint{font-size:13px}.suguide ol{margin:2px 0 8px;padding-left:20px;font-size:14px;line-height:1.5}
 .rrow{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 0;border-top:1px solid var(--line);font-size:15px}.rrow:first-of-type{border-top:0}
 @media (max-width:700px){ .hgrid{grid-template-columns:1fr 1fr;gap:8px}.htile{padding:10px}.htile .v{font-size:19px} }
@@ -1277,7 +1284,8 @@ function enterApp(){
   // the page that was open before a reload, else the overview
   const was = location.hash.slice(1), pages = $$("#tabs button").map(b => b.dataset.t).filter(t => t !== "admin" || isAdmin());
   load(); show("#vApp"); tab(pages.includes(was) ? was : "overview");
-  if (!data.onboarded && !data.flights.length && user.id !== "sample") openSetup();
+  // a reload on another page (a flight half entered, the phone switching apps) goes back there, not into the setup
+  if (!data.onboarded && !data.flights.length && user.id !== "sample" && !(pages.includes(was) && was !== "overview")) openSetup();
   $("#whoEmail").textContent = isLocal() ? "On this device only" : user.email;
   $("#btnOut").textContent = isLocal() ? "Create account / Log in" : "Log out";
   if (moved) $('[data-p="overview"] h2').insertAdjacentHTML("afterend", '<div class="notice" style="margin:0 0 16px"><b>Your logbook is now with your account.</b> Everything you started without an account came along.</div>');
@@ -2892,7 +2900,7 @@ function openAddForm(){
 const draftKey = () => "cbl_draft_" + (user?.id || "");
 function saveDraft(){
   try { const v = {}; for (const el of $$("#addFields [id^=n_]")) if (el.type === "checkbox" ? el.checked : el.value) v[el.id.slice(2)] = el.type === "checkbox" ? true : el.value;
-    const pf = pfOf("n_"); if (pf) v._pf = pf; v._kind = addSim() ? "sim" : "flight";
+    const pf = pfOf("n_"); if (pf) v._pf = pf; const rs = $("#n_relShare")?.dataset; if (rs?.share) Object.assign(v, { _share: rs.share, _keys: rs.keys || "", _full: rs.full || "" }); if ($("#n_total")?.dataset.auto) v._auto = 1; v._kind = addSim() ? "sim" : "flight";
     if (Object.keys(v).some(k => !k.startsWith("_") && !(k === "flightNo" && v[k] === data.profile.airline))) localStorage.setItem(draftKey(), JSON.stringify(v)); else localStorage.removeItem(draftKey()); } catch {}
 }
 const dropDraft = () => { try { localStorage.removeItem(draftKey()); } catch {} };
@@ -2902,7 +2910,9 @@ function restoreDraft(){
   for (const [k, x] of Object.entries(v)) { const el = $("#n_" + k); if (el && !k.startsWith("_") && !k.startsWith("ldg")) { if (el.type === "checkbox") el.checked = !!x; else el.value = x; } }
   if ($("#n_ldgDay")) setLdg("n_", v.ldgDay ?? "", v.ldgNight ?? "");
   if (v._pf) { const r = document.querySelector(`[name="n_pf"][value="${v._pf}"]`); if (r) r.checked = true; }
-  renderAddPreview(); loadAirports().then(() => gsCheck("n_"));
+  if (v._auto && $("#n_total")) $("#n_total").dataset.auto = "1";
+  roleShown("n_"); if (v._share) { setShare("n_", v._share); Object.assign($("#n_relShare").dataset, { keys: v._keys, full: v._full }); }
+  renderAddPreview(); loadAirports().then(() => logBtns("n_")); loadAirports().then(() => gsCheck("n_"));
 }
 $("#addFields").addEventListener("input", saveDraft); $("#addFields").addEventListener("change", saveDraft);
 const dropAims = $("#dropAims");
@@ -3068,6 +3078,7 @@ $("#addForm").addEventListener("change", e => { if (e.target.name === "addKind")
 $("#addForm").addEventListener("submit", e => {
   e.preventDefault(); $("#addOk").textContent = "";
   const sim = addSim(), { f, err } = sim ? readSimForm("n_") : readFlightForm("n_"); if (err) return $("#addErr").textContent = err;
+  if (!sim && !pfOf("n_")) { $("#addErr").textContent = "Choose your role: pilot flying, pilot monitoring or relief crew."; $("#n_roleField").classList.add("need", "flash"); setTimeout(() => $("#n_roleField")?.classList.remove("flash"), 1600); return $("#n_roleField").scrollIntoView({ behavior: "smooth", block: "center" }); }
   if (!sim) autoFill(f);
   if (data.flights.some(x => dupKey(x) === dupKey(f))) return $("#addErr").textContent = `That ${sim ? "session" : "flight"} is already in your logbook.`;
   data.flights.push(f); data.flights.sort((a,b) => (a.date+a.out).localeCompare(b.date+b.out));
@@ -3129,7 +3140,7 @@ function flightSuggest(pre, k){
     const t = x => parseTime($("#" + pre + x)?.value || ""), out = t("out"), inn = t("in"), list = [];
     const blk = out && inn ? tdiff(out, inn) : 0;
     // relief: the pilot's share of the block time first
-    if (blk && isRelief(pre) && k !== "ifr") list.push({ v: fmtMin(Math.round(blk / 2)), note: "½ of the block time · relief" }, { v: fmtMin(Math.round(blk / 3)), note: "⅓ of the block time · relief" });
+    if (blk && isRelief(pre) && k !== "ifr") list.push({ v: fmtMin(Math.round(blk / 2)), note: "½ of the block time · relief" }, { v: fmtMin(Math.round(blk / 3)), note: "⅓ of the block time · relief" }, { v: fmtMin(Math.round(blk * 2 / 3)), note: "⅔ of the block time · relief" });
     if (blk) list.push({ v: fmtMin(blk), note: `block time ${out}–${inn}` });
     const tot = parseDur($("#" + pre + "total")?.value || "");
     if (k !== "total" && tot && !list.some(o => o.v === fmtMin(tot))) list.push({ v: fmtMin(tot), note: "the total time" });
@@ -3217,7 +3228,7 @@ function pfAuto(pre){
 function setPf(pre, v){ const r = document.querySelector(`[name="${pre}pf"][value="${v}"]`); if (r) r.checked = true; pfChanged(pre); }
 function pfChanged(pre){
   const seg = $("#" + pre + "pfSeg"); if (!seg) return;
-  const v = pfOf(pre), rem = $("#" + pre + "remarks");
+  const v = pfOf(pre), rem = $("#" + pre + "remarks"); roleShown(pre);
   if (v === "pf") pfAuto(pre); else if (v === "pm" || v === "rel") { setLdg(pre, "", ""); delete seg.dataset.auto; }
   if (rem) { const r = rem.value.replace(/\s*\bRELIEF\b\s*/gi, " ").trim(), want = v === "rel" ? ("RELIEF " + r).trim() : r;
     if (want !== rem.value) { rem.value = want; rem.dispatchEvent(new Event("input", { bubbles: true })); } }
@@ -3232,6 +3243,77 @@ document.addEventListener("change", e => {
 /* Relief (the third choice next to pilot flying / monitoring): no landings, RELIEF in the remarks, and Total time and the
    function times offer half and a third of the block time. A relief pilot logs the time in a pilot's seat (AMC1 FCL.050) */
 const isRelief = pre => pfOf(pre) === "rel";
+/* The boxes with a "Log 3:34" button: one tap puts the block time in (the relief share once one is chosen; night: the night part) */
+const LOG_KEYS = ["total", "pic", "copilot", "dual", "instructor", "night", "ifr"];
+const blockMin = pre => { const t = x => parseTime($("#" + pre + x)?.value || ""); return t("out") && t("in") ? tdiff(t("out"), t("in")) : 0; };
+const shareOf = pre => { const s = $("#" + pre + "relShare")?.dataset.share; return s && isRelief(pre) ? s.split("/").reduce((a, b) => a / b) : 1; };
+// the night part of the whole flight (before any relief share), when the airports are known
+function nightFull(pre){
+  const g = x => ($("#" + pre + x)?.value || "").trim(), f = { date: g("date"), from: g("from").toUpperCase(), to: g("to").toUpperCase(), out: parseTime(g("out")), in: parseTime(g("in")) };
+  if (!f.date || !f.out || !f.in || !AIRPORTS?.[f.from] || !AIRPORTS?.[f.to]) return null;
+  f.total = tdiff(f.out, f.in); return f.total ? Math.min(nightMinutes(f), f.total) : null;
+}
+function logBtns(pre){
+  const blk = blockMin(pre), tot = parseDur($("#" + pre + "total")?.value || "") || Math.round(blk * shareOf(pre)), nf = nightFull(pre);
+  for (const b of $$(`[data-logfill^="${pre}"]`)) {
+    const k = b.dataset.logfill.slice(2), m = k === "total" ? Math.round(blk * shareOf(pre)) : k === "night" ? (nf == null ? 0 : Math.round(nf * shareOf(pre))) : tot;
+    const show = m > 0 && parseDur($("#" + pre + k).value) !== m; b.classList.toggle("hidden", !show);
+    if (show) { b.textContent = `Log ${fmtMin(m)}`; b.dataset.v = fmtMin(m); }
+  }
+}
+const setVal = (pre, k, v) => { const i = $("#" + pre + k); if (i) i.value = v; };
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-logfill]"); if (!b) return;
+  const i = $("#" + b.dataset.logfill), pre = b.dataset.logfill.slice(0, 2); i.value = b.dataset.v;
+  if (i.id.endsWith("total")) delete i.dataset.auto;
+  i.dispatchEvent(new Event("input", { bubbles: true })); logBtns(pre);
+});
+/* Relief: half, a third or two thirds of the flight. All the logged times change together: the total, the function times in use
+   (or the one this flight would get: PIC with PIC SELF, else co-pilot), IFR and night. Pilot flying or monitoring puts the whole flight back */
+function applyShare(pre, r){
+  const box = $("#" + pre + "relShare"), tot = $("#" + pre + "total"); if (!box || !tot) return;
+  let full = blockMin(pre);
+  if (!full) { if (!box.dataset.full) box.dataset.full = parseDur(tot.value) || ""; full = +box.dataset.full || 0; }
+  if (!full) return;
+  if (!box.dataset.keys) {
+    const has = k => parseDur($("#" + pre + k)?.value || "") > 0, fn = ["pic", "copilot", "dual", "instructor"].filter(has);
+    if (!fn.length) fn.push(/^self$/i.test($("#" + pre + "picName")?.value.trim() || "") ? "pic" : "copilot");
+    if (has("ifr") || data.profile.autoIfr !== false) fn.push("ifr");
+    if (has("night") || data.profile.autoNight !== false) fn.push("night");
+    box.dataset.keys = fn.join(",");
+  }
+  const m = Math.round(full * r), nf = nightFull(pre);
+  setVal(pre, "total", fmtMin(m)); tot.dataset.auto = "1";
+  for (const k of box.dataset.keys.split(",")) setVal(pre, k, k === "night" ? (nf == null ? $("#" + pre + k).value : nf ? fmtMin(Math.round(nf * r)) : "") : fmtMin(m));
+  $("#" + pre + "night")?.dispatchEvent(new Event("input", { bubbles: true }));   // the preview and the draft; not Total time (its own listener)
+}
+function setShare(pre, v){
+  const box = $("#" + pre + "relShare"); if (!box) return;
+  if (v) box.dataset.share = v; else delete box.dataset.share;
+  box.querySelectorAll("[data-share]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.share === v)));
+}
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-share]"); if (!b) return;
+  const pre = b.closest(".relshare").id.slice(0, 2); setShare(pre, b.dataset.share); applyShare(pre, shareOf(pre)); logBtns(pre);
+});
+function roleShown(pre){
+  const v = pfOf(pre), box = $("#" + pre + "relShare");
+  $("#" + pre + "roleField")?.classList.toggle("need", !v && pre === "n_");
+  if (!box) return; box.classList.toggle("hidden", v !== "rel");
+  // out of relief: the whole flight again
+  if (v !== "rel" && box.dataset.share) { setShare(pre, ""); applyShare(pre, 1); delete box.dataset.keys; delete box.dataset.full; }
+}
+// Total time is the block time by itself, until the pilot types another
+document.addEventListener("input", e => {
+  const m = (e.target.id || "").match(/^(n_|e_)(out|in|total|from|to|date|pic|copilot|dual|instructor|night|ifr)$/); if (!m) return;
+  const pre = m[1], tot = $("#" + pre + "total");
+  if (m[2] === "total" && e.isTrusted) delete tot.dataset.auto;
+  if ((m[2] === "out" || m[2] === "in") && tot) {
+    if ($("#" + pre + "relShare")?.dataset.share && isRelief(pre)) applyShare(pre, shareOf(pre));
+    else if (blockMin(pre) && (!tot.value || tot.dataset.auto)) { tot.value = fmtMin(blockMin(pre)); tot.dataset.auto = "1"; }
+  }
+  logBtns(pre); if (/^(from|to|date|out|in)$/.test(m[2])) loadAirports().then(() => logBtns(pre));
+});
 // a relief pilot typing the actual seat time in Total time: the PIC or co-pilot time follows
 document.addEventListener("input", e => {
   const m = (e.target.id || "").match(/^(n_|e_)total$/); if (!m || !isRelief(m[1])) return;
@@ -3480,12 +3562,17 @@ function flightFieldsHTML(pre, f = {}){
     (k === "date" ? ` type="date" required max="${logToday()}"` : LB_TIME.includes(k) ? ' class="mono" placeholder="HH:MM" inputmode="numeric"' : LB_DUR.includes(k) ? ' class="mono" placeholder="H:MM"' : k.startsWith("ldg") ? ' type="number" min="0" step="1"' : "") + ">";
   // pilot flying puts the landing in by itself (day or night, from the sun at the arrival airport); a saved flight with landings was flown
   const pfOn = /\bRELIEF\b/i.test(f.remarks || "") ? "rel" : f.ldgDay || f.ldgNight ? "pf" : "";   // blank until the pilot (or a confirmed return flight) says
-  const pfSeg = `<div class="field wide"><div class="seg" id="${pre}pfSeg" role="radiogroup" aria-label="Pilot flying, pilot monitoring or relief" style="margin:0;flex-wrap:wrap">` +
-    [["pf", "Pilot flying"], ["pm", "Pilot monitoring"], ["rel", "Relief"]].map(([v, l]) => `<label><input type="radio" name="${pre}pf" value="${v}"${pfOn === v ? " checked" : ""}> ${l}</label>`).join("") + `</div></div>`;
+  const r = (v, l) => `<label><input type="radio" name="${pre}pf" value="${v}"${pfOn === v ? " checked" : ""}> ${l}</label>`;
+  const pfSeg = `<div class="field wide rolefield${pfOn || pre !== "n_" ? "" : " need"}" id="${pre}roleField"><label>Your role on this flight</label><div class="rolerow" id="${pre}pfSeg" role="radiogroup" aria-label="Pilot flying, pilot monitoring or relief">` +
+    `<div class="seg">${r("pf", "Pilot flying")}${r("pm", "Pilot monitoring")}</div><span class="hint">or</span><div class="seg">${r("rel", "Relief crew")}</div></div>` +
+    `<div class="hint roleneed">Choose one: pilot flying logs the landing, pilot monitoring logs none.</div>` +
+    `<div class="relshare${pfOn === "rel" ? "" : " hidden"}" id="${pre}relShare"><span style="width:100%">Log a share of the block time:</span>${[["1/2", "½"], ["1/3", "⅓"], ["2/3", "⅔"]].map(([v, l]) => `<button type="button" class="btn ghost small" data-share="${v}" aria-pressed="false">${l}</button>`).join("")}` +
+    `<div class="hint" style="width:100%">Changes the total, function, night and IFR times together. Or type your actual seat time in Total time.</div></div></div>`;
   // off-block, take-off, landing, on-block always side by side in one row, on any screen; then the pilot flying / monitoring / relief switch
   const times = `<div class="field wide"><div class="times">${LB_TIME.map(k => `<div><label for="${pre}${k}">${{ out: "Off-block", off: "Take-off", on: "Landing", in: "On-block" }[k]}</label>${input(k)}</div>`).join("")}</div></div>` + pfSeg +
     `<div class="field wide hidden" id="${pre}retNote"></div><div class="field wide hidden" id="${pre}gsNote"></div>`;
-  return FIELDS.filter(([k]) => !LB_TIME.includes(k)).map(([k, label]) => `<div class="field${k === "remarks" ? " wide" : ""}"><label for="${pre}${k}">${label}</label>${k === "date" ? `<span class="datewrap">${input(k)}</span>` : input(k)}</div>` + (k === "to" ? times : "")).join("");
+  const box = k => k === "date" ? `<span class="datewrap">${input(k)}</span>` : LOG_KEYS.includes(k) ? `<span class="logwrap">${input(k)}<button type="button" class="logbtn hidden" data-logfill="${pre}${k}"></button></span>` : input(k);
+  return FIELDS.filter(([k]) => !LB_TIME.includes(k)).map(([k, label]) => `<div class="field${k === "remarks" ? " wide" : ""}"><label for="${pre}${k}">${label}</label>${box(k)}</div>` + (k === "to" ? times : "")).join("");
 }
 // a simulator session: EASA FSTD columns (date, type, session time) and remarks
 function simFieldsHTML(pre, f = {}){
@@ -3529,6 +3616,7 @@ $("#lbSigClear").addEventListener("click", () => lbPad.reset());
 function lbOpenEdit(i){
   const f = data.flights[i]; if (!f) return; lbEditing = f; lbSigDrop = false;
   $("#lbEditFields").innerHTML = isSim(f) ? simFieldsHTML("e_", f) : flightFieldsHTML("e_", f);
+  if (!isSim(f)) loadAirports().then(() => logBtns("e_"));
   lbShowSig(); requestAnimationFrame(() => lbPad.reset()); loadAirports().then(() => gsCheck("e_"));
   $("#lbEditTitle").textContent = (isSim(f) ? "Edit simulator session: " : "Edit flight: ") + flightLabel(f); $("#lbEditErr").textContent = "";
   $("#lbEdit").classList.remove("hidden"); $("#lbEdit").scrollIntoView({ behavior: "smooth", block: "start" }); $("#e_date").focus({ preventScroll: true });
