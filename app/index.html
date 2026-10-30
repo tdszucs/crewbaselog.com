@@ -66,6 +66,7 @@ input.manual{color:var(--bad);border-color:var(--bad)}
 .steps3{list-style:none;margin:6px 0 0;padding:0;display:flex;flex-direction:column;gap:12px}.steps3 li{display:flex;gap:12px;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--bg)}.steps3 .n{flex:none;width:30px;height:30px;border-radius:50%;background:var(--brand);color:var(--on-brand);display:grid;place-items:center;font-weight:700}.steps3 b{font-size:16px}.steps3 p{margin:4px 0 10px;font-size:14.5px;line-height:1.55;color:var(--muted)}
 .found{margin:12px 0 0;display:flex;flex-direction:column;gap:8px}.fnd{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg)}.fnd .chip{flex:none;white-space:nowrap}.fnd b{word-break:break-all}.fnd .hint{margin-top:2px;font-size:13.5px}
 .whatdrop{margin:14px 0 0}.whatdrop>summary{cursor:pointer;font-weight:600;font-size:14.5px;color:var(--brand)}.wd{border:1px solid var(--line);border-radius:10px;margin:8px 0 0;background:var(--surface)}.wd>summary{cursor:pointer;padding:10px 12px;display:flex;flex-direction:column;gap:2px;list-style:none}.wd>summary::-webkit-details-marker{display:none}.wd>summary .hint{font-size:13px}.wd[open]>summary{border-bottom:1px solid var(--line)}.wdbody{padding:10px 12px}.wdbody ol{margin:0;padding-left:20px;line-height:1.6;font-size:14px}.wdbody p{margin:0;font-size:14px}
+.syncst{font-size:12.5px;white-space:nowrap;color:var(--muted)}.syncst.ok{color:var(--ok)}.syncst.off{color:var(--warn)}
 .timesum{display:flex;flex-wrap:wrap;gap:4px 18px;margin:10px 0 0;padding:8px 12px;border-radius:10px;background:var(--bg);border:1px solid var(--line);font-size:14px;color:var(--muted)}.timesum b{font-family:"JetBrains Mono",monospace;color:var(--ink);font-size:15px;margin-left:4px}
 .rollers{display:flex;align-items:center;justify-content:center;gap:1px;margin-top:5px;position:relative;border:1px solid var(--line);border-radius:10px;background:var(--surface);overflow:hidden}
 .rollers::before{content:"";position:absolute;left:3px;right:3px;top:24px;height:24px;border-radius:6px;background:var(--bg);border:1px solid var(--line);pointer-events:none}
@@ -363,7 +364,7 @@ td.r,th.r{text-align:right}
   .exp .name{grid-area:n}.exp .date{grid-area:d}.exp .note{grid-area:t}.exp .st{grid-area:s;text-align:right}.exp .del{grid-area:x}
   .exp-head{display:none!important}
 }
-@media (max-width:520px){ .who span{display:none} }
+@media (max-width:520px){ .who span:not(.syncst){display:none} }
 .ugrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 24px}
 @media (max-width:640px){ .ugrid{grid-template-columns:1fr} }
 .ubar{display:grid;grid-template-columns:minmax(0,9em) 1fr auto;gap:8px;align-items:center;font-size:13px;margin:3px 0}
@@ -394,7 +395,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
   <div class="auth-card">
     <a class="logo" href="/"><svg viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#0b3d5c"/><path d="M12 38l40-14-10 22-8-6-6 8v-10z" fill="#f2b544"/></svg>CrewBase Log</a>
     <h1 id="authTitle">Log in</h1>
-    <p class="sub" id="authSub">Welcome back. Your logbook stays on your device.</p>
+    <p class="sub" id="authSub">Welcome back. One tap with Google, or your email.</p>
     <div class="notice hidden" id="localNote" style="margin:0 0 16px"></div>
     <div id="gisBtn" class="hidden" style="display:flex;justify-content:center;min-height:44px"></div>
     <button class="btn google block" id="btnGoogle" type="button">
@@ -449,7 +450,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
   <div class="top">
     <div class="in">
       <a class="logo" href="/"><svg viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#0b3d5c"/><path d="M12 38l40-14-10 22-8-6-6 8v-10z" fill="#f2b544"/></svg>CrewBase Log</a>
-      <div class="who"><span id="whoEmail"></span><button class="btn ghost small" id="btnOut">Log out</button></div>
+      <div class="who"><span id="syncState" class="syncst" role="status"></span><span id="whoEmail"></span><button class="btn ghost small" id="btnOut">Log out</button></div>
     </div>
     <nav class="tabs" id="tabs">
       <button data-t="overview" class="on">Overview</button>
@@ -480,7 +481,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
     <!-- overview -->
     <div data-p="overview">
       <h2 id="hello">Welcome</h2>
-      <p class="lead">A logbook that stays with you: nothing about your flying is uploaded.</p>
+      <p class="lead">Your logbook, saved in your account and on this device.</p>
       <div id="homeTop"></div>
       <div id="homeDash"></div>
       <div id="setupNotice" class="notice hidden"></div>
@@ -558,7 +559,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
     <!-- your data: import + export -->
     <div data-p="import" class="hidden">
       <h2>Your data</h2>
-      <p class="lead">Add your hours, drop your files, download your logbook. Everything is read in your browser; nothing is uploaded.</p>
+      <p class="lead">Add your hours, drop your files, download your logbook. Files are read in your browser: the files themselves are never uploaded.</p>
 
       <div class="card" id="allCard">
         <div class="notice hidden" id="nextDrop" style="margin:0 0 12px"><b>✓ Your profile is set up.</b> Next, your logbook: drop your past logbook, your airline export or your roster here. Not sure which file? Open What can I drop here? below. No logbook yet? <a href="#" data-go="add">Add your first flight</a>.</div>
@@ -715,7 +716,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
     </div>
     <div data-p="logbook" class="hidden">
       <h2>Logbook</h2>
-      <p class="lead">Your flights are kept only in this browser. Downloads, backup and starting over are on <a href="#" data-go="import" data-scroll="#outCard">Your data</a>.</p>
+      <p class="lead">Your flights are saved in your account. Downloads, backup and starting over are on <a href="#" data-go="import" data-scroll="#outCard">Your data</a>.</p>
       <div class="stats" id="lbStats"></div>
       <div class="row-actions" style="margin:0 0 16px"><button class="btn" type="button" data-go="add">+ Add a flight</button><span class="hint lbhint" style="margin:0;font-size:14px">For a flight or simulator session that isn't in any file.</span></div>
       <div class="notice hidden lbadded" id="lbAdded" role="status"></div>
@@ -809,7 +810,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
         <div class="row-actions"><button class="btn ghost" id="cbFAdd" type="button">Add friend</button>
           <button class="btn ghost" id="cbFLoadBtn" type="button">Load a roster a friend sent me</button><input type="file" id="cbFLoad" accept=".pdf,application/pdf,.json" class="hidden"><span id="cbFMsg" class="hint"></span></div>
         <div class="notice hidden" id="cbNoAcct" style="margin:0 0 12px">Sharing rosters automatically needs a free account. <a href="#" id="cbMakeAcct">Create one</a>: your logbook comes along. Without one, send each other your roster files (Export to send to a friend, Load a roster a friend sent me).</div>
-        <div class="hint" style="margin-bottom:12px">Add each other by the email you log in with: once you have both added each other, your rosters appear here side by side and stay up to date. Your roster is saved to your account only for this; your logbook stays on this device. A friend without an account can still send you their roster PDF to load.</div>
+        <div class="hint" style="margin-bottom:12px">Add each other by the email you log in with: once you have both added each other, your rosters appear here side by side and stay up to date. Your roster is saved to your account only for this; your logbook is never shared. A friend without an account can still send you their roster PDF to load.</div>
         <p class="err hidden" id="cbSyncMsg" style="margin:0 0 10px"></p>
         <div class="tablewrap"><table><thead><tr><th>Show</th><th>Name</th><th>Email</th><th>Base</th><th>Roster</th><th></th></tr></thead><tbody id="cbFRows"></tbody></table></div>
       </div>
@@ -838,10 +839,10 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
       <div class="card">
         <h3>Your data, your control</h3>
         <ul style="margin:0 0 14px;padding-left:20px;line-height:1.75;font-size:14.5px">
-          <li>Your logbook, profile, signature and expiry dates are stored <b>only in this browser on this device</b>. We never see them.</li>
-          <li><b>Clearing your browser data (cookies and site data)</b>, or opening CrewBase Log on another phone or browser, starts empty: everything has to come back from your files.</li>
-          <li>The files you download are yours and stay on your device: the <b>CSV file</b> brings back all your flights; the <b>full backup</b> brings back everything, including profile and signature. Download them after each update.</li>
-          <li>Only a Crew Base roster you add is saved to your account, for the friends you choose.</li>
+          <li>Your logbook, profile, signature and expiry dates are saved <b>in your account</b> as you go, and on this device. Only your log-in can open them.</li>
+          <li>Log in on another phone or computer and your logbook is there. Clearing your browser data doesn't lose it.</li>
+          <li>The files you download are your own copy, outside the app: the <b>CSV file</b> brings back all your flights; the <b>full backup</b> brings back everything, including profile and signature. Download one after big changes.</li>
+          <li>A Crew Base roster you add is shared only with the friends you choose.</li>
         </ul>
         <div class="row-actions" style="margin:0"><button class="btn" type="button" id="ovBackup">Download full backup</button><button class="btn ghost" type="button" id="ovRestore">Restore a backup</button><button class="btn ghost" type="button" data-csv>Download CSV file</button></div>
       </div>
@@ -1069,7 +1070,92 @@ function migrateExpiries(){
   const custom = old.filter(e => !DEFAULT_EXPIRIES.some(d => d.id === e.id) && !OLD_DEFAULT_EXPIRIES.includes(e.name));
   data.expiries = [...core, ...custom]; data.expV = 3; save();
 }
-function save(){ return store.set(key(), data); }
+function save(){ const ok = store.set(key(), data); if (ok) syncDirty(); return ok; }
+
+/* ---------- the logbook in the pilot's account (Supabase table logbooks, one row per account, only their own log-in can
+   read it). The device keeps working copy; each save goes up a moment later. rev counts the saves: a device writes only
+   over the rev it last saw, so two devices never overwrite each other unseen; if both changed, the pilot chooses. */
+const syncOn = () => !!(Auth.live && hasAccount());
+const syncKey = () => "cbl_sync_" + user.id;
+let SY = null, syncTimer = 0, syncBusy = false, syncState = "";
+function syncMeta(){ return SY ||= store.get(syncKey(), null) || { rev: 0, seq: 0, done: 0 }; }
+const syncSave = () => store.set(syncKey(), SY);
+const flightsOf = d => d?.flights?.length || 0;
+function syncShow(st, why){
+  syncState = st; const el = $("#syncState"); if (!el) return;
+  const T = { saving: ["Saving…", "Saving to your account"], ok: ["✓ Saved", "Saved on this device and in your account"], off: ["Saved on this device", why || "Couldn't reach your account: saved on this device, and it goes up as soon as the connection is back"], "": ["", ""] }[st] || ["", ""];
+  el.textContent = T[0]; el.title = T[1]; el.className = "syncst " + st;
+}
+function syncDirty(){
+  if (!syncOn() || !user) return; const m = syncMeta(); m.seq++; syncSave();
+  syncShow("saving"); clearTimeout(syncTimer); syncTimer = setTimeout(syncPush, 1200);
+}
+async function syncPush(){
+  if (!syncOn()) return; const m = syncMeta();
+  if (m.seq === m.done) return syncShow("ok");
+  if (syncBusy) { clearTimeout(syncTimer); syncTimer = setTimeout(syncPush, 800); return; }
+  syncBusy = true; const seq = m.seq, db = Auth.db(), uid = user.id;
+  try {
+    let r;
+    if (!m.rev) {
+      r = await db.from("logbooks").insert({ user_id: uid, data, rev: 1, flights: flightsOf(data) }).select("rev").single();
+      if (r.error?.code === "23505") { syncBusy = false; return syncPull(true); }   // already in the account (another device was first)
+    } else {
+      r = await db.from("logbooks").update({ data, rev: m.rev + 1, flights: flightsOf(data) }).eq("user_id", uid).eq("rev", m.rev).select("rev");
+      if (!r.error && !r.data?.length) { syncBusy = false; return syncPull(true); }   // changed on another device since
+      if (!r.error) r = { data: r.data[0] };
+    }
+    if (r.error) throw r.error;
+    if (user?.id !== uid) return;
+    m.rev = r.data.rev; m.done = seq; syncSave(); syncShow(m.seq === m.done ? "ok" : "saving");
+    if (m.seq !== m.done) { clearTimeout(syncTimer); syncTimer = setTimeout(syncPush, 300); }
+  } catch (e) { console.warn("sync", e); syncShow("off"); clearTimeout(syncTimer); syncTimer = setTimeout(syncPush, 30000); }
+  finally { syncBusy = false; }
+}
+// what the account holds: newer than this device saw? take it; changed on both? ask
+async function syncPull(clash){
+  if (!syncOn()) return; const m = syncMeta(), db = Auth.db(), uid = user.id;
+  try {
+    let r = await db.from("logbooks").select("rev,updated_at,flights").eq("user_id", uid).maybeSingle(); if (r.error) throw r.error;
+    const row = r.data;
+    if (!row) { if (flightsOf(data) || data.onboarded || data.profile?.name) { m.rev = 0; m.seq++; syncSave(); return syncPush(); } return syncShow("ok"); }
+    if (row.rev === m.rev && !clash) return m.seq === m.done ? syncShow("ok") : syncPush();
+    r = await db.from("logbooks").select("data,rev,updated_at").eq("user_id", uid).maybeSingle(); if (r.error) throw r.error;
+    if (user?.id !== uid || !r.data) return;
+    const theirs = r.data, mine = data, local = m.seq !== m.done || !m.rev;   // this device has changes the account hasn't
+    const same = JSON.stringify(theirs.data) === JSON.stringify(mine), emptyHere = !flightsOf(mine) && !mine.onboarded;
+    if (same || !local || emptyHere) return syncTake(theirs);
+    syncAsk(theirs);
+  } catch (e) { console.warn("sync", e); syncShow("off"); }
+}
+function syncTake(row){
+  const m = syncMeta(), was = JSON.stringify(data);
+  m.rev = row.rev; m.done = m.seq; syncSave();
+  if (JSON.stringify(row.data) !== was) { store.set(key(), row.data); load();
+    if ((data.onboarded || flightsOf(data)) && !$("#setup").classList.contains("hidden")) closeSetup(false);   // a new device: the account already has the logbook
+    const t = location.hash.slice(1); tab($$("#tabs button").some(b => b.dataset.t === t) ? t : "overview"); }
+  syncShow("ok");
+}
+// both changed: the pilot picks; the one not kept can be downloaded first
+function syncAsk(theirs){
+  const box = $("#syncAsk") || document.body.appendChild(Object.assign(document.createElement("div"), { id: "syncAsk", className: "toast bad" }));
+  const when = new Date(theirs.updated_at).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }), n = x => `${x.toLocaleString()} flight${x === 1 ? "" : "s"}`;
+  box.innerHTML = `<div class="toast-ic" aria-hidden="true">!</div><div><div class="toast-h">Your logbook changed on another device too</div><div class="toast-b">Which one should be kept?
+    <div class="fl-btns" style="margin-top:8px;flex-direction:column;align-items:stretch"><button class="btn small" type="button" data-sync="theirs">The one in your account: ${n(flightsOf(theirs.data))}, saved ${esc(when)}</button>
+    <button class="btn small" type="button" data-sync="mine">This device's: ${n(flightsOf(data))}</button>
+    <button class="btn ghost small" type="button" data-sync="file">Download the account's copy as a file first</button></div></div></div>`;
+  box._theirs = theirs; syncShow("off", "Waiting for your choice: changed on this device and on another one");
+}
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-sync]"); if (!b) return; const box = $("#syncAsk"), theirs = box?._theirs; if (!theirs) return;
+  if (b.dataset.sync === "file") return download(`crewbaselog-account-copy-${todayISO()}.json`, "application/json", JSON.stringify({ app: "CrewBase Log", version: 1, exported: theirs.updated_at, data: theirs.data }, null, 1));
+  box.remove();
+  if (b.dataset.sync === "theirs") return syncTake(theirs);
+  const m = syncMeta(); m.rev = theirs.rev; m.seq++; syncSave(); syncPush();   // this device's goes over the account's
+});
+addEventListener("online", () => syncOn() && syncPush());
+let syncSeen = 0;
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && syncOn() && Date.now() - syncSeen > 15000) { syncSeen = Date.now(); syncPull(); } });
 
 /* ================= VIEWS ================= */
 let mode = "login", pendingEmail = "";
@@ -1320,6 +1406,7 @@ function usage(kind){
 }
 const nLines = () => ({ flights: data.flights.filter(f => !isSim(f)).length, sims: data.flights.filter(isSim).length });
 function enterApp(){
+  SY = null; clearTimeout(syncTimer);
   const moved = adoptLocal(), fresh = user.id !== "sample" && !store.get(key(), null);
   // the page that was open before a reload, else the overview
   const was = location.hash.slice(1), pages = $$("#tabs button").map(b => b.dataset.t).filter(t => t !== "admin" || isAdmin());
@@ -1327,6 +1414,7 @@ function enterApp(){
   // a reload on another page (a flight half entered, the phone switching apps) goes back there, not into the setup
   if (!data.onboarded && !data.flights.length && user.id !== "sample" && !(pages.includes(was) && was !== "overview")) openSetup();
   if (was === "logbook") resumeEdit();
+  SY = null; syncShow(""); if (syncOn()) { syncSeen = Date.now(); syncPull(); }
   // ask the browser to keep this site's data for good (Safari otherwise clears it after 7 days without a visit)
   navigator.storage?.persist?.().catch(() => {});
   $("#whoEmail").textContent = isLocal() ? "On this device only" : user.email;
@@ -1586,7 +1674,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "30 Oct 2026 · 29";
+const APP_VERSION = "31 Oct 2026 · 1";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
@@ -1651,7 +1739,8 @@ $("#wipeBtn").addEventListener("click", async () => {
   const b = $("#wipeBtn"); if (!isAdmin()) return;
   if (b.dataset.sure !== "1") { b.dataset.sure = "1"; const n = data.flights.length; b.textContent = `Sure? Wipe ${n.toLocaleString()} flight${n === 1 ? "" : "s"} and everything else`; return; }
   b.disabled = true; b.textContent = "Wiping…";
-  try { const db = Auth.db(); await db.from("crew_friends").delete().eq("user_id", user.id); await db.from("crew_rosters").delete().eq("user_id", user.id); } catch (e) { console.warn(e); }
+  try { const db = Auth.db(); await db.from("crew_friends").delete().eq("user_id", user.id); await db.from("crew_rosters").delete().eq("user_id", user.id); await db.from("logbooks").delete().eq("user_id", user.id); } catch (e) { console.warn(e); }
+  clearTimeout(syncTimer); store.del(syncKey());
   try { localStorage.removeItem(key()); dropDraft(); } catch {}
   logEvent("debug_wipe", {});
   location.hash = ""; location.reload();
