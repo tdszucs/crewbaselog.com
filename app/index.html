@@ -162,6 +162,8 @@ h2{font-size:24px;letter-spacing:-.02em;margin:0 0 6px}
 .htile.warn .bar i{background:var(--warn)}.htile.bad .bar i{background:var(--bad)}.htile.bad .v{color:var(--bad)}
 .hrow{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 0}
 .hcard{margin:0 0 14px}.hcard h3{margin:0 0 8px}
+.obapps{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.obapps .btn{justify-content:center;text-align:center;white-space:normal}
+@media (max-width:420px){ .obapps{grid-template-columns:1fr} }
 .rrow{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 0;border-top:1px solid var(--line);font-size:15px}.rrow:first-of-type{border-top:0}
 @media (max-width:700px){ .hgrid{grid-template-columns:1fr 1fr;gap:8px}.htile{padding:10px}.htile .v{font-size:19px} }
 .fixnote{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:12px 0 0}
@@ -1358,12 +1360,44 @@ document.addEventListener("click", async e => {
   if (e.target.closest("[data-noinstall]")) { store.set("cbl_noinstall", 1); renderHome(); }
   if (e.target.closest("[data-install]") && installEvt) { installEvt.prompt(); await installEvt.userChoice.catch(() => {}); installEvt = null; renderHome(); }
 });
+/* First run: three short questions instead of a long page. 1 name and licence, 2 airline, home base and captain or first
+   officer, 3 where the logbook is now, which leads to the right drop zone with that app's export steps. Each can be skipped */
+let obStep = 1;
+function onboardHTML(){
+  if (data.onboarded || data.flights.length || user?.id === "sample") return "";
+  const p = data.profile, step = n => `<span class="hint" style="margin:0;font-size:13px">Step ${n} of 3</span>`, skip = `<button class="btn ghost small" type="button" data-obskip>Skip</button>`;
+  if (obStep === 1) return `<div class="card hcard ob"><h3>Welcome! Three quick questions</h3>${step(1)}
+    <div class="field" style="margin-top:10px"><label for="obName">Your name, as on your licence</label><input id="obName" autocomplete="name" value="${esc(p.name || "")}"></div>
+    <div class="field"><label for="obLic">Licence number <span class="hint" style="font-weight:400">(optional)</span></label><input id="obLic" class="mono" value="${esc(p.lic || "")}" placeholder="e.g. AE.FCL.12345"></div>
+    <div class="fl-btns"><button class="btn" type="button" data-obnext>Next</button>${skip}</div></div>`;
+  if (obStep === 2) return `<div class="card hcard ob"><h3>Where do you fly?</h3>${step(2)}
+    <div class="lbgrid" style="margin-top:10px"><div class="field"><label for="obAirline">Airline code (IATA)</label><input id="obAirline" class="mono" maxlength="2" style="text-transform:uppercase" value="${esc(p.airline || "")}" placeholder="e.g. EY"></div>
+    <div class="field"><label for="obBase">Home base (ICAO)</label><input id="obBase" class="mono" maxlength="4" style="text-transform:uppercase" value="${esc(p.base || "")}" placeholder="e.g. OMAA"></div></div>
+    <div class="field"><label>You fly as</label><div class="seg" style="margin:0"><label><input type="radio" name="obRole" value="PIC"${p.role !== "CP" ? " checked" : ""}> Captain</label><label><input type="radio" name="obRole" value="CP"${p.role === "CP" ? " checked" : ""}> First officer</label></div></div>
+    <div class="fl-btns"><button class="btn" type="button" data-obnext>Next</button>${skip}</div></div>`;
+  return `<div class="card hcard ob"><h3>Where is your logbook now?</h3>${step(3)}
+    <div class="obapps">${[["logten", "LogTen Pro"], ["crewlounge", "CrewLounge PILOTLOG"], ["safelog", "Safelog"], ["wader", "Wader"], ["flylog", "Flylog"], ["ecrew", "eCrew / AIMS"], ["sheet", "A spreadsheet or another app"], ["paper", "A paper logbook"], ["none", "Nothing yet: I'm starting fresh"]]
+      .map(([k, l]) => `<button class="btn ghost" type="button" data-obapp="${k}">${l}</button>`).join("")}</div></div>`;
+}
+document.addEventListener("click", e => {
+  const next = e.target.closest("[data-obnext]"), skip = e.target.closest("[data-obskip]"), app = e.target.closest("[data-obapp]"); if (!next && !skip && !app) return;
+  const p = data.profile;
+  if (next && obStep === 1) { p.name = $("#obName").value.trim() || p.name; p.lic = ($("#obLic").value.trim() || p.lic || "").toUpperCase(); }
+  if (next && obStep === 2) { p.airline = $("#obAirline").value.toUpperCase().replace(/[^A-Z0-9]/g, "") || p.airline || ""; p.base = $("#obBase").value.trim().toUpperCase() || p.base || ""; p.role = $('[name="obRole"]:checked')?.value || p.role; }
+  if (next || skip) { obStep++; save(); renderOverview(); return; }
+  // the logbook's place: the drop zone it goes to, with that app's export steps
+  const k = app.dataset.obapp; data.onboarded = true; if (k !== "none") p.fromApp = k; save();
+  if (k === "none") { renderOverview(); return tab("add"); }
+  tab("import"); if (APP_GUIDES[k]) { $("#appPick").value = k; showAppGuide(k); }
+  const t = k === "ecrew" ? $("#aimsCard") : k === "paper" ? $("#prevBox") : $("#pastCard"); if (t?.tagName === "DETAILS") t.open = true;
+  requestAnimationFrame(() => t?.scrollIntoView({ behavior: "smooth", block: "start" }));
+});
 function renderHome(){
   const box = $("#homeDash"); if (!box || !data?.flights) return; const F = data.flights;
   // roster legs and logbook lines compare by airport (FCO and LIRF are the same): the airport list first
   if (!AIRPORTS && data.crew?.me?.days && Object.keys(data.crew.me.days).length) { loadAirports().then(() => AIRPORTS && renderHome()); }
   $("#howBox").open = !F.length; $('[data-p="overview"] .lead')?.classList.toggle("hidden", !!F.length);
-  if (!F.length) { box.innerHTML = installHTML(); return; }
+  if (!F.length) { box.innerHTML = onboardHTML() + installHTML(); return; }
   const yr = todayISO().slice(0, 4);
   const tile = (k, v, lim, note) => { const pc = lim ? v / (lim * 60) : 0, c = !lim ? "" : pc > 1 ? " bad" : pc >= 0.8 ? " warn" : "";
     return `<div class="htile${c}"><div class="k">${k}</div><div class="v">${fmtHrs(v)}</div><div class="lim">${lim ? `limit ${lim.toLocaleString()} h` : note || ""}</div>${lim ? `<div class="bar"><i style="width:${Math.min(100, Math.round(pc * 100))}%"></i></div>` : ""}</div>`; };
@@ -1385,7 +1419,7 @@ function renderOverview(){
   if (!p.name || !p.lic) missing.push('<a href="#" data-go="profile">complete your profile</a>');
   if (!data.signature) missing.push('<a href="#" data-go="profile" data-scroll="#sigSection">add your signature</a>');
   if (!data.flights.length) missing.push('<a href="#" data-go="import">import your flights</a>');
-  if (missing.length) lines.push("<b>Finish setting up:</b> " + missing.join(", ") + ".");
+  if (missing.length && !$("#homeDash .ob")) lines.push("<b>Finish setting up:</b> " + missing.join(", ") + ".");   // not while the first-run questions show
   if (due.length) lines.push(`<b>Expiry dates:</b> ${due.map(e => `${esc(e.name)} ${expStatus(e.date).c === "bad" ? "has expired" : "is due " + fmtDate(e.date)}`).join(", ")}. <a href="#" data-go="profile" data-scroll="#expSection">Check them</a>.`);
   if (futureRemoved) lines.push(`<b>${futureRemoved} flight${futureRemoved === 1 ? " was" : "s were"} dated in the future and ${futureRemoved === 1 ? "has" : "have"} been taken out of your logbook.</b> The logbook only holds flights already flown; planned flights belong in <a href="#" data-go="crewbase">Crew Base</a>.`);
   if (data.flights.length && user.id !== "sample" && data.backup?.sig !== flightsSig())
