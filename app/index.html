@@ -2418,8 +2418,15 @@ const FIX_CHECKS = [
     fix: f => Object.assign(f, { fstdTime: f.total, fstdType: f.acType, from: "", to: "", out: "", off: "", on: "", in: "", reg: "", picName: "", total: 0, pic: 0, copilot: 0, dual: 0, instructor: 0, night: 0, ifr: 0, ldgDay: 0, ldgNight: 0 }) },
   { id: "dup", title: "Possible duplicates", why: "Two lines for the same day and route, with the same flight number or block times that overlap. The second copy is listed.",
     detail: (f, F) => { const o = F.find(x => x !== f && sameFlight(x, f)); return o ? `same as ${o.flightNo || ""} ${o.out}–${o.in} ${fmtMin(o.total)}`.replace(/\s+/g, " ") : ""; }, fixLabel: "Delete the second copies", del: true },
+  // a return to stand: flight time starts when the aircraft first moves to take off (FCL.010), so the block time is logged,
+  // with no take-off or landing; the crew system often records it as 0:00
+  { id: "rts", title: "Looks like a return to stand", why: "Same departure and arrival airport, no landing and no flight time. Flight time starts when the aircraft first moves to take off, so log the off-block to on-block time, with no landings and RTS in the remarks. If the aircraft never moved, delete the line.",
+    test: f => !isSim(f) && !f.total && rtsLike(f), detail: f => f.out && f.in ? `block ${f.out}–${f.in} = ${fmtMin(tdiff(f.out, f.in))}` : "no block times: press Edit to enter them",
+    fixLabel: "Log as return to stand", can: f => !!(f.out && f.in),
+    fix: f => { f.total = tdiff(f.out, f.in); const sg = suggestRole(f); if (sg) setRole(f, sg[0]); if (!/\bRTS\b|return to stand/i.test(f.remarks || "")) f.remarks = ("RTS " + (f.remarks || "")).trim(); },
+    del: true },
   { id: "noTotal", title: "No flight time", why: "The line has a route but its total time is 0: the total time column was probably not found.",
-    test: f => !isSim(f) && !f.total, detail: f => f.out && f.in ? `block ${f.out}–${f.in}` : "no block times either", fixLabel: "Use the block time (off-block to on-block)",
+    test: f => !isSim(f) && !f.total && !rtsLike(f), detail: f => f.out && f.in ? `block ${f.out}–${f.in}` : "no block times either", fixLabel: "Use the block time (off-block to on-block)",
     can: f => !!(f.out && f.in), fix: f => { f.total = tdiff(f.out, f.in); } },
   { id: "block", title: "Total time longer than the block time", why: "The total time is more than 10 minutes longer than off-block to on-block, which can't be right: usually a time or the total column was matched wrongly. (Shorter is normal: augmented crews log only their own share.)",
     test: f => !isSim(f) && f.total && f.out && f.in && f.total - tdiff(f.out, f.in) > 10, detail: f => `total ${fmtMin(f.total)}, block ${f.out}–${f.in} = ${fmtMin(tdiff(f.out, f.in))}`,
@@ -2481,7 +2488,7 @@ async function renderFix(){
       const roleBtns = c.roles ? `<div class="fl-btns"><span class="hint" style="margin:0;font-size:13.5px">You were:</span>` + ROLE_PICK.map(([r, l]) => `<button class="rowbtn${sg && sg[0] === r ? " sug" : ""}" type="button" data-role="${r}" data-i="${i}">${l}</button>`).join("") + "</div>" : "";
       return `<div class="fixline"><div class="fl-top">${fmtDate(f.date)} · ${esc(flightLabel(f).replace(fmtDate(f.date), "").trim())}</div><div class="fl-what">${esc(c.detail ? c.detail(f, data.flights) : "")}</div>${why}${roleBtns}<div class="fl-btns">` +
       ((c.fix && (!c.can || c.can(f))) ? `<button class="rowbtn sug" type="button" data-fix1="${c.id}" data-i="${i}">${FIX_ONE[c.id] || "Fix"}</button>` : "") +
-      (c.del ? `<button class="rowbtn del" type="button" data-fixdel="${i}">${FIX_ONE[c.id] || "Delete"}</button>` : "") + `<button class="rowbtn" type="button" data-fixedit="${i}">Edit</button>` +
+      (c.del ? `<button class="rowbtn del" type="button" data-fixdel="${i}">${FIX_DEL[c.id] || FIX_ONE[c.id] || "Delete"}</button>` : "") + `<button class="rowbtn" type="button" data-fixedit="${i}">Edit</button>` +
       `<button class="rowbtn" type="button" data-fixok="${c.id}" data-i="${i}" title="Stop flagging this line">It's correct</button></div></div>`; }).join("");
     // lines already corrected stay in the list: the corrected line, what it was, and an undo
     // suggestions accepted in one go: one card, above the lines so it shows even when they are folded
@@ -2531,7 +2538,9 @@ function acceptAll(id){
 const lineSum = f => isSim(f) ? `simulator ${f.fstdType || ""} ${fmtMin(f.fstdTime)}`.replace(/\s+/g, " ") :
   [f.acType, f.reg, f.from || f.to ? `${f.from || "?"}–${f.to || "?"}` : "", `total ${fmtMin(f.total)}`, ...["pic","copilot","dual","instructor"].filter(k => f[k]).map(k => `${ROLE_LABEL[k]} ${fmtMin(f[k])}`),
     f.night ? `night ${fmtMin(f.night)}` : "", f.ifr ? `IFR ${fmtMin(f.ifr)}` : "", /PIC\s*\(?US/i.test(f.remarks || "") ? "PICUS" : ""].filter(Boolean).join(" · ");
-const FIX_ONE = { bulk: "Move to previous experience", sim: "Make it a sim session", dup: "Delete this copy", noTotal: "Use block time", block: "Use block time",
+const FIX_DEL = { rts: "Delete (it never moved)" };
+const rtsLike = f => !!f.from && f.from === f.to && !f.ldgDay && !f.ldgNight;
+const FIX_ONE = { rts: "Log as return to stand", bulk: "Move to previous experience", sim: "Make it a sim session", dup: "Delete this copy", noTotal: "Use block time", block: "Use block time",
   night: "Work out night again", ifr: "Set IFR to total", reg: "Add the dash" };
 // corrections made in this visit, per check: { kind: mod | del | move | ok, f, copy, msg }
 let fixLog = {}, fixClosed = new Set();
@@ -2547,7 +2556,7 @@ $("#fixCard").addEventListener("click", e => {
   if (d.role) { const f = F[+d.i], c0 = copy(f), id = FIX_CHECKS.find(c => c.roles && fixHits(c).includes(f))?.id || "noRole"; setRole(f, d.role);
     logFix(id, { kind: "mod", f, copy: c0, msg: `Logged as ${ROLE_PICK.find(x => x[0] === d.role)[1]}` }); return fixDone(); }
   if (d.fix1) { const c = C(d.fix1), f = F[+d.i], c0 = copy(f); c.fix(f); c.after?.();
-    logFix(c.id, c.id === "bulk" ? { kind: "move", f, copy: c0, msg: "Moved to previous experience" } : { kind: "mod", f, copy: c0, msg: FIX_ONE[c.id] || "Fixed" }); return fixDone(); }
+    logFix(c.id, c.id === "bulk" ? { kind: "move", f, copy: c0, msg: "Moved to previous experience" } : { kind: "mod", f, copy: c0, msg: c.id === "rts" ? "Logged as a return to stand" : FIX_ONE[c.id] || "Fixed" }); return fixDone(); }
   if (d.fixdel) { const f = F[+d.fixdel], id = b.closest(".fixgrp").querySelector("[data-fixshow]").dataset.fixshow; F.splice(+d.fixdel, 1); logFix(id, { kind: "del", copy: copy(f), msg: "Deleted" }); return fixDone(); }
   if (d.fixok) { const f = F[+d.i], k = dupKey(f); (data.fixOk[d.fixok] ||= []).push(k); logFix(d.fixok, { kind: "ok", f, copy: copy(f), key: k, msg: "Marked as correct" }); return fixDone(); }
   if (d.undo) {
