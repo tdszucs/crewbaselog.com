@@ -50,6 +50,8 @@ input:focus,select:focus{outline:2px solid color-mix(in srgb,var(--brand) 40%,tr
 .field{margin-bottom:14px}
 /* suggestions under From / To / Aircraft type / Registration in the flight form */
 .sugwrap{position:relative}
+.ldgwrap{position:relative;display:block}.ldgwrap select{width:100%}
+.ldgcover{position:absolute;inset:0;width:100%;background:transparent;border:0;cursor:pointer;padding:0}
 .sugbox{position:absolute;left:0;top:100%;min-width:100%;width:max-content;max-width:min(330px,calc(100vw - 32px));z-index:20;margin-top:4px;background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.18);max-height:300px;overflow:auto}
 .sugbox button{display:flex;width:100%;justify-content:space-between;gap:14px;white-space:nowrap;align-items:baseline;background:none;border:0;border-bottom:1px solid var(--line);padding:11px 12px;font:inherit;font-size:15px;color:var(--ink);text-align:left;cursor:pointer}
 .sugbox button:last-child{border-bottom:0}.sugbox button:hover,.sugbox button.on{background:var(--bg)}
@@ -2845,11 +2847,10 @@ function showSuggest(inp){
 const hideSuggest = () => $$(".sugbox").forEach(b => b.remove());
 document.addEventListener("focusin", e => { if (SUG_KEYS.test(e.target.id || "")) loadAirports().then(() => document.activeElement === e.target && showSuggest(e.target)); else if (!e.target.closest?.(".sugbox")) hideSuggest(); });
 document.addEventListener("input", e => { if (SUG_KEYS.test(e.target.id || "")) showSuggest(e.target); });
-// Landings day: a tap on the empty box puts 1 in it (most flights have one landing), selected so typing replaces it.
-// Not when night landings are already entered
-document.addEventListener("focusin", e => {
-  const m = (e.target.id || "").match(/^(n_|e_)ldgDay$/); if (!m || e.target.value !== "" || $("#" + m[1] + "ldgNight")?.value) return;
-  e.target.value = "1"; e.target.dispatchEvent(new Event("input", { bubbles: true })); try { e.target.select(); } catch {}
+// Landings: the first tap on an empty box puts 1 in it (most flights have one landing); the cover goes, so the next tap opens the picker
+document.addEventListener("click", e => {
+  const b = e.target.closest(".ldgcover"); if (!b) return;
+  const sel = $("#" + b.dataset.ldg); sel.value = "1"; b.remove(); sel.dispatchEvent(new Event("input", { bubbles: true })); sel.dispatchEvent(new Event("change", { bubbles: true }));
 });
 document.addEventListener("keydown", e => { if (e.key === "Escape") hideSuggest(); });
 // pointerdown (not click), so the field keeps its focus and the keyboard stays up while choosing
@@ -2960,7 +2961,12 @@ const flightLabel = f => (isSim(f) ? `${fmtDate(f.date)} simulator ${f.fstdType 
 // the flight form (edit on the Logbook tab, add on Your data); ids are prefix + field key
 function flightFieldsHTML(pre, f = {}){
   const v = k => LB_DUR.includes(k) ? (f[k] ? fmtMin(f[k]) : "") : k.startsWith("ldg") ? (f[k] || "") : f[k] ?? "";
-  const input = k => `<input id="${pre}${k}" data-k="${k}" value="${esc(String(v(k)))}"` +
+  // landings: a picker (the wheel on an iPhone). While empty a cover sits on it: the first tap puts 1 in, the next opens the wheel
+  const ldg = k => { const cur = +v(k) || 0, max = Math.max(50, cur);
+    return `<span class="ldgwrap"><select id="${pre}${k}" data-k="${k}"><option value=""${v(k) === "" ? " selected" : ""}>–</option>` +
+      Array.from({ length: max + 1 }, (_, n) => `<option${v(k) !== "" && n === cur ? " selected" : ""}>${n}</option>`).join("") + `</select>` +
+      (v(k) === "" ? `<button type="button" class="ldgcover" data-ldg="${pre}${k}" aria-label="1 landing"></button>` : "") + `</span>`; };
+  const input = k => k.startsWith("ldg") ? ldg(k) : `<input id="${pre}${k}" data-k="${k}" value="${esc(String(v(k)))}"` +
     (k === "date" ? ` type="date" required max="${logToday()}"` : LB_TIME.includes(k) ? ' class="mono" placeholder="HH:MM" inputmode="numeric"' : LB_DUR.includes(k) ? ' class="mono" placeholder="H:MM"' : k.startsWith("ldg") ? ' type="number" min="0" step="1"' : "") + ">";
   // off-block, take-off, landing, on-block always side by side in one row, on any screen
   const times = `<div class="field wide"><div class="times">${LB_TIME.map(k => `<div><label for="${pre}${k}">${{ out: "Off-block", off: "Take-off", on: "Landing", in: "On-block" }[k]}</label>${input(k)}</div>`).join("")}</div></div>`;
