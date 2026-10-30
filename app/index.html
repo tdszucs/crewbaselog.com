@@ -791,6 +791,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
       <h2>Crew Base</h2>
       <p class="lead">Put your future roster next to your friends' rosters and see at a glance when you are all free at base. <b>All times are UTC</b>, like your AIMS roster, so rosters compare on the same clock.</p>
 
+      <div class="notice hidden" id="cbNote" role="status" style="margin:0 0 16px"></div>
       <div class="card" id="cbGridCard">
         <div class="calhead">
           <div class="monthnav"><button class="btn ghost small" id="cbPrev" type="button" aria-label="Previous month">←</button><b id="cbMonth"></b><button class="btn ghost small" id="cbNext" type="button" aria-label="Next month">→</button></div>
@@ -2373,6 +2374,8 @@ async function handleFiles(list){
     const t = await f.text().catch(() => "");
     if (/^\s*\{\s*"app"\s*:\s*"CrewBase Log"/.test(t)) { files = files.filter(x => x !== f); await restoreBackup(t); }
   }
+  // an AIMS Personal Crew Schedule (the roster, days still to come) belongs in Crew Base, not in the logbook
+  for (const f of files.filter(f => /\.pdf$/i.test(f.name) || f.type === "application/pdf")) if (await isRosterPDF(f)) { files = files.filter(x => x !== f); takeRoster(f); }
   if (!files.length) return;
   // our own CSV first, so a new export's duplicates are counted against it
   impQueue = files.sort((a, b) => (/crewbaselog/i.test(b.name) ? 1 : 0) - (/crewbaselog/i.test(a.name) ? 1 : 0));
@@ -2942,14 +2945,15 @@ const APP_GUIDES = {
   paper: ["a paper logbook", ["Scanned pages can't be read. Enter the totals from its last page under <b>Previous experience</b> in step 1."]]
 };
 // the import page's guides name its steps; in the setup everything is dropped in one place
-const SU_STEPS = { ecrew: ["In eCrew open <b>Reports</b>, then <b>Pilot LogBook report</b>. Set the period (up to 2 years at a time), press Go, then <b>Export</b> as CSV, Excel or PDF.", "Drop it here. For more than 2 years, drop one file per 2 years, all at once."],
+const SU_STEPS = { roster: ["In eCrew: More → Personal Crew Schedule → Create → choose the dates → Go. Or on the eCrew website: Crew Schedule → My Schedule → Print.", "Drop the PDF here: it goes to Crew Base, and the flights you fly from it show on the home screen, ready to log."],
+  ecrew: ["In eCrew open <b>Reports</b>, then <b>Pilot LogBook report</b>. Set the period (up to 2 years at a time), press Go, then <b>Export</b> as CSV, Excel or PDF.", "Drop it here. For more than 2 years, drop one file per 2 years, all at once."],
   crewbase: ["Drop the full backup (<b>.json</b>) here to restore everything, or the <b>crewbaselog-….csv</b> you downloaded."],
   paper: ["Scanned pages can't be read. Tap <b>Paper logbook: enter its totals</b> below and copy the totals from its last page."] };
 // the setup's "Which files work?", most used first: [guide, name, what it reads]
 const SU_FILES = [["ecrew", "eCrew / AIMS", "Pilot LogBook report: CSV, Excel or PDF"], ["logten", "LogTen Pro", "Export Flights (Tab), or the logbook PDF"],
   ["crewlounge", "CrewLounge PILOTLOG", "CSV or logbook PDF"], ["safelog", "Safelog", "CSV"], ["flylog", "Flylog", "CSV, or EASA / JAR logbook PDF"],
   ["wader", "Wader Pilot Logbook", "EASA logbook PDF"], ["sheet", "Any other app or spreadsheet", "CSV, Excel or EASA logbook PDF: you match the columns once"],
-  ["crewbase", "CrewBase Log", "backup (.json) or CSV"], ["paper", "Paper logbook", "can't be read: enter its totals instead"]];
+  ["crewbase", "CrewBase Log", "backup (.json) or CSV"], ["roster", "AIMS roster", "Personal Crew Schedule PDF: goes to Crew Base"], ["paper", "Paper logbook", "can't be read: enter its totals instead"]];
 function showAppGuide(k){
   const g = APP_GUIDES[k], box = $("#appGuide"); box.classList.toggle("hidden", !g); if (!g) return;
   box.innerHTML = `<b>From ${g[0]}</b><ol style="margin:6px 0 4px;padding-left:20px">${g[1].map(t => `<li>${t}</li>`).join("")}</ol>` +
@@ -4079,9 +4083,28 @@ const cbDrop = $("#cbDrop");
 cbDrop.addEventListener("click", () => $("#cbFile").click());
 ["dragenter","dragover"].forEach(ev => cbDrop.addEventListener(ev, e => { e.preventDefault(); cbDrop.classList.add("over"); }));
 ["dragleave","drop"].forEach(ev => cbDrop.addEventListener(ev, e => { e.preventDefault(); cbDrop.classList.remove("over"); }));
-const cbTakeMine = f => cbReadFile(f, (days0, meta) => { if (!Object.keys(days0).length) return cbMsg("#cbMsg", cbWhy(meta), true); cbAskTz(days0, meta, days => { const n = Object.keys(days).length; cbKeepMe();
+// the roster dropped where logbooks go: Crew Base takes it
+async function isRosterPDF(f){
+  try {
+    if (String.fromCharCode(...new Uint8Array(await f.slice(0, 5).arrayBuffer())) !== "%PDF-") return false;
+    if (!window.pdfjsLib) { await loadScript(PDFJS + "pdf.min.js"); pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS + "pdf.worker.min.js"; }
+    const doc = await pdfjsLib.getDocument({ data: new Uint8Array(await f.arrayBuffer()) }).promise;
+    const t = (await (await doc.getPage(1)).getTextContent()).items.map(it => it.str).join(" ");
+    return /Personal\s+Crew\s+Schedule|Crew\s+Schedule\s+Report/i.test(t);
+  } catch { return false; }
+}
+function takeRoster(f){
+  if (!$("#setup").classList.contains("hidden")) closeSetup();
+  tab("crewbase"); scrollTo({ top: 0 }); cbTakeMine(f, "This is your roster, so it went to Crew Base, not your logbook. ");
+}
+const cbTakeMine = (f, why = "") => cbReadFile(f, (days0, meta) => { if (!Object.keys(days0).length) return cbMsg("#cbMsg", cbWhy(meta), true); cbAskTz(days0, meta, days => { const n = Object.keys(days).length; cbKeepMe();
   // the base printed on the roster (e.g. AUH-CP-789) is the one that counts
-  const C = cb(); if (meta.base) { C.me.base = String(meta.base).toUpperCase(); $("#cbBase").value = C.me.base; } Object.assign(C.me.days, days); if (save()) { cbPush(); cbMsg("#cbMsg", `Read ${n} days from ${f.name}${meta.utc === false ? ", converted to UTC" : ""}.`); renderCrewBase(); } }); });
+  const C = cb(); if (meta.base) { C.me.base = String(meta.base).toUpperCase(); $("#cbBase").value = C.me.base; } Object.assign(C.me.days, days); if (save()) { cbPush(); cbMsg("#cbMsg", `${why}Read ${n} days from ${f.name}${meta.utc === false ? ", converted to UTC" : ""}.`);
+    // dropped where logbooks go: say so at the top, and show the roster's first month
+    if (why) { const d = Object.keys(days).sort(); cbMonth = d.find(x => x >= todayISO())?.slice(0, 7) || d[0]?.slice(0, 7) || cbMonth;
+      $("#cbNote").innerHTML = `<b>✓ Your roster is in Crew Base:</b> ${n} days from ${esc(f.name)}${meta.utc === false ? ", converted to UTC" : ""}. It's a roster, so it didn't go into your logbook. Flights you fly from it show on the home screen, ready to log.`;
+      $("#cbNote").classList.remove("hidden"); }
+    renderCrewBase(); } }); });
 cbDrop.addEventListener("drop", e => cbTakeMine(e.dataTransfer.files[0]));
 $("#cbFile").addEventListener("change", e => { cbTakeMine(e.target.files[0]); e.target.value = ""; });
 $("#cbShare").addEventListener("click", () => {
