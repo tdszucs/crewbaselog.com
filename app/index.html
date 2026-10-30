@@ -1747,6 +1747,20 @@ function sunElevation(lat, lon, t){
   const ha = (gmst * 15 + lon) * rad - ra;
   return Math.asin(Math.sin(lat * rad) * Math.sin(dec) + Math.cos(lat * rad) * Math.cos(dec) * Math.cos(ha)) / rad;
 }
+// ground speed check: great-circle distance between the airports over the air time (take-off to landing), else the block
+// time, else the total. Below 50 or above 700 knots something is off; slow is fine for hops under 30 NM and circuits
+function gcNm(a, b){
+  const A = AIRPORTS?.[a], B = AIRPORTS?.[b]; if (!A || !B) return null; const r = Math.PI / 180;
+  const h = Math.sin((B[0] - A[0]) * r / 2) ** 2 + Math.cos(A[0] * r) * Math.cos(B[0] * r) * Math.sin((B[1] - A[1]) * r / 2) ** 2;
+  return 2 * 3440.065 * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+function flightSpeed(f){
+  if (isSim(f) || !f.from || !f.to || f.from === f.to || sameApt(f.from, f.to)) return null;
+  const d = gcNm(f.from, f.to); if (d == null || d < 1) return null;
+  const air = f.off && f.on ? tdiff(f.off, f.on) : 0, block = f.out && f.in ? tdiff(f.out, f.in) : 0, t = air || block || f.total; if (!t) return null;
+  return { d, t, kt: Math.round(d / (t / 60)), what: air ? "take-off to landing" : block ? "off-block to on-block" : "total time" };
+}
+const speedOff = sp => !!sp && (sp.kt > 700 || (sp.kt < 50 && sp.d >= 30));
 // night minutes of a flight: sample each minute between off-block and on-block along the great circle;
 // night = sun more than 6° below the horizon (end of evening to start of morning civil twilight). Scaled to the flight's total time.
 function nightMinutes(f){
@@ -2461,6 +2475,8 @@ const FIX_CHECKS = [
     fix: f => { const n = AIRPORTS?.[f.from] && AIRPORTS?.[f.to] ? nightMinutes(f) : 0; f.night = Math.min(n || 0, f.total); } },
   { id: "ifr", title: "IFR time longer than the flight", test: f => !isSim(f) && f.ifr > f.total + FIX_SLACK, detail: f => `IFR ${fmtMin(f.ifr)}, total ${fmtMin(f.total)}`,
     why: "A different column matched as IFR time.", fixLabel: "Set IFR time to the total time", fix: f => { f.ifr = f.total; } },
+  { id: "speed", title: "Ground speed doesn't add up", why: "The distance between the two airports over the flight time gives a ground speed below 50 or above 700 knots. Maybe a time or an airport is wrong.",
+    test: f => speedOff(flightSpeed(f)), detail: f => { const sp = flightSpeed(f); return `${Math.round(sp.d).toLocaleString()} NM in ${fmtMin(sp.t)} (${sp.what}) = ${sp.kt.toLocaleString()} knots`; } },
   { id: "apt", title: "Airport code not recognised", why: "Night time can't be worked out for these codes. Check for a typo, or a local code instead of the IATA / ICAO one.",
     test: f => !isSim(f) && !!AIRPORTS && ((f.from && !AIRPORTS[f.from]) || (f.to && !AIRPORTS[f.to])), detail: f => [f.from, f.to].filter(c => c && !AIRPORTS[c]).join(", ") },
   { id: "route", title: "No departure or arrival airport", why: "A flight without its route: night time can't be worked out and the PDF logbook shows an empty place.",
@@ -2623,7 +2639,7 @@ function restoreDraft(){
   for (const [k, x] of Object.entries(v)) { const el = $("#n_" + k); if (el && !k.startsWith("_") && !k.startsWith("ldg")) el.value = x; }
   if ($("#n_ldgDay")) setLdg("n_", v.ldgDay ?? "", v.ldgNight ?? "");
   if (v._pf) { const r = document.querySelector(`[name="n_pf"][value="${v._pf}"]`); if (r) r.checked = true; }
-  renderAddPreview();
+  renderAddPreview(); loadAirports().then(() => gsCheck("n_"));
 }
 $("#addFields").addEventListener("input", saveDraft); $("#addFields").addEventListener("change", saveDraft);
 const dropAims = $("#dropAims");
@@ -2935,7 +2951,16 @@ document.addEventListener("change", e => {
   delete $("#" + m[1] + "pfSeg")?.dataset.auto;
   if (+e.target.value > 0 && pfOf(m[1]) !== "pf") { const r = document.querySelector(`[name="${m[1]}pf"][value="pf"]`); if (r) r.checked = true; }
 });
+function gsCheck(pre){
+  const box = $("#" + pre + "gsNote"); if (!box) return;
+  const g = x => ($("#" + pre + x)?.value || "").trim(), t = x => parseTime(g(x));
+  const f = { from: g("from").toUpperCase(), to: g("to").toUpperCase(), out: t("out"), off: t("off"), on: t("on"), in: t("in"), total: parseDur(g("total")) };
+  const sp = flightSpeed(f); box.classList.toggle("hidden", !speedOff(sp)); if (!speedOff(sp)) return;
+  box.innerHTML = `<div class="notice" style="margin:0;border-color:var(--warn)"><b style="color:var(--warn)">⚠ This flight will result in a ground speed of ${sp.kt.toLocaleString()} knots.</b>` +
+    `<div style="margin:4px 0 0">${esc(f.from)}–${esc(f.to)} is ${Math.round(sp.d).toLocaleString()} NM, flown in ${fmtMin(sp.t)} (${sp.what}). Maybe a time or an airport was entered incorrectly.</div></div>`;
+}
 document.addEventListener("input", e => {
+  const g = (e.target.id || "").match(/^(n_|e_)(from|to|out|off|on|in|total)$/); if (g) loadAirports().then(() => gsCheck(g[1]));
   const m = (e.target.id || "").match(/^(n_|e_)(date|from|to|out|on|in)$/); if (!m) return;
   pfAuto(m[1]);
   if (m[1] === "n_" && /^(date|from|to)$/.test(m[2])) retCheck();
@@ -3108,7 +3133,7 @@ function flightFieldsHTML(pre, f = {}){
     (k === "date" ? ` type="date" required max="${logToday()}"` : LB_TIME.includes(k) ? ' class="mono" placeholder="HH:MM" inputmode="numeric"' : LB_DUR.includes(k) ? ' class="mono" placeholder="H:MM"' : k.startsWith("ldg") ? ' type="number" min="0" step="1"' : "") + ">";
   // off-block, take-off, landing, on-block always side by side in one row, on any screen
   const times = `<div class="field wide"><div class="times">${LB_TIME.map(k => `<div><label for="${pre}${k}">${{ out: "Off-block", off: "Take-off", on: "Landing", in: "On-block" }[k]}</label>${input(k)}</div>`).join("")}</div></div>` +
-    `<div class="field wide hidden" id="${pre}retNote"></div>`;
+    `<div class="field wide hidden" id="${pre}retNote"></div><div class="field wide hidden" id="${pre}gsNote"></div>`;
   // pilot flying puts the landing in by itself (day or night, from the sun at the arrival airport); a saved flight with landings was flown
   const pfOn = f.ldgDay || f.ldgNight ? "pf" : "";   // blank until the pilot (or a confirmed return flight) says
   const pfSeg = `<div class="field wide"><div class="seg" id="${pre}pfSeg" role="radiogroup" aria-label="Pilot flying or pilot monitoring" style="margin:0">` +
@@ -3157,7 +3182,7 @@ $("#lbSigClear").addEventListener("click", () => lbPad.reset());
 function lbOpenEdit(i){
   const f = data.flights[i]; if (!f) return; lbEditing = f; lbSigDrop = false;
   $("#lbEditFields").innerHTML = isSim(f) ? simFieldsHTML("e_", f) : flightFieldsHTML("e_", f);
-  lbShowSig(); requestAnimationFrame(() => lbPad.reset());
+  lbShowSig(); requestAnimationFrame(() => lbPad.reset()); loadAirports().then(() => gsCheck("e_"));
   $("#lbEditTitle").textContent = (isSim(f) ? "Edit simulator session: " : "Edit flight: ") + flightLabel(f); $("#lbEditErr").textContent = "";
   $("#lbEdit").classList.remove("hidden"); $("#lbEdit").scrollIntoView({ behavior: "smooth", block: "start" }); $("#e_date").focus({ preventScroll: true });
 }
