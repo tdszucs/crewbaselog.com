@@ -2797,6 +2797,14 @@ function flightSuggest(pre, k){
     if (k !== "total" && tot && !list.some(o => o.v === fmtMin(tot))) list.push({ v: fmtMin(tot), note: "the total time" });
     return list.filter(o => !val || o.v.startsWith(val)).map(o => ({ ...o, label: o.v }));
   }
+  // night time: worked out from the date, the airports and the block times (sun more than 6° below the horizon along the route)
+  if (k === "night") {
+    const g = x => ($("#" + pre + x)?.value || "").trim(), t = x => parseTime(g(x)), f = { date: g("date"), from: g("from").toUpperCase(), to: g("to").toUpperCase(), out: t("out"), in: t("in") };
+    if (!f.date || !f.out || !f.in || !AIRPORTS?.[f.from] || !AIRPORTS?.[f.to]) return [];
+    const block = tdiff(f.out, f.in); f.total = parseDur(g("total")) || block; if (!block) return [];
+    const m = Math.min(nightMinutes(f), f.total), v = fmtMin(m);
+    return (!val || v.startsWith(val)) ? [{ v, label: v, note: m ? `night on ${f.from}–${f.to} ${f.out}–${f.in}` : `all in daylight ${f.out}–${f.in}` }] : [];
+  }
   // Name of PIC: SELF first as soon as the typed letters fit it (S, SE ...), then the names in the logbook, most used first
   if (k === "picName") {
     const names = count(f => /^self$/i.test(f.picName || "") ? "SELF" : (f.picName || "").trim()), low = val.toLowerCase();
@@ -2815,7 +2823,7 @@ function flightSuggest(pre, k){
   return [];
 }
 const FN_KEYS = ["total", "pic", "copilot", "dual", "instructor", "ifr"];
-const SUG_KEYS = /^(n_|e_)(from|to|acType|reg|picName|total|pic|copilot|dual|instructor|ifr)$/;
+const SUG_KEYS = /^(n_|e_)(from|to|acType|reg|picName|total|pic|copilot|dual|instructor|ifr|night)$/;
 function showSuggest(inp){
   const [, pre, k] = inp.id.match(SUG_KEYS), list = flightSuggest(pre, k);
   let box = inp.parentNode.querySelector(".sugbox");
