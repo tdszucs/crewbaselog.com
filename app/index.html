@@ -169,6 +169,7 @@ h2{font-size:24px;letter-spacing:-.02em;margin:0 0 6px}
 .lbcard .l2{display:block;color:var(--muted);font-size:13px;margin-top:2px;overflow-wrap:anywhere}
 .lbbox #lbEdit{background:var(--surface)!important}
 .lbcard.open{border-color:var(--brand);border-bottom-left-radius:0;border-bottom-right-radius:0;margin-bottom:0}
+#lbEdit.inplace{border:1px solid var(--brand)!important;border-top:0!important;border-radius:0 0 12px 12px;margin:0 0 8px!important;scroll-margin-top:150px}
 .lbdetail{border:1px solid var(--brand);border-top:0;border-radius:0 0 12px 12px;background:var(--surface);padding:10px 14px 14px;margin:0 0 8px}
 .ldhead{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:0 0 8px;font-size:14px}.ldx{border:0;background:var(--bg);color:var(--ink);width:32px;height:32px;border-radius:50%;font-size:20px;line-height:1;cursor:pointer;flex:none}
 .lbdetail dl{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px 14px;margin:0}.lbdetail dt{font-size:12px;color:var(--muted)}.lbdetail dd{margin:0;font-size:14px;font-family:"JetBrains Mono",monospace;overflow-wrap:anywhere}
@@ -1556,7 +1557,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "30 Oct 2026 · 22";
+const APP_VERSION = "30 Oct 2026 · 23";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
@@ -3955,6 +3956,8 @@ function lbCards(rows, hits){
   return h + "</div>";
 }
 function renderLogbook(){
+  // the list is drawn again: a form open under a card goes back above it first (it would be wiped with the list)
+  if ($("#lbEdit").closest("#lbTable")) { lbEditHome.after($("#lbEdit")); $("#lbEdit").classList.remove("inplace"); }
   const F = data.flights, sum = k => F.reduce((s,f) => s + (f[k]||0), 0);
   $("#lbStats").innerHTML = [["Flights", F.filter(f => !isSim(f)).length.toLocaleString()], ["Total", fmtHrs(sum("total"))], ["PIC", fmtHrs(sum("pic"))], ["Night", fmtHrs(sum("night"))]]
     .map(([k,v]) => `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`).join("");
@@ -4066,7 +4069,7 @@ function lbOpenEdit(i){
   if (!isSim(f)) { roleByType("e_"); timeSum("e_"); loadAirports().then(() => logBtns("e_")); Promise.all([loadAirports(), loadAptNames()]).then(() => aptFlags("e_")); }
   lbShowSig(); requestAnimationFrame(() => lbPad.reset()); loadAirports().then(() => gsCheck("e_"));
   $("#lbEditTitle").textContent = (isSim(f) ? "Edit simulator session: " : "Edit flight: ") + flightLabel(f); $("#lbEditErr").innerHTML = back ? '<span style="color:var(--warn)">Your unsaved changes to this flight are back. Save flight to keep them, or Cancel.</span>' : "";
-  $("#lbEdit").classList.remove("hidden"); $("#lbEdit").scrollIntoView({ behavior: "smooth", block: "start" }); $("#e_date").focus({ preventScroll: true });
+  $("#lbEdit").classList.remove("hidden"); $("#lbEdit").scrollIntoView({ behavior: "smooth", block: "start" });   // nothing focused: no date picker or keyboard popping up
 }
 const editDraftKey = () => "cbl_editdraft_" + (user?.id || "");
 // which flight a kept edit belongs to (plain codes: the airport list may not be loaded yet after a reload)
@@ -4085,6 +4088,8 @@ function lbCloseEdit(){ lbEditing = null; $("#lbEdit").classList.add("hidden"); 
 // the edit form can open inside Troubleshooting, under the line being fixed; it goes back to the Logbook tab when closed
 let fixEditCtx = null; const lbEditHome = document.createComment("lbEdit home");
 function parkEdit(){
+  if ($("#lbEdit").closest("#lbTable")) { lbEditHome.after($("#lbEdit")); $$("#lbTable .lbcard.open").forEach(c => c.classList.remove("open")); }
+  $("#lbEdit").classList.remove("inplace");
   if (!fixEditCtx) return; const box = $("#lbEdit").closest(".fixedit"); lbEditHome.after($("#lbEdit")); box?.remove();
   document.querySelectorAll("#fixList .editing").forEach(r => r.classList.remove("editing")); fixEditCtx = null;
 }
@@ -4104,7 +4109,9 @@ function lbDelete(i){
 $("#lbTable").addEventListener("click", e => {
   const x = e.target.closest("[data-dclose]"), go = e.target.closest("[data-doedit]");
   if (x) return lbShow(null);
-  if (go) { lbShow(null); lbCloseEdit(); return lbOpenEdit(+go.dataset.doedit); }
+  // Edit flight: the form opens in place, under the flight's card
+  if (go) { const i = +go.dataset.doedit, card = $(`#lbTable .lbcard[data-edit="${i}"]`); lbShow(null); lbCloseEdit(); lbOpenEdit(i);
+    if (card) { if (!lbEditHome.parentNode) $("#lbEdit").before(lbEditHome); card.after($("#lbEdit")); card.classList.add("open"); $("#lbEdit").classList.add("inplace"); $("#lbEdit").scrollIntoView({ behavior: "smooth", block: "start" }); } return; }
   const card = e.target.closest(".lbcard[data-edit]"), del = e.target.closest("[data-fdel]");
   if (card) lbShow(+card.dataset.edit, card); else if (del) lbDelete(+del.dataset.fdel);
 });
