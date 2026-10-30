@@ -552,6 +552,12 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
       <h2>Your data</h2>
       <p class="lead">Add your hours, drop your files, download your logbook. Everything is read in your browser; nothing is uploaded.</p>
 
+      <div class="card" id="allCard">
+        <div class="drop" id="dropAll"><b>Drop any file here</b><br><span class="hint">or tap to choose · your full backup, an old logbook (CSV, Excel, PDF) or an eCrew report. We work out which it is.</span>
+          <input type="file" id="allFile" accept=".csv,.txt,.tsv,.xlsx,.xls,.pdf,.json,.zip" multiple class="hidden"></div>
+        <p class="hint" style="margin:10px 0 0;font-size:13.5px">Or follow the steps below, with an explanation for each kind of file.</p>
+      </div>
+
       <div class="card" id="bkCard">
         <h3><span class="stepn">0</span>Already have a full backup?</h3>
         <p class="hint step-sub">Restore it to get your whole logbook back, then skip to step 3 to add your new flights.</p>
@@ -2291,6 +2297,17 @@ async function readLogbookPDF(f){
 /* several files in one go (e.g. last time's CrewBase Log CSV + a new eCrew export):
    our own CSV imports straight away, other files go through the column check one by one */
 let impQueue = [], impLog = [], impErrs = 0, impBatch = null;
+/* one drop zone for every file (backups are restored, everything else imported: handleFiles tells them apart),
+   and on a computer a file dropped anywhere on Your data */
+const dropAll = $("#dropAll");
+dropAll.addEventListener("click", () => $("#allFile").click());
+$("#allFile").addEventListener("change", e => { handleFiles(e.target.files); e.target.value = ""; });
+["dragenter","dragover"].forEach(ev => dropAll.addEventListener(ev, e => { e.preventDefault(); dropAll.classList.add("over"); }));
+["dragleave","drop"].forEach(ev => dropAll.addEventListener(ev, e => { e.preventDefault(); dropAll.classList.remove("over"); }));
+dropAll.addEventListener("drop", e => handleFiles(e.dataTransfer.files));
+const pageDrop = e => !$('[data-p="import"]').classList.contains("hidden") && !e.target.closest?.(".drop") && [...(e.dataTransfer?.types || [])].includes("Files");
+document.addEventListener("dragover", e => { if (pageDrop(e)) e.preventDefault(); });
+document.addEventListener("drop", e => { if (!pageDrop(e)) return; e.preventDefault(); handleFiles(e.dataTransfer.files); });
 async function handleFiles(list){
   let files = [...(list || [])]; if (!files.length) return;
   // a CrewBase Log full backup dropped here: restore it instead of importing
@@ -2316,7 +2333,7 @@ async function nextFile(){
   }
   $("#impManual").checked = false;
   if (!impLog.length) return;
-  if (impErrs === impLog.length) return $("#impErr").innerHTML = impLog.join("<br>");
+  if (impErrs === impLog.length) { $("#impErr").innerHTML = impLog.join("<br>"); $("#impErr").scrollIntoView({ behavior: "smooth", block: "center" }); return; }
   const ns = data.flights.filter(isSim).length, nf = data.flights.length - ns;
   // a PDF that matched its own totals needs no check by hand
   const checked = impLog.some(l => l.includes("Matches your PDF's own totals"));
