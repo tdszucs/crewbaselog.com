@@ -171,6 +171,7 @@ h2{font-size:24px;letter-spacing:-.02em;margin:0 0 6px}
 .sunav{display:flex;justify-content:space-between;align-items:center;margin:22px 0 0}.sualt{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0 0}
 .suinfo{margin:14px 0 0}.suinfo>summary{cursor:pointer;color:var(--brand);font-weight:600}
 body.insetup .bbar{display:none}
+.times input.bad{border-color:var(--bad);box-shadow:0 0 0 1px var(--bad)}
 .rolerow{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px}.rolerow .seg{margin:0}
 .rolefield .roleneed{display:none;margin-top:6px}.rolefield.need .roleneed{display:block;color:var(--warn)}.rolefield.need .seg{border-color:var(--warn);box-shadow:0 0 0 1px var(--warn)}
 .rolefield.flash .seg{animation:roleflash .5s 3}@keyframes roleflash{50%{box-shadow:0 0 0 4px var(--warn)}}
@@ -3343,6 +3344,29 @@ const selectAll = el => { try { el.setSelectionRange(0, el.value.length); } catc
 document.addEventListener("focusin", e => { if (!TIME_BOX.test(e.target.id || "") || !e.target.value) return; e.target.dataset.fresh = "1"; requestAnimationFrame(() => selectAll(e.target)); });
 document.addEventListener("click", e => { if (!TIME_BOX.test(e.target.id || "") || !e.target.dataset.fresh) return; delete e.target.dataset.fresh; if (e.target.value) selectAll(e.target); });
 document.addEventListener("focusout", e => { if (TIME_BOX.test(e.target.id || "")) delete e.target.dataset.fresh; });
+/* Off-block, take-off, landing and on-block take a time of day, 00:00 to 23:59, as 0210, 02:10 or 2:10. A key that can't lead
+   to one (25, 2360, letters) is refused as it is typed; a time left unfinished is marked when the box is left */
+const TIME_FULL = /^(?:([01]\d|2[0-3]):?([0-5]\d)|(\d):([0-5]\d))$/;
+const timeStart = v => v === "" || /^(\d|[01]\d|2[0-3]|[01]\d[0-5]|2[0-3][0-5]|[01]\d[0-5]\d|2[0-3][0-5]\d)$/.test(v) || /^(\d|[01]\d|2[0-3]):([0-5]\d?)?$/.test(v);
+const formTime = v => { const m = String(v || "").trim().match(TIME_FULL); return m ? (m[1] ? `${m[1]}:${m[2]}` : `0${m[3]}:${m[4]}`) : ""; };
+const TIME_NAMES = { out: "Off-block", off: "Take-off", on: "Landing", in: "On-block" };
+function timeMsg(pre, html){ const b = $("#" + pre + "timeErr"); if (b) { b.innerHTML = html || ""; b.classList.toggle("hidden", !html); } }
+document.addEventListener("input", e => {
+  const m = (e.target.id || "").match(TIME_BOX); if (!m) return;
+  const el = e.target, v = el.value.trim();
+  if (timeStart(v)) { el.dataset.ok = v; if ((v && !formTime(v)) || (!v && !e.isTrusted)) return; el.classList.remove("bad"); if (!$$(`#${m[1]}out,#${m[1]}off,#${m[1]}on,#${m[1]}in`).some(x => x.classList.contains("bad"))) timeMsg(m[1], ""); return; }
+  e.stopImmediatePropagation(); el.value = el.dataset.ok || "";
+  timeMsg(m[1], `${TIME_NAMES[m[2]]}: a time from <b>00:00</b> to <b>23:59</b>, e.g. 0210 or 02:10.`);
+  el.dispatchEvent(new Event("input", { bubbles: true }));
+});
+document.addEventListener("focusin", e => { if (TIME_BOX.test(e.target.id || "")) e.target.dataset.ok = e.target.value.trim(); });
+document.addEventListener("focusout", e => {
+  const m = (e.target.id || "").match(TIME_BOX); if (!m) return;
+  const el = e.target, v = el.value.trim(); if (!v) return;
+  const t = formTime(v);
+  if (t) { if (t !== el.value) { el.value = t; el.dataset.ok = t; el.dispatchEvent(new Event("input", { bubbles: true })); } return; }
+  el.classList.add("bad"); timeMsg(m[1], `${TIME_NAMES[m[2]]}: “${esc(v)}” isn't a full time. Enter 00:00 to 23:59, e.g. 0210 or 02:10.`);
+});
 // a block or flight time typed in full (0210 or 02:10) goes on to the next box: off-block → take-off → landing → on-block → aircraft type
 document.addEventListener("input", e => {
   const m = (e.target.id || "").match(/^(n_|e_)(out|off|on|in)$/); if (!m || !(e.inputType || "").startsWith("insert")) return;
@@ -3569,7 +3593,7 @@ function flightFieldsHTML(pre, f = {}){
     `<div class="relshare${pfOn === "rel" ? "" : " hidden"}" id="${pre}relShare"><span style="width:100%">Log a share of the block time:</span>${[["1/2", "½"], ["1/3", "⅓"], ["2/3", "⅔"]].map(([v, l]) => `<button type="button" class="btn ghost small" data-share="${v}" aria-pressed="false">${l}</button>`).join("")}` +
     `<div class="hint" style="width:100%">Changes the total, function, night and IFR times together. Or type your actual seat time in Total time.</div></div></div>`;
   // off-block, take-off, landing, on-block always side by side in one row, on any screen; then the pilot flying / monitoring / relief switch
-  const times = `<div class="field wide"><div class="times">${LB_TIME.map(k => `<div><label for="${pre}${k}">${{ out: "Off-block", off: "Take-off", on: "Landing", in: "On-block" }[k]}</label>${input(k)}</div>`).join("")}</div></div>` + pfSeg +
+  const times = `<div class="field wide"><div class="times">${LB_TIME.map(k => `<div><label for="${pre}${k}">${{ out: "Off-block", off: "Take-off", on: "Landing", in: "On-block" }[k]}</label>${input(k)}</div>`).join("")}</div><p class="err hidden" id="${pre}timeErr" role="alert" style="margin:6px 0 0"></p></div>` + pfSeg +
     `<div class="field wide hidden" id="${pre}retNote"></div><div class="field wide hidden" id="${pre}gsNote"></div>`;
   const box = k => k === "date" ? `<span class="datewrap">${input(k)}</span>` : LOG_KEYS.includes(k) ? `<span class="logwrap">${input(k)}<button type="button" class="logbtn hidden" data-logfill="${pre}${k}"></button></span>` : input(k);
   return FIELDS.filter(([k]) => !LB_TIME.includes(k)).map(([k, label]) => `<div class="field${k === "remarks" ? " wide" : ""}"><label for="${pre}${k}">${label}</label>${box(k)}</div>` + (k === "to" ? times : "")).join("");
@@ -3597,11 +3621,11 @@ function readFlightForm(pre, base = {}){
   f.flightNo = f.flightNo === data.profile.airline ? "" : withAirline(f.flightNo);
   f.from = aptStyle(f.from); f.to = aptStyle(f.to);
   f.acType = acTypeName(g("acType")); f.picName = g("picName"); f.remarks = g("remarks");
-  for (const k of LB_TIME) { f[k] = parseTime(g(k)); if (g(k) && !f[k]) bad.push(k); }
+  for (const k of LB_TIME) { f[k] = formTime(g(k)); if (g(k) && !f[k]) bad.push(k); }
   for (const k of LB_DUR) { f[k] = parseDur(g(k)); if (g(k) && !f[k] && !/^0*[:.]?0*$/.test(g(k))) bad.push(k); }
   for (const k of ["ldgDay","ldgNight"]) f[k] = Math.max(0, parseInt(g(k)) || 0);
   if (!f.total && f.out && f.in) f.total = tdiff(f.out, f.in);
-  const err = bad.length ? "Check: " + bad.map(k => FIELDS.find(x => x[0] === k)[1]).join(", ") + ". Times as HH:MM, durations as H:MM."
+  const err = bad.length ? "Check: " + bad.map(k => FIELDS.find(x => x[0] === k)[1]).join(", ") + ". Times of day 00:00 to 23:59 (HH:MM), durations as H:MM."
     : f.date > logToday() ? FUTURE_MSG : notFlown(f) ? NOT_YET_MSG : !valid(f) ? "A flight needs a date and a route or total time." : "";
   return { f, err };
 }
