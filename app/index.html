@@ -168,6 +168,10 @@ h2{font-size:24px;letter-spacing:-.02em;margin:0 0 6px}
 .lbcard .l1{display:flex;justify-content:space-between;gap:10px;font-weight:600;font-size:15px}.lbcard .l1 b{font-family:"JetBrains Mono",monospace}
 .lbcard .l2{display:block;color:var(--muted);font-size:13px;margin-top:2px;overflow-wrap:anywhere}
 .lbbox #lbEdit{background:var(--surface)!important}
+.lbcard.open{border-color:var(--brand);border-bottom-left-radius:0;border-bottom-right-radius:0;margin-bottom:0}
+.lbdetail{border:1px solid var(--brand);border-top:0;border-radius:0 0 12px 12px;background:var(--surface);padding:10px 14px 14px;margin:0 0 8px}
+.ldhead{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:0 0 8px;font-size:14px}.ldx{border:0;background:var(--bg);color:var(--ink);width:32px;height:32px;border-radius:50%;font-size:20px;line-height:1;cursor:pointer;flex:none}
+.lbdetail dl{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px 14px;margin:0}.lbdetail dt{font-size:12px;color:var(--muted)}.lbdetail dd{margin:0;font-size:14px;font-family:"JetBrains Mono",monospace;overflow-wrap:anywhere}
 .unf{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 0;border-top:1px solid var(--line)}.unf:first-child{border-top:0}.unf .fl-btns{margin:0}
 @media (max-width:700px){
   /* the flights near the top: totals in one compact row, no explanations */
@@ -1384,7 +1388,7 @@ document.addEventListener("click", e => {
   const o = $("#n_out"); o.scrollIntoView({ behavior: "smooth", block: "center" }); o.focus();
 });
 // the last flight on the home screen opens like a logbook line
-document.addEventListener("click", e => { const c = e.target.closest("#homeDash [data-edit]"); if (!c) return; tab("logbook"); lbCloseEdit(); lbOpenEdit(+c.dataset.edit); });
+document.addEventListener("click", e => { const c = e.target.closest("#homeDash [data-edit]"); if (!c) return; tab("logbook"); lbCloseEdit(); lbShow(+c.dataset.edit); $(".lbdetail")?.scrollIntoView({ behavior: "smooth", block: "center" }); });
 /* the PDF logbook in one tap (format and pages as set on Your data): the share sheet where the phone has one
    (mail, Files, print), else a download */
 async function pdfNow(btn){
@@ -1552,7 +1556,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "30 Oct 2026 · 21";
+const APP_VERSION = "30 Oct 2026 · 22";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
@@ -4098,9 +4102,28 @@ function lbDelete(i){
   if (ctx) { logFix(ctx.id, { kind: "del", copy: ctx.copy, msg: "Deleted" }); fixDone(); }
 }
 $("#lbTable").addEventListener("click", e => {
-  const ed = e.target.closest("[data-edit]"), del = e.target.closest("[data-fdel]");
-  if (ed) { lbCloseEdit(); lbOpenEdit(+ed.dataset.edit); } else if (del) lbDelete(+del.dataset.fdel);
+  const x = e.target.closest("[data-dclose]"), go = e.target.closest("[data-doedit]");
+  if (x) return lbShow(null);
+  if (go) { lbShow(null); lbCloseEdit(); return lbOpenEdit(+go.dataset.doedit); }
+  const card = e.target.closest(".lbcard[data-edit]"), del = e.target.closest("[data-fdel]");
+  if (card) lbShow(+card.dataset.edit, card); else if (del) lbDelete(+del.dataset.fdel);
 });
+/* A flight tapped in the Logbook opens in place to read: every column of its line, with × to close it and Edit flight */
+function lbShow(i, card){
+  const open = $(".lbdetail"), was = open?.dataset.i; open?.previousElementSibling?.classList.remove("open"); open?.remove();
+  if (i == null || String(i) === was) return;
+  const f = data.flights[i]; if (!f) return; const sim = isSim(f), t = m => m ? fmtMin(m) : "–";
+  const rows = sim ? [["Date", fmtDate(f.date)], ["Simulator", f.fstdType || "–"], ["Session time", t(f.fstdTime)], ["Remarks", f.remarks || "–"]] : [
+    ["Date", fmtDate(f.date)], ["Flight", f.flightNo || "–"], ["Route", `${f.from || "?"} → ${f.to || "?"}`], ["Aircraft", [f.acType, f.reg].filter(Boolean).join(" · ") || "–"],
+    ["Off-block / take-off", `${f.out || "–"} / ${f.off || "–"}`], ["Landing / on-block", `${f.on || "–"} / ${f.in || "–"}`], ["Name of PIC", f.picName || "–"], ["Total time", t(f.total)],
+    ["PIC", t(f.pic)], ["Co-pilot", t(f.copilot)], ["Dual", t(f.dual)], ["Instructor", t(f.instructor)], ["Night", t(f.night)], ["IFR", t(f.ifr)],
+    ["Landings day / night", `${f.ldgDay || 0} / ${f.ldgNight || 0}`], ["Remarks", f.remarks || "–"]];
+  (card || $(`#lbTable .lbcard[data-edit="${i}"]`))?.classList.add("open");
+  (card || $(`#lbTable .lbcard[data-edit="${i}"]`))?.insertAdjacentHTML("afterend", `<div class="lbdetail" data-i="${i}">
+    <div class="ldhead"><b>${esc(flightLabel(f))}</b><button type="button" class="ldx" data-dclose aria-label="Close">×</button></div>
+    <dl>${rows.map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(String(v))}</dd></div>`).join("")}</dl>${f.remarkSig ? `<p class="hint" style="margin:6px 0 0">Signed by the instructor ✍</p>` : ""}
+    <div class="fl-btns" style="margin-top:10px"><button class="btn small" type="button" data-doedit="${i}">Edit flight</button></div></div>`);
+}
 $("#lbSearch").addEventListener("input", renderLogbook); $("#lbYear").addEventListener("change", renderLogbook); $("#lbType").addEventListener("change", renderLogbook);
 $("#lbEditCancel").addEventListener("click", () => { dropEditDraft(); lbCloseEdit(); });
 $("#lbEditDel").addEventListener("click", () => lbDelete(data.flights.indexOf(lbEditing)));
