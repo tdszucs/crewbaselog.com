@@ -2795,6 +2795,8 @@ function flightSuggest(pre, k){
     if (out && inn && tdiff(out, inn)) list.push({ v: fmtMin(tdiff(out, inn)), note: `block time ${out}–${inn}` });
     const tot = parseDur($("#" + pre + "total")?.value || "");
     if (k !== "total" && tot && !list.some(o => o.v === fmtMin(tot))) list.push({ v: fmtMin(tot), note: "the total time" });
+    // IFR with "Airline flights are IFR" on in the profile: the flight's total time first (the block time while no total is entered)
+    if (k === "ifr" && data.profile.autoIfr !== false && list.length) { const o = tot ? list.find(x => x.v === fmtMin(tot)) : list[0]; list.splice(list.indexOf(o), 1); list.unshift({ v: o.v, note: "total time · your profile: airline flights are IFR" }); }
     return list.filter(o => !val || o.v.startsWith(val)).map(o => ({ ...o, label: o.v }));
   }
   // night time: worked out from the date, the airports and the block times (sun more than 6° below the horizon along the route)
@@ -2826,6 +2828,7 @@ const FN_KEYS = ["total", "pic", "copilot", "dual", "instructor", "ifr"];
 const SUG_KEYS = /^(n_|e_)(from|to|acType|reg|picName|total|pic|copilot|dual|instructor|ifr|night)$/;
 function showSuggest(inp){
   const [, pre, k] = inp.id.match(SUG_KEYS), list = flightSuggest(pre, k);
+  $$(".sugbox").forEach(b => b._inp !== inp && b.remove());   // one list at a time
   let box = inp.parentNode.querySelector(".sugbox");
   if (!list.length || (list.length === 1 && list[0].v.toUpperCase() === inp.value.trim().toUpperCase())) { box?.remove(); return; }
   inp.parentNode.classList.add("sugwrap");   // the field's own box anchors the list: moving the input would take its focus (and the keyboard) away
