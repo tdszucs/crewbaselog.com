@@ -752,7 +752,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
     <div data-p="stats" class="hidden">
       <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-end;flex-wrap:wrap">
         <div><h2>Statistics</h2><p class="lead" style="margin-bottom:0">The hours airlines ask for in a job application, from your logbook. <span id="stInfo"></span></p></div>
-        <button class="btn ghost small" type="button" id="stCopy">Copy summary</button>
+        <div class="row-actions" style="margin:0"><button class="btn small" type="button" data-pdfnow>PDF logbook</button><button class="btn ghost small" type="button" id="stShare">Share summary</button><button class="btn ghost small" type="button" id="stCopy">Copy summary</button></div>
       </div>
       <p class="hint" id="stTypesNote" style="margin:16px 0 0;font-size:14px"></p>
       <div class="card hidden" id="stEmpty"><p class="hint" style="margin:0">No flights yet. <a href="#" data-go="import">Import or add your flights</a>.</p></div>
@@ -3326,12 +3326,23 @@ function renderStats(){
   $("#stInfo").textContent = (F.length ? `${T.n.toLocaleString()} flight${T.n === 1 ? "" : "s"}${T.sims ? ` and ${T.sims} simulator session${T.sims === 1 ? "" : "s"}` : ""}, ${fmtDate(F[0].date)} to ${fmtDate(F[F.length-1].date)}.` : "") +
     (hasPrev() ? ` All-time figures include ${h(data.prev.total)} brought forward from earlier logbooks.` : "");
 }
-$("#stCopy").addEventListener("click", async () => {
+function statSummary(){
   const P = data.profile, T = withPrev(statTotals(data.flights)), h = fmtMin;
   const lines = [`Flight hours summary${P.name ? " - " + P.name : ""}${P.lic ? " (" + P.lic + ")" : ""}`, `As of ${fmtDate(todayISO())}`, "",
     `Total time: ${h(T.total)}`, `PIC: ${h(T.pic)}`, `Co-pilot (SIC): ${h(T.copilot)}`, `Multi-crew: ${h(T.mp)}`, `Multi-engine: ${h(T.me)}`,
     `IFR: ${h(T.ifr)}`, `Night: ${h(T.night)}`, `Instructor: ${h(T.instructor)}`, `Sectors: ${T.n}`, `Landings: ${T.ldg}`, `Simulator (FSTD): ${h(T.fstd)}`, "",
     ...[...$("#stPeriods").querySelectorAll("tr"), ...$("#stTypes").querySelectorAll("tr")].map(r => [...r.children].map(c => c.textContent).join("\t"))];
+  return lines.join("\n");
+}
+// the hours summary to the share sheet (mail, messages, notes) where the device has one, else copied
+$("#stShare").addEventListener("click", async () => {
+  const text = statSummary();
+  if (navigator.share) { try { await navigator.share({ title: "Flight hours summary", text }); return; } catch (x) { if (x.name === "AbortError") return; } }
+  try { await navigator.clipboard.writeText(text); $("#stShare").textContent = "Copied"; } catch { $("#stShare").textContent = "Copy failed"; }
+  setTimeout(() => $("#stShare").textContent = "Share summary", 1500);
+});
+$("#stCopy").addEventListener("click", async () => {
+  const lines = [statSummary()];
   try { await navigator.clipboard.writeText(lines.join("\n")); $("#stCopy").textContent = "Copied"; } catch { $("#stCopy").textContent = "Copy failed"; }
   setTimeout(() => $("#stCopy").textContent = "Copy summary", 1500);
 });
