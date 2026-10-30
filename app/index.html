@@ -84,6 +84,8 @@ input:focus,select:focus{outline:2px solid color-mix(in srgb,var(--brand) 40%,tr
 .tabs button{flex:none;background:none;border:0;border-bottom:2px solid transparent;padding:10px 12px;font:500 14px Inter,sans-serif;color:var(--muted);cursor:pointer}
 .tabs button.on{color:var(--ink);border-bottom-color:var(--accent)}
 .tabs button.tabadd{color:var(--brand);font-weight:700}
+.tabs button.due,.moremenu button.due{color:var(--warn)}
+#bbar [data-more].due{position:relative}#bbar [data-more].due::after{content:"";position:absolute;top:4px;left:calc(50% + 8px);width:8px;height:8px;border-radius:50%;background:var(--warn)}
 .bbar,.moremenu{display:none}
 @media (max-width:700px){
   #tabs{display:none}
@@ -399,6 +401,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
     <nav class="tabs" id="tabs">
       <button data-t="overview" class="on">Overview</button>
       <button data-t="profile">Profile</button>
+      <button data-t="expiry" id="tabExp">Expiry dates</button>
       <button data-t="import">Your data</button>
       <button data-t="logbook">Logbook</button>
       <button data-t="add" class="tabadd">+ Add flight</button>
@@ -417,15 +420,15 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
     <button data-more><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg><span>More</span></button>
   </nav>
   <div class="moremenu hidden" id="moreMenu" role="menu">
-    <button data-t="import">Your data</button><button data-t="crewbase">Crew Base</button><button data-t="jobs">Jobs</button><button data-t="profile">Profile</button><button data-t="admin" id="moreAdmin" class="hidden">Admin</button>
+    <button data-t="import">Your data</button><button data-t="crewbase">Crew Base</button><button data-t="jobs">Jobs</button><button data-t="expiry" id="moreExp">Expiry dates</button><button data-t="profile">Profile</button><button data-t="admin" id="moreAdmin" class="hidden">Admin</button>
   </div>
   <main>
     <!-- overview -->
     <div data-p="overview">
       <h2 id="hello">Welcome</h2>
       <p class="lead">A logbook that stays with you: nothing about your flying is uploaded.</p>
-      <div id="setupNotice" class="notice hidden"></div>
       <div id="homeDash"></div>
+      <div id="setupNotice" class="notice hidden"></div>
       <details id="howBox" class="howbox"><summary>First time here? <b>How CrewBase Log works</b></summary>
       <div class="card flow">
         <h3>How CrewBase Log works</h3>
@@ -481,6 +484,18 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
       </form>
     </div>
 
+    <!-- expiry dates and recency -->
+    <div data-p="expiry" class="hidden">
+      <h2 id="expSection">Expiry dates</h2>
+      <p class="lead">Your licence, medical and OPC. Use <b>+ Add item</b> for anything else you want to track. Amber means due within 60 days.</p>
+      <div class="card" id="recencyCard"></div>
+      <div class="card">
+        <div class="exp exp-head" style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;padding-top:0"><div>Item</div><div>Expires</div><div>Note</div><div>Status</div><div></div></div>
+        <div id="expList"></div>
+        <div class="row-actions" style="margin-top:14px"><button class="btn ghost small" id="btnAddExp" type="button">+ Add item</button><span id="expSaved" class="ok-msg"></span></div>
+      </div>
+    </div>
+
     <!-- profile -->
     <div data-p="profile" class="hidden">
       <h2>Pilot profile</h2>
@@ -497,14 +512,6 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
         </div>
         <div class="row-actions"><button class="btn" type="submit">Save profile</button><span id="profSaved" class="ok-msg"></span></div>
       </form>
-      <h2 id="expSection" style="margin-top:30px">Expiry dates</h2>
-      <p class="lead">Your licence, medical and OPC. Use <b>+ Add item</b> for anything else you want to track. Amber means due within 60 days.</p>
-      <div class="card" id="recencyCard"></div>
-      <div class="card">
-        <div class="exp exp-head" style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;padding-top:0"><div>Item</div><div>Expires</div><div>Note</div><div>Status</div><div></div></div>
-        <div id="expList"></div>
-        <div class="row-actions" style="margin-top:14px"><button class="btn ghost small" id="btnAddExp" type="button">+ Add item</button><span id="expSaved" class="ok-msg"></span></div>
-      </div>
       <h2 id="sigSection" style="margin-top:30px">Logbook signature</h2>
       <p class="lead">Used to sign each page of your printed logbook. Draw with a finger, stylus or mouse.</p>
       <div class="grid2" style="gap:18px">
@@ -1115,7 +1122,7 @@ function tab(t){
   $$("[data-p]").forEach(p => p.classList.toggle("hidden", p.dataset.p !== t));
   // the page is kept in the address, so a reload (an iPhone switching apps) opens it again
   try { if (location.hash !== "#" + t) history.replaceState(null, "", "#" + t); } catch {}
-  ({ overview: renderOverview, profile: () => { renderProfile(); renderExpiries(); renderSignature(); }, logbook: renderLogbook, add: openAddForm, import: renderYourData, stats: renderStats, crewbase: renderCrewBase, admin: renderAdmin })[t]?.();
+  ({ overview: renderOverview, profile: () => { renderProfile(); renderSignature(); }, expiry: renderExpiries, logbook: renderLogbook, add: openAddForm, import: renderYourData, stats: renderStats, crewbase: renderCrewBase, admin: renderAdmin })[t]?.();
   window.scrollTo(0,0);
 }
 $("#tabs").addEventListener("click", e => { if (e.target.dataset.t) tab(e.target.dataset.t); });
@@ -1374,7 +1381,6 @@ function onboardHTML(){
   const p = data.profile, step = n => `<span class="hint" style="margin:0;font-size:13px">Step ${n} of 3</span>`, skip = `<button class="btn ghost small" type="button" data-obskip>Skip</button>`;
   if (obStep === 1) return `<div class="card hcard ob"><h3>Welcome! Three quick questions</h3>${step(1)}
     <div class="field" style="margin-top:10px"><label for="obName">Your name, as on your licence</label><input id="obName" autocomplete="name" value="${esc(p.name || "")}"></div>
-    <div class="field"><label for="obLic">Licence number <span class="hint" style="font-weight:400">(optional)</span></label><input id="obLic" class="mono" value="${esc(p.lic || "")}" placeholder="e.g. AE.FCL.12345"></div>
     <div class="fl-btns"><button class="btn" type="button" data-obnext>Next</button>${skip}</div></div>`;
   if (obStep === 2) return `<div class="card hcard ob"><h3>Where do you fly?</h3>${step(2)}
     <div class="lbgrid" style="margin-top:10px"><div class="field"><label for="obAirline">Airline code (IATA)</label><input id="obAirline" class="mono" maxlength="2" style="text-transform:uppercase" value="${esc(p.airline || "")}" placeholder="e.g. EY"></div>
@@ -1388,7 +1394,7 @@ function onboardHTML(){
 document.addEventListener("click", e => {
   const next = e.target.closest("[data-obnext]"), skip = e.target.closest("[data-obskip]"), app = e.target.closest("[data-obapp]"); if (!next && !skip && !app) return;
   const p = data.profile;
-  if (next && obStep === 1) { p.name = $("#obName").value.trim() || p.name; p.lic = ($("#obLic").value.trim() || p.lic || "").toUpperCase(); }
+  if (next && obStep === 1) p.name = $("#obName").value.trim() || p.name;
   if (next && obStep === 2) { p.airline = $("#obAirline").value.toUpperCase().replace(/[^A-Z0-9]/g, "") || p.airline || ""; p.base = $("#obBase").value.trim().toUpperCase() || p.base || ""; p.role = $('[name="obRole"]:checked')?.value || p.role; }
   if (next || skip) { obStep++; save(); renderOverview(); return; }
   // the logbook's place: the drop zone it goes to, with that app's export steps
@@ -1409,11 +1415,18 @@ function renderHome(){
     return `<div class="htile${c}"><div class="k">${k}</div><div class="v">${fmtHrs(v)}</div><div class="lim">${lim ? `limit ${lim.toLocaleString()} h` : note || ""}</div>${lim ? `<div class="bar"><i style="width:${Math.min(100, Math.round(pc * 100))}%"></i></div>` : ""}</div>`; };
   const last = [...F].filter(f => !isSim(f)).sort((a, b) => (b.date + b.out).localeCompare(a.date + a.out))[0], li = last ? F.indexOf(last) : -1;
   const rec = typeRecency(), hasLdg = F.some(f => f.ldgDay || f.ldgNight);
-  box.innerHTML = installHTML() + rosterAddHTML() +
+  const lastHTML = last ? `<div class="card hcard"><h3>Last flight</h3>${lbCards([{ f: last, i: li }], [{ f: last, i: li }]).replace('<div class="lbcards">', '<div class="lbcards hlast">').replace(/<div class="lbmonth">.*?<\/div>/, "")}` +
+      `<div class="row-actions" style="margin:10px 0 0"><button class="btn" type="button" data-go="add">+ Add flight</button><button class="btn ghost" type="button" data-pdfnow>PDF logbook</button><button class="btn ghost" type="button" data-go="logbook">All flights</button></div></div>` : "";
+  box.innerHTML = rosterAddHTML() + lastHTML +
     `<div class="hgrid">${tile("Last 28 days", ftlSum(isoDaysAgo(27)), 100)}${tile("This year", ftlSum(yr + "-01-01"), 900)}${tile("Last 12 months", ftlSum(isoDaysAgo(364)), 1000)}${tile("Total time", F.reduce((s, f) => s + (f.total || 0), 0) + (data.prev?.total || 0), 0, "all time")}</div>` +
     (hasLdg && rec.length ? `<div class="card hcard"><h3>Landings: 3 in 90 days</h3><div class="hrow">${rec.map(r => `<span class="chip ${r.ok ? "ok" : "bad"}">${esc(r.type)} · ${r.in90} in 90 days · ${r.ok ? "until " + fmtDate(r.until) : "not current"}</span>`).join("")}</div></div>` : "") +
-    (last ? `<div class="card hcard"><h3>Last flight</h3>${lbCards([{ f: last, i: li }], [{ f: last, i: li }]).replace('<div class="lbcards">', '<div class="lbcards hlast">').replace(/<div class="lbmonth">.*?<\/div>/, "")}` +
-      `<div class="row-actions" style="margin:10px 0 0"><button class="btn" type="button" data-go="add">+ Add flight</button><button class="btn ghost" type="button" data-pdfnow>PDF logbook</button><button class="btn ghost" type="button" data-go="logbook">All flights</button></div></div>` : "");
+    installHTML();
+}
+// expiry dates due within 60 days or expired: a count on the Expiry dates menu item (and a dot on More on a phone)
+function expBadge(){
+  const n = data.expiries.filter(e => e.date && expStatus(e.date).c !== "ok").length, t = n ? `Expiry dates · ${n} due` : "Expiry dates";
+  for (const id of ["#tabExp", "#moreExp"]) { const b = $(id); if (b) { b.textContent = t; b.classList.toggle("due", !!n); } }
+  $("#bbar [data-more]")?.classList.toggle("due", !!n);
 }
 function renderOverview(){
   renderHome();
@@ -1422,11 +1435,11 @@ function renderOverview(){
   $("#hello").textContent = first ? `Welcome, ${first}` : "Welcome";
   // reminders: what is still to set up, and expiry dates due within 60 days
   const missing = [], due = data.expiries.filter(e => e.date && expStatus(e.date).c !== "ok"), lines = [];
-  if (!p.name || !p.lic) missing.push('<a href="#" data-go="profile">complete your profile</a>');
+  if (!p.name) missing.push('<a href="#" data-go="profile">add your name</a>');
   if (!data.signature) missing.push('<a href="#" data-go="profile" data-scroll="#sigSection">add your signature</a>');
   if (!data.flights.length) missing.push('<a href="#" data-go="import">import your flights</a>');
   if (missing.length && !$("#homeDash .ob")) lines.push("<b>Finish setting up:</b> " + missing.join(", ") + ".");   // not while the first-run questions show
-  if (due.length) lines.push(`<b>Expiry dates:</b> ${due.map(e => `${esc(e.name)} ${expStatus(e.date).c === "bad" ? "has expired" : "is due " + fmtDate(e.date)}`).join(", ")}. <a href="#" data-go="profile" data-scroll="#expSection">Check them</a>.`);
+  expBadge();
   if (futureRemoved) lines.push(`<b>${futureRemoved} flight${futureRemoved === 1 ? " was" : "s were"} dated in the future and ${futureRemoved === 1 ? "has" : "have"} been taken out of your logbook.</b> The logbook only holds flights already flown; planned flights belong in <a href="#" data-go="crewbase">Crew Base</a>.`);
   if (data.flights.length && user.id !== "sample" && data.backup?.sig !== flightsSig())
     lines.push(`<b>Back up your logbook:</b> it has changed since ${data.backup?.date ? "your last download on " + fmtDate(data.backup.date) : "you added it"}. <a href="#" data-backup>Download full backup</a>`);
@@ -1524,6 +1537,7 @@ $("#profForm").addEventListener("submit", e => {
 
 /* ---------- expiries ---------- */
 function renderExpiries(){
+  expBadge();
   // recency: 3 take-offs & landings in 90 days (EASA FCL.060 / FAA 61.57 style)
   const since = new Date(Date.now() - 90*864e5).toISOString().slice(0,10);
   const rec = data.flights.filter(f => f.date >= since);
