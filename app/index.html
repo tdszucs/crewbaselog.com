@@ -2845,6 +2845,12 @@ function showSuggest(inp){
 const hideSuggest = () => $$(".sugbox").forEach(b => b.remove());
 document.addEventListener("focusin", e => { if (SUG_KEYS.test(e.target.id || "")) loadAirports().then(() => document.activeElement === e.target && showSuggest(e.target)); else if (!e.target.closest?.(".sugbox")) hideSuggest(); });
 document.addEventListener("input", e => { if (SUG_KEYS.test(e.target.id || "")) showSuggest(e.target); });
+// Landings day: a tap on the empty box puts 1 in it (most flights have one landing), selected so typing replaces it.
+// Not when night landings are already entered
+document.addEventListener("focusin", e => {
+  const m = (e.target.id || "").match(/^(n_|e_)ldgDay$/); if (!m || e.target.value !== "" || $("#" + m[1] + "ldgNight")?.value) return;
+  e.target.value = "1"; e.target.dispatchEvent(new Event("input", { bubbles: true })); try { e.target.select(); } catch {}
+});
 document.addEventListener("keydown", e => { if (e.key === "Escape") hideSuggest(); });
 // pointerdown (not click), so the field keeps its focus and the keyboard stays up while choosing
 document.addEventListener("pointerdown", e => {
