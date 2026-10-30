@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#0b3d5c">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
@@ -84,6 +84,19 @@ input:focus,select:focus{outline:2px solid color-mix(in srgb,var(--brand) 40%,tr
 .tabs button{flex:none;background:none;border:0;border-bottom:2px solid transparent;padding:10px 12px;font:500 14px Inter,sans-serif;color:var(--muted);cursor:pointer}
 .tabs button.on{color:var(--ink);border-bottom-color:var(--accent)}
 .tabs button.tabadd{color:var(--brand);font-weight:700}
+.bbar,.moremenu{display:none}
+@media (max-width:700px){
+  #tabs{display:none}
+  .bbar{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:30;background:var(--surface);border-top:1px solid var(--line);padding:4px 4px calc(4px + env(safe-area-inset-bottom))}
+  .bbar button{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;background:none;border:0;padding:6px 0;color:var(--muted);font:500 11px Inter,sans-serif;cursor:pointer}
+  .bbar button.on{color:var(--brand)}
+  .bbar .bbadd svg{background:var(--brand);color:#fff;border-radius:50%;padding:5px;width:32px;height:32px;margin:-6px 0 0}
+  .moremenu:not(.hidden){display:block;position:fixed;right:10px;bottom:calc(70px + env(safe-area-inset-bottom));z-index:31;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.2);min-width:190px;overflow:hidden}
+  .moremenu button{display:block;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--line);padding:14px 16px;font:500 16px Inter,sans-serif;color:var(--ink);cursor:pointer}
+  .moremenu button:last-child{border-bottom:0}.moremenu button.on{color:var(--brand)}
+  #vApp main{padding-bottom:calc(80px + env(safe-area-inset-bottom))}
+  body.typing .bbar,body.typing .moremenu{display:none}
+}
 @media (max-width:640px){ .tabs{flex-wrap:wrap;overflow:visible;gap:0;padding:0 8px} .tabs button{padding:9px 9px;font-size:13.5px} }
 main{max-width:1120px;margin:0 auto;padding:28px 16px 64px}
 h2{font-size:24px;letter-spacing:-.02em;margin:0 0 6px}
@@ -378,6 +391,17 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
       <button data-t="jobs">Jobs</button>
       <button data-t="admin" id="tabAdmin" class="hidden">Admin</button>
     </nav>
+  </div>
+  <!-- phones: the main pages in a bar at the bottom, the others under More -->
+  <nav class="bbar" id="bbar" aria-label="Main">
+    <button data-t="overview"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg><span>Home</span></button>
+    <button data-t="logbook"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h12a4 4 0 0 1 4 4v12H8a4 4 0 0 1-4-4z"/><path d="M8 9h8M8 13h8"/></svg><span>Logbook</span></button>
+    <button data-t="add" class="bbadd"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Add</span></button>
+    <button data-t="stats"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span>Stats</span></button>
+    <button data-more><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg><span>More</span></button>
+  </nav>
+  <div class="moremenu hidden" id="moreMenu" role="menu">
+    <button data-t="import">Your data</button><button data-t="crewbase">Crew Base</button><button data-t="jobs">Jobs</button><button data-t="profile">Profile</button><button data-t="admin" id="moreAdmin" class="hidden">Admin</button>
   </div>
   <main>
     <!-- overview -->
@@ -1061,7 +1085,8 @@ document.addEventListener("click", e => { if (e.target.id === "cbMakeAcct") { e.
 /* ---------- tabs ---------- */
 function tab(t){
   if (t !== "import") closeReview?.();
-  $$("#tabs button").forEach(b => b.classList.toggle("on", b.dataset.t === t));
+  $$("#tabs button, #bbar [data-t], #moreMenu [data-t]").forEach(b => b.classList.toggle("on", b.dataset.t === t));
+  $("#bbar [data-more]").classList.toggle("on", !!$(`#moreMenu [data-t="${t}"]`)); $("#moreMenu").classList.add("hidden");
   $$("[data-p]").forEach(p => p.classList.toggle("hidden", p.dataset.p !== t));
   // the page is kept in the address, so a reload (an iPhone switching apps) opens it again
   try { if (location.hash !== "#" + t) history.replaceState(null, "", "#" + t); } catch {}
@@ -1069,6 +1094,16 @@ function tab(t){
   window.scrollTo(0,0);
 }
 $("#tabs").addEventListener("click", e => { if (e.target.dataset.t) tab(e.target.dataset.t); });
+// the bar at the bottom (phones): More opens the other pages; a tap elsewhere closes it
+document.addEventListener("click", e => {
+  const b = e.target.closest("#bbar button, #moreMenu button");
+  if (b?.dataset.more !== undefined) { e.stopPropagation(); $("#moreMenu").classList.toggle("hidden"); return; }
+  if (b?.dataset.t) { tab(b.dataset.t); return; }
+  if (!e.target.closest("#moreMenu")) $("#moreMenu").classList.add("hidden");
+});
+// while typing the bar steps aside, so it never sits on the keyboard
+document.addEventListener("focusin", e => { if (e.target.matches?.("input:not([type=checkbox]):not([type=radio]), textarea, select")) document.body.classList.add("typing"); });
+document.addEventListener("focusout", () => setTimeout(() => { if (!document.activeElement?.matches?.("input, textarea, select")) document.body.classList.remove("typing"); }, 50));
 
 /* ---------- activity: what each signed-in pilot did, for the site owner (Admin tab). Counts and formats only:
    never flights, file names or file contents. Rules in supabase/admin_activity.sql ---------- */
@@ -1205,7 +1240,7 @@ function enterApp(){
   $("#whoEmail").textContent = isLocal() ? "On this device only" : user.email;
   $("#btnOut").textContent = isLocal() ? "Create account / Log in" : "Log out";
   if (moved) $('[data-p="overview"] h2').insertAdjacentHTML("afterend", '<div class="notice" style="margin:0 0 16px"><b>Your logbook is now with your account.</b> Everything you started without an account came along.</div>');
-  adData = null; $("#tabAdmin").classList.toggle("hidden", !isAdmin());
+  adData = null; $("#tabAdmin").classList.toggle("hidden", !isAdmin()); $("#moreAdmin").classList.toggle("hidden", !isAdmin());
   renderMyReports();
   $("#appPick").value = data.profile.fromApp || ""; showAppGuide($("#appPick").value);
   // once a month per device: "active" (the month is remembered in this logbook only)
