@@ -3193,10 +3193,14 @@ function flightSuggest(pre, k){
     if ("SELF".startsWith(val)) { const i = list.findIndex(o => o.v === "SELF"), self = i >= 0 ? list.splice(i, 1)[0] : { v: "SELF", label: "SELF", note: "you were PIC" }; if (val || i >= 0 || !list.length) list.unshift(self); else list.splice(Math.min(1, list.length), 0, self); }
     return withOut(list.slice(0, 8));
   }
-  // aircraft types: the one flown last first
+  // aircraft types: the one flown last, then its other variants (A320 → A321, A319; B787-9 → B787-10), then the rest going back in time
   if (k === "acType") {
     const last = new Map(); for (const f of F) if (f.acType && !(last.get(f.acType) > f.date)) last.set(f.acType, f.date);
-    return withOut([...last.entries()].sort((a, b) => b[1].localeCompare(a[1])).filter(([v]) => !val || v.startsWith(val)).slice(0, 8).map(([v, d]) => ({ v, label: v, note: `last ${fmtDate(d)}` })));
+    const byDate = [...last.entries()].sort((a, b) => b[1].localeCompare(a[1])), fam = byDate.length ? acFamily(byDate[0][0]) : "";
+    const same = fam ? byDate.slice(1).filter(([v]) => acFamily(v) === fam) : [];
+    const order = byDate.length ? [byDate[0], ...same, ...byDate.slice(1).filter(x => !same.includes(x))] : [];
+    return withOut(order.filter(([v]) => !val || v.startsWith(val)).slice(0, 8).map(([v, d], i) => ({ v, label: v,
+      note: v === byDate[0][0] ? `flown last · ${fmtDate(d)}` : same.some(x => x[0] === v) ? `${fam} · ${fmtDate(d)}` : `last ${fmtDate(d)}` })));
   }
   if (k === "reg") {
     const type = $("#" + pre + "acType").value.trim().toUpperCase(), last = new Map();
