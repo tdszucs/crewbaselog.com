@@ -173,6 +173,7 @@ h2{font-size:24px;letter-spacing:-.02em;margin:0 0 6px}
 .lbcard.justadded{border-color:var(--ok);box-shadow:0 0 0 2px var(--ok-soft);animation:justadded 2s ease-out}@keyframes justadded{0%{background:var(--ok-soft)}100%{background:var(--surface)}}
 .lbcard.open{border-color:var(--brand);border-bottom-left-radius:0;border-bottom-right-radius:0;margin-bottom:0}
 #lbEdit.inplace{border:1px solid var(--brand)!important;border-top:0!important;border-radius:0 0 12px 12px;margin:0 0 8px!important;scroll-margin-top:150px}
+.lbline tr.mark td{background:var(--accent-soft);font-weight:600}
 .lbdetail{border:1px solid var(--brand);border-top:0;border-radius:0 0 12px 12px;background:var(--surface);padding:10px 14px 14px;margin:0 0 8px}
 .ldhead{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:0 0 8px;font-size:14px}.ldx{border:0;background:var(--bg);color:var(--ink);width:32px;height:32px;border-radius:50%;font-size:20px;line-height:1;cursor:pointer;flex:none}
 .lbdetail dl{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px 14px;margin:0}.lbdetail dt{font-size:12px;color:var(--muted)}.lbdetail dd{margin:0;font-size:14px;font-family:"JetBrains Mono",monospace;overflow-wrap:anywhere}
@@ -719,10 +720,12 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
           <div class="lbgrid" id="lbEditFields"></div>
           <p class="hint" style="margin:0 0 10px">Change the date, airports or block times and night time is worked out again (total, PIC/co-pilot and IFR follow the block time too). A value you change yourself is kept.</p>
           <div class="field">
-            <label>Instructor signature <span class="hint" style="font-weight:400">(optional, printed in the remarks column)</span></label>
+            <div class="fl-btns" style="margin:0"><button class="btn ghost small" type="button" id="lbSigOpen">✍ Instructor signature</button><span class="hint" id="lbSigState"></span></div>
+            <div class="hidden" id="lbSigBox" style="margin-top:10px"><div class="hint" style="margin:0 0 8px">Printed in the remarks column of this line.</div>
             <div id="lbSigCur" class="hidden" style="display:flex;align-items:center;gap:12px;margin:0 0 8px"></div>
             <canvas id="lbSigPad" class="sigpad" style="height:130px;max-width:520px"></canvas>
             <div class="row-actions" style="margin:6px 0 0"><button class="btn ghost small" type="button" id="lbSigClear">Clear pad</button><span class="hint">The instructor signs here with a finger, pen or mouse.</span></div>
+            </div>
           </div>
           <div class="row-actions" style="margin:4px 0 0"><button class="btn small" type="submit">Save flight</button><button class="btn ghost small" type="button" id="lbEditCancel">Cancel</button><button class="btn danger small" type="button" id="lbEditDel">Delete flight</button><span class="err" id="lbEditErr" style="margin:0"></span></div>
         </form>
@@ -1559,7 +1562,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "30 Oct 2026 · 25";
+const APP_VERSION = "30 Oct 2026 · 26";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
@@ -3202,19 +3205,22 @@ $("#airMail").addEventListener("click", e => {
 });
 
 // one line of the EASA (FCL.050) logbook, same columns and formatting as the PDF
-function easaLineHTML(f){
-  const crew = acClass(f.acType), t = m => lbTime(m), c = n => n ? String(n) : "", tick = on => on ? "✓" : "";
+// one or more lines of the EASA (FCL.050) logbook; mark: the flight to stand out
+const easaLineHTML = f => easaLinesHTML([f]);
+function easaLinesHTML(list, mark){
+  const row = f => { const crew = acClass(f.acType), t = m => lbTime(m), c = n => n ? String(n) : "", tick = on => on ? "✓" : "";
   const self = /^self$/i.test((f.picName || "").trim()) || (!f.picName && !(f.copilot && !f.pic));
   const cells = [f.date ? ddmmyy(f.date) : "", f.from, f.out, f.to, f.in, f.acType, f.reg,
     tick(crew === "SPSE" && f.total), tick(crew === "SPME" && f.total), crew === "MP" ? t(f.total) : "", t(f.total),
     self ? (f.from || f.to || f.total ? "SELF" : "") : f.picName, c(f.ldgDay), c(f.ldgNight), t(f.night), t(f.ifr),
     t(f.pic), t(f.copilot), t(f.dual), t(f.instructor), f.fstdType || "", t(f.fstdTime), f.remarks];
+    return `<tr${f === mark ? ' class="mark"' : ""}>${cells.map((v, i) => i === cells.length - 1 && f.remarkSig
+    ? `<td><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span>${esc(v || "")}</span><img src="${f.remarkSig}" alt="" style="height:20px"></div></td>`
+    : `<td>${esc(v || "")}</td>`).join("")}</tr>`; };
   return `<table class="lbline"><thead>
     <tr><th rowspan="2">DATE<br>dd/mm/yy</th><th colspan="2">DEPARTURE</th><th colspan="2">ARRIVAL</th><th colspan="2">AIRCRAFT</th><th colspan="2">SINGLE PILOT TIME</th><th rowspan="2">MULTI PILOT<br>TIME</th><th rowspan="2">TOTAL<br>TIME</th><th rowspan="2">PIC NAME</th><th colspan="2">LANDINGS</th><th colspan="2">OP. COND. TIME</th><th colspan="4">PILOT FUNCTION TIME</th><th colspan="2">FSTD SESSION</th><th rowspan="2">REMARKS AND<br>ENDORSEMENTS</th></tr>
     <tr><th>PLACE</th><th>TIME</th><th>PLACE</th><th>TIME</th><th>TYPE</th><th>REG</th><th>SE</th><th>ME</th><th>DAY</th><th>NIGHT</th><th>NIGHT</th><th>IFR</th><th>PIC</th><th>COP</th><th>DUAL</th><th>INSTR</th><th>TYPE</th><th>TIME</th></tr>
-  </thead><tbody><tr>${cells.map((v, i) => i === cells.length - 1 && f.remarkSig
-    ? `<td><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span>${esc(v || "")}</span><img src="${f.remarkSig}" alt="" style="height:20px"></div></td>`
-    : `<td>${esc(v || "")}</td>`).join("")}</tr></tbody></table>`;
+  </thead><tbody>${list.map(row).join("")}</tbody></table>`;
 }
 const addSim = () => $('[name="addKind"]:checked').value === "sim";
 function addFormReset(){
@@ -4067,6 +4073,9 @@ function lbShowSig(){
 }
 $("#lbSigCur").addEventListener("click", e => { if (e.target.id === "lbSigDel") { lbSigDrop = true; lbShowSig(); } });
 $("#lbSigClear").addEventListener("click", () => lbPad.reset());
+// the pad shows only when asked for (it needs its size once visible)
+$("#lbSigOpen").addEventListener("click", () => { const box = $("#lbSigBox"), open = box.classList.toggle("hidden") === false;
+  $("#lbSigOpen").textContent = open ? "Close signature" : "✍ Instructor signature"; if (open) requestAnimationFrame(() => lbPad.reset()); });
 function lbOpenEdit(i){
   const f = data.flights[i]; if (!f) return; lbEditing = f; lbSigDrop = false;
   $("#lbEditFields").innerHTML = isSim(f) ? simFieldsHTML("e_", f) : flightFieldsHTML("e_", f);
@@ -4077,7 +4086,8 @@ function lbOpenEdit(i){
       if (d.pf) { const r = document.querySelector(`[name="e_pf"][value="${d.pf}"]`); if (r) r.checked = true; }
       back = true; } } catch {}
   if (!isSim(f)) { roleByType("e_"); timeSum("e_"); loadAirports().then(() => logBtns("e_")); Promise.all([loadAirports(), loadAptNames()]).then(() => aptFlags("e_")); }
-  lbShowSig(); requestAnimationFrame(() => lbPad.reset()); loadAirports().then(() => gsCheck("e_"));
+  lbShowSig(); $("#lbSigBox").classList.add("hidden"); $("#lbSigOpen").textContent = "✍ Instructor signature";
+  $("#lbSigState").textContent = f.remarkSig ? "Signed by the instructor" : ""; loadAirports().then(() => gsCheck("e_"));
   $("#lbEditTitle").textContent = (isSim(f) ? "Edit simulator session: " : "Edit flight: ") + flightLabel(f); $("#lbEditErr").innerHTML = back ? '<span style="color:var(--warn)">Your unsaved changes to this flight are back. Save flight to keep them, or Cancel.</span>' : "";
   $("#lbEdit").classList.remove("hidden"); $("#lbEdit").scrollIntoView({ behavior: "smooth", block: "start" });   // nothing focused: no date picker or keyboard popping up
 }
@@ -4119,12 +4129,20 @@ function lbDelete(i){
 $("#lbTable").addEventListener("click", e => {
   const x = e.target.closest("[data-dclose]"), go = e.target.closest("[data-doedit]");
   if (x) return lbShow(null);
+  const pg = e.target.closest("[data-dpage]"); if (pg) return lbPagePreview(+pg.dataset.dpage, pg);
   // Edit flight: the form opens in place, under the flight's card
   if (go) { const i = +go.dataset.doedit, card = $(`#lbTable .lbcard[data-edit="${i}"]`); lbShow(null); lbCloseEdit(); lbOpenEdit(i);
     if (card) { if (!lbEditHome.parentNode) $("#lbEdit").before(lbEditHome); card.after($("#lbEdit")); card.classList.add("open"); $("#lbEdit").classList.add("inplace"); $("#lbEdit").scrollIntoView({ behavior: "smooth", block: "start" }); } return; }
   const card = e.target.closest(".lbcard[data-edit]"), del = e.target.closest("[data-fdel]");
   if (card) lbShow(+card.dataset.edit, card); else if (del) lbDelete(+del.dataset.fdel);
 });
+// the page of the logbook (as printed: the lines per page chosen for the PDF) that holds a flight, that line marked
+function lbPagePreview(i, btn){
+  const box = btn.closest(".lbdetail").querySelector(".ldpage"); if (!box.classList.contains("hidden")) { box.classList.add("hidden"); btn.textContent = "Logbook page preview"; return; }
+  const f = data.flights[i], L = data.flights.filter(x => !notFlown(x)), per = +($("#prRows")?.value || 18), at = L.indexOf(f), pg = Math.floor(at / per);
+  box.innerHTML = `<p class="hint" style="margin:10px 0 6px">Page ${pg + 1} of ${Math.ceil(L.length / per)}, line ${at % per + 1} · ${per} lines a page</p><div class="tablewrap">${easaLinesHTML(L.slice(pg * per, pg * per + per), f)}</div>`;
+  box.classList.remove("hidden"); btn.textContent = "Close page preview";
+}
 /* A flight tapped in the Logbook opens in place to read: every column of its line, with × to close it and Edit flight */
 function lbShow(i, card){
   const open = $(".lbdetail"), was = open?.dataset.i; open?.previousElementSibling?.classList.remove("open"); open?.remove();
@@ -4139,7 +4157,8 @@ function lbShow(i, card){
   (card || $(`#lbTable .lbcard[data-edit="${i}"]`))?.insertAdjacentHTML("afterend", `<div class="lbdetail" data-i="${i}">
     <div class="ldhead"><b>${esc(flightLabel(f))}</b><button type="button" class="ldx" data-dclose aria-label="Close">×</button></div>
     <dl>${rows.map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(String(v))}</dd></div>`).join("")}</dl>${f.remarkSig ? `<p class="hint" style="margin:6px 0 0">Signed by the instructor ✍</p>` : ""}
-    <div class="fl-btns" style="margin-top:10px"><button class="btn small" type="button" data-doedit="${i}">Edit flight</button></div></div>`);
+    <div class="fl-btns" style="margin-top:10px"><button class="btn small" type="button" data-doedit="${i}">Edit flight</button><button class="btn ghost small" type="button" data-dpage="${i}">Logbook page preview</button></div>
+    <div class="ldpage hidden"></div></div>`);
 }
 $("#lbSearch").addEventListener("input", renderLogbook); $("#lbYear").addEventListener("change", renderLogbook); $("#lbType").addEventListener("change", renderLogbook);
 $("#lbEditCancel").addEventListener("click", () => { dropEditDraft(); lbCloseEdit(); });
