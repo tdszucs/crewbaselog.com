@@ -1758,7 +1758,10 @@ function flightSpeed(f){
   if (isSim(f) || !f.from || !f.to || f.from === f.to || sameApt(f.from, f.to)) return null;
   const d = gcNm(f.from, f.to); if (d == null || d < 1) return null;
   const air = f.off && f.on ? tdiff(f.off, f.on) : 0, block = f.out && f.in ? tdiff(f.out, f.in) : 0, t = air || block || f.total; if (!t) return null;
-  return { d, t, kt: Math.round(d / (t / 60)), what: air ? "take-off to landing" : block ? "off-block to on-block" : "total time" };
+  const kt = Math.round(d / (t / 60));
+  // only the total, and it's impossible as a whole flight but right as a half, third or quarter of one: a relief crew's share
+  if (!air && !block && kt > 700 && [2, 3, 4].some(k => kt / k >= 50 && kt / k <= 700)) return null;
+  return { d, t, kt, what: air ? "take-off to landing" : block ? "off-block to on-block" : "total time" };
 }
 const speedOff = sp => !!sp && (sp.kt > 700 || (sp.kt < 50 && sp.d >= 30));
 // night minutes of a flight: sample each minute between off-block and on-block along the great circle;
@@ -2628,7 +2631,7 @@ function openAddForm(){
 /* a flight half entered is kept on this device, so it is still there when the phone reloads the page (switching apps on an iPhone) */
 const draftKey = () => "cbl_draft_" + (user?.id || "");
 function saveDraft(){
-  try { const v = {}; for (const el of $$("#addFields [id^=n_]")) if (el.value) v[el.id.slice(2)] = el.value;
+  try { const v = {}; for (const el of $$("#addFields [id^=n_]")) if (el.type === "checkbox" ? el.checked : el.value) v[el.id.slice(2)] = el.type === "checkbox" ? true : el.value;
     const pf = pfOf("n_"); if (pf) v._pf = pf; v._kind = addSim() ? "sim" : "flight";
     if (Object.keys(v).some(k => !k.startsWith("_") && !(k === "flightNo" && v[k] === data.profile.airline))) localStorage.setItem(draftKey(), JSON.stringify(v)); else localStorage.removeItem(draftKey()); } catch {}
 }
@@ -2636,7 +2639,8 @@ const dropDraft = () => { try { localStorage.removeItem(draftKey()); } catch {} 
 function restoreDraft(){
   let v; try { v = JSON.parse(localStorage.getItem(draftKey()) || "null"); } catch {} if (!v) return;
   if (v._kind === "sim" && !addSim()) { $('[name="addKind"][value="sim"]').checked = true; addFormReset(); }
-  for (const [k, x] of Object.entries(v)) { const el = $("#n_" + k); if (el && !k.startsWith("_") && !k.startsWith("ldg")) el.value = x; }
+  for (const [k, x] of Object.entries(v)) { const el = $("#n_" + k); if (el && !k.startsWith("_") && !k.startsWith("ldg")) { if (el.type === "checkbox") el.checked = !!x; else el.value = x; } }
+  reliefShow("n_");
   if ($("#n_ldgDay")) setLdg("n_", v.ldgDay ?? "", v.ldgNight ?? "");
   if (v._pf) { const r = document.querySelector(`[name="n_pf"][value="${v._pf}"]`); if (r) r.checked = true; }
   renderAddPreview(); loadAirports().then(() => gsCheck("n_"));
@@ -2856,6 +2860,8 @@ function flightSuggest(pre, k){
   if (FN_KEYS.includes(k)) {
     const t = x => parseTime($("#" + pre + x)?.value || ""), out = t("out"), inn = t("in"), list = [];
     if (out && inn && tdiff(out, inn)) list.push({ v: fmtMin(tdiff(out, inn)), note: `block time ${out}–${inn}` });
+    // a long flight with a relief crew: each pilot logs a share
+    if (out && inn && tdiff(out, inn) >= RELIEF_MIN) list.push({ v: fmtMin(Math.round(tdiff(out, inn) / 2)), note: "half the block time · relief crew" });
     const tot = parseDur($("#" + pre + "total")?.value || "");
     if (k !== "total" && tot && !list.some(o => o.v === fmtMin(tot))) list.push({ v: fmtMin(tot), note: "the total time" });
     // IFR with "Airline flights are IFR" on in the profile: the flight's total time first (the block time while no total is entered)
@@ -2951,6 +2957,29 @@ document.addEventListener("change", e => {
   delete $("#" + m[1] + "pfSeg")?.dataset.auto;
   if (+e.target.value > 0 && pfOf(m[1]) !== "pf") { const r = document.querySelector(`[name="${m[1]}pf"][value="pf"]`); if (r) r.checked = true; }
 });
+/* relief pilot on a long flight (block time 8 hours or more): half the block time as total and function time (PIC when the PIC
+   is SELF, else co-pilot), pilot monitoring (no landings) and RELIEF in the remarks. Unticked: the full block time again */
+const RELIEF_MIN = 8 * 60;
+function reliefShow(pre){
+  const row = $("#" + pre + "reliefRow"); if (!row) return;
+  const out = parseTime($("#" + pre + "out")?.value || ""), inn = parseTime($("#" + pre + "in")?.value || "");
+  row.classList.toggle("hidden", !($("#" + pre + "relief").checked || (out && inn && tdiff(out, inn) >= RELIEF_MIN)));
+}
+function reliefSet(pre, on){
+  const g = x => $("#" + pre + x), out = parseTime(g("out").value), inn = parseTime(g("in").value), block = out && inn ? tdiff(out, inn) : 0;
+  const set = (k, v) => { const i = g(k); if (i) { i.value = v; i.dispatchEvent(new Event("input", { bubbles: true })); } };
+  const share = on ? Math.round(block / 2) : block, self = /^self$/i.test(g("picName").value.trim());
+  if (block) {
+    set("total", fmtMin(share));
+    for (const k of ["pic", "copilot", "dual", "instructor"]) if (g(k).value) set(k, "");
+    set(self ? "pic" : "copilot", fmtMin(share));
+    if (g("ifr").value) set("ifr", fmtMin(share));
+    if (g("night").value && parseDur(g("night").value) > share) set("night", fmtMin(share));
+  }
+  const rem = g("remarks").value.replace(/\s*\bRELIEF\b\s*/gi, " ").trim(); set("remarks", on ? ("RELIEF " + rem).trim() : rem);
+  if (on) setPf(pre, "pm");
+}
+document.addEventListener("change", e => { const m = (e.target.id || "").match(/^(n_|e_)relief$/); if (m) reliefSet(m[1], e.target.checked); });
 function gsCheck(pre){
   const box = $("#" + pre + "gsNote"); if (!box) return;
   const g = x => ($("#" + pre + x)?.value || "").trim(), t = x => parseTime(g(x));
@@ -2960,7 +2989,7 @@ function gsCheck(pre){
     `<div style="margin:4px 0 0">${esc(f.from)}–${esc(f.to)} is ${Math.round(sp.d).toLocaleString()} NM, flown in ${fmtMin(sp.t)} (${sp.what}). Maybe a time or an airport was entered incorrectly.</div></div>`;
 }
 document.addEventListener("input", e => {
-  const g = (e.target.id || "").match(/^(n_|e_)(from|to|out|off|on|in|total)$/); if (g) loadAirports().then(() => gsCheck(g[1]));
+  const g = (e.target.id || "").match(/^(n_|e_)(from|to|out|off|on|in|total)$/); if (g) { loadAirports().then(() => gsCheck(g[1])); reliefShow(g[1]); }
   const m = (e.target.id || "").match(/^(n_|e_)(date|from|to|out|on|in)$/); if (!m) return;
   pfAuto(m[1]);
   if (m[1] === "n_" && /^(date|from|to)$/.test(m[2])) retCheck();
@@ -3133,7 +3162,8 @@ function flightFieldsHTML(pre, f = {}){
     (k === "date" ? ` type="date" required max="${logToday()}"` : LB_TIME.includes(k) ? ' class="mono" placeholder="HH:MM" inputmode="numeric"' : LB_DUR.includes(k) ? ' class="mono" placeholder="H:MM"' : k.startsWith("ldg") ? ' type="number" min="0" step="1"' : "") + ">";
   // off-block, take-off, landing, on-block always side by side in one row, on any screen
   const times = `<div class="field wide"><div class="times">${LB_TIME.map(k => `<div><label for="${pre}${k}">${{ out: "Off-block", off: "Take-off", on: "Landing", in: "On-block" }[k]}</label>${input(k)}</div>`).join("")}</div></div>` +
-    `<div class="field wide hidden" id="${pre}retNote"></div><div class="field wide hidden" id="${pre}gsNote"></div>`;
+    `<div class="field wide hidden" id="${pre}retNote"></div><div class="field wide hidden" id="${pre}gsNote"></div>` +
+    `<div class="field wide${/\bRELIEF\b/i.test(f.remarks || "") ? "" : " hidden"}" id="${pre}reliefRow"><label class="repok" style="margin:0"><input type="checkbox" id="${pre}relief"${/\bRELIEF\b/i.test(f.remarks || "") ? " checked" : ""}> <span>You acted as <b>relief pilot</b> on this flight: half the block time is logged, with no take-off or landing.</span></label></div>`;
   // pilot flying puts the landing in by itself (day or night, from the sun at the arrival airport); a saved flight with landings was flown
   const pfOn = f.ldgDay || f.ldgNight ? "pf" : "";   // blank until the pilot (or a confirmed return flight) says
   const pfSeg = `<div class="field wide"><div class="seg" id="${pre}pfSeg" role="radiogroup" aria-label="Pilot flying or pilot monitoring" style="margin:0">` +
