@@ -442,6 +442,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
       <button data-t="stats">Statistics</button>
       <button data-t="crewbase">Crew Base</button>
       <button data-t="jobs">Jobs</button>
+      <button data-t="help">Help</button>
       <button data-t="admin" id="tabAdmin" class="hidden">Admin</button>
     </nav>
   </div>
@@ -454,7 +455,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
     <button data-more><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg><span>More</span></button>
   </nav>
   <div class="moremenu hidden" id="moreMenu" role="menu">
-    <button data-t="import">Your data</button><button data-t="crewbase">Crew Base</button><button data-t="jobs">Jobs</button><button data-t="profile">Profile</button><button data-t="admin" id="moreAdmin" class="hidden">Admin</button>
+    <button data-t="import">Your data</button><button data-t="crewbase">Crew Base</button><button data-t="jobs">Jobs</button><button data-t="profile">Profile</button><button data-t="admin" id="moreAdmin" class="hidden">Admin</button><button data-t="help">Help</button>
   </div>
   <div class="setup hidden" id="setup" role="dialog" aria-label="Set up CrewBase Log"><div class="setupin"><div class="suhead"><span class="logo-sm">CrewBase Log</span><button class="btn ghost small" type="button" data-su="skip">Skip setup</button></div><div id="setupBody"></div></div></div>
   <main>
@@ -465,52 +466,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
       <div id="homeTop"></div>
       <div id="homeDash"></div>
       <div id="setupNotice" class="notice hidden"></div>
-      <details id="howBox" class="howbox"><summary>First time here? <b>How CrewBase Log works</b></summary>
-      <div class="card how3">
-        <h3>How CrewBase Log works</h3>
-        <ol class="steps3">
-          <li><span class="n">1</span><div><b>Drop your files</b>
-            <p>Your past logbook from another app, your airline's eCrew / AIMS report and your roster: drop them all on Your data. CrewBase Log works out what each file is, puts every flight into one logbook and skips the ones already in. After a flight, add it in seconds with <b>Add</b>.</p>
-            <button class="btn small" type="button" data-go="import">Drop your files</button></div></li>
-          <li><span class="n">2</span><div><b>Download your logbook</b>
-            <p>A PDF logbook in the official layout (EASA, UK CAA, FAA or South African CAA), with your name and signature on every page, ready to print or show. Plus a CSV file and a full backup: your own copies, kept outside the app.</p>
-            <button class="btn small" type="button" data-go="import" data-scroll="#outCard">Download your logbook</button></div></li>
-          <li><span class="n">3</span><div><b>Plan days off with colleagues</b>
-            <p>Drop your future roster and add colleagues by their email. Crew Base puts your rosters side by side and shows the days you are all free at base, for a dinner, a trip or swapping a duty.</p>
-            <button class="btn small" type="button" data-go="crewbase">Open Crew Base</button></div></li>
-        </ol>
-        <p class="hint" style="margin:14px 0 0;font-size:14px">Your profile (name, licence and signature) goes on the cover and every page of the PDF. <a href="#" data-go="profile">Check your profile</a></p>
-      </div>
-      <div class="card">
-        <h3>Your data, your control</h3>
-        <ul style="margin:0 0 14px;padding-left:20px;line-height:1.75;font-size:14.5px">
-          <li>Your logbook, profile, signature and expiry dates are stored <b>only in this browser on this device</b>. We never see them.</li>
-          <li><b>Clearing your browser data (cookies and site data)</b>, or opening CrewBase Log on another phone or browser, starts empty: everything has to come back from your files.</li>
-          <li>The files you download are yours and stay on your device: the <b>CSV file</b> brings back all your flights; the <b>full backup</b> brings back everything, including profile and signature. Download them after each update.</li>
-          <li>Only a Crew Base roster you add is saved to your account, for the friends you choose.</li>
-        </ul>
-        <div class="row-actions" style="margin:0"><button class="btn" type="button" id="ovBackup">Download full backup</button><button class="btn ghost" type="button" id="ovRestore">Restore a backup</button><button class="btn ghost" type="button" data-csv>Download CSV file</button></div>
-      </div>
-      <div class="card flow">
-        <h3>Crew Base: share your roster with friends</h3>
-        <div class="flowgrid cb">
-          <div class="fbox"><svg class="fic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/></svg><div><b>Drop your roster PDF</b><small>The Personal Crew Schedule from eCrew</small></div></div>
-          <div class="farr" aria-hidden="true"><svg viewBox="0 0 40 16"><path d="M2 8h32M28 2l7 6-7 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-          <div class="fbox"><svg class="fic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17" cy="9" r="2.8"/><path d="M15.5 14.2A5.5 5.5 0 0 1 22 19.5"/></svg><div><b>Add friends by email</b><small>When you have added each other, your rosters appear side by side</small></div></div>
-          <div class="farr" aria-hidden="true"><svg viewBox="0 0 40 16"><path d="M2 8h32M28 2l7 6-7 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-          <div class="fbox"><div class="fdays" aria-hidden="true"><i class="d free"></i><i class="d duty"></i><i class="d duty"></i><i class="d sby"></i><i class="d free"></i><i class="d free"></i><i class="d duty"></i></div><div><b>See when you are all free</b><small>Green off · amber standby · red duty or away. Times in UTC.</small></div></div>
-        </div>
-        <div class="row-actions" style="margin:16px 0 0"><button class="btn ghost" type="button" data-go="crewbase">Open Crew Base</button></div>
-      </div>
-      </details>
       <div class="card"><h3>Support CrewBase Log</h3><p class="hint" style="margin:0 0 12px;font-size:14px">CrewBase Log is free and stays free. Nobody has to pay. If it saves you time and you'd like to help with the running costs, you can buy us a coffee.</p><a class="btn ghost" href="https://ko-fi.com/tamas25712" target="_blank" rel="noopener" data-kofi>Buy us a coffee</a></div>
-      <form class="card" id="fbForm">
-        <h3>Feedback</h3>
-        <p class="hint" style="margin:0 0 12px;font-size:14px">CrewBase Log is in a trial phase. Anything that is broken, confusing or missing, tell us. All feedback is appreciated.</p>
-        <div class="field"><label for="fbMsg">Your feedback</label><textarea id="fbMsg" rows="4" required placeholder="What worked, what didn't, what you'd like to see…"></textarea></div>
-        <div class="field"><label for="fbEmail">Your email (optional, if you'd like a reply)</label><input id="fbEmail" type="email"></div>
-        <div class="row-actions"><button class="btn" id="fbSend" type="submit">Send feedback</button><span id="fbStatus" class="ok-msg"></span></div>
-      </form>
     </div>
 
     <!-- profile -->
@@ -841,6 +797,55 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
 
     </div>
 
+    <!-- help: how it works and feedback -->
+    <div data-p="help" class="hidden">
+      <h2>Help</h2>
+      <p class="lead">How CrewBase Log works, and a line to us when something doesn't.</p>
+      <div class="card how3">
+        <h3>How CrewBase Log works</h3>
+        <ol class="steps3">
+          <li><span class="n">1</span><div><b>Drop your files</b>
+            <p>Your past logbook from another app, your airline's eCrew / AIMS report and your roster: drop them all on Your data. CrewBase Log works out what each file is, puts every flight into one logbook and skips the ones already in. After a flight, add it in seconds with <b>Add</b>.</p>
+            <button class="btn small" type="button" data-go="import">Drop your files</button></div></li>
+          <li><span class="n">2</span><div><b>Download your logbook</b>
+            <p>A PDF logbook in the official layout (EASA, UK CAA, FAA or South African CAA), with your name and signature on every page, ready to print or show. Plus a CSV file and a full backup: your own copies, kept outside the app.</p>
+            <button class="btn small" type="button" data-go="import" data-scroll="#outCard">Download your logbook</button></div></li>
+          <li><span class="n">3</span><div><b>Plan days off with colleagues</b>
+            <p>Drop your future roster and add colleagues by their email. Crew Base puts your rosters side by side and shows the days you are all free at base, for a dinner, a trip or swapping a duty.</p>
+            <button class="btn small" type="button" data-go="crewbase">Open Crew Base</button></div></li>
+        </ol>
+        <p class="hint" style="margin:14px 0 0;font-size:14px">Your profile (name, licence and signature) goes on the cover and every page of the PDF. <a href="#" data-go="profile">Check your profile</a></p>
+      </div>
+      <div class="card">
+        <h3>Your data, your control</h3>
+        <ul style="margin:0 0 14px;padding-left:20px;line-height:1.75;font-size:14.5px">
+          <li>Your logbook, profile, signature and expiry dates are stored <b>only in this browser on this device</b>. We never see them.</li>
+          <li><b>Clearing your browser data (cookies and site data)</b>, or opening CrewBase Log on another phone or browser, starts empty: everything has to come back from your files.</li>
+          <li>The files you download are yours and stay on your device: the <b>CSV file</b> brings back all your flights; the <b>full backup</b> brings back everything, including profile and signature. Download them after each update.</li>
+          <li>Only a Crew Base roster you add is saved to your account, for the friends you choose.</li>
+        </ul>
+        <div class="row-actions" style="margin:0"><button class="btn" type="button" id="ovBackup">Download full backup</button><button class="btn ghost" type="button" id="ovRestore">Restore a backup</button><button class="btn ghost" type="button" data-csv>Download CSV file</button></div>
+      </div>
+      <div class="card flow">
+        <h3>Crew Base: share your roster with friends</h3>
+        <div class="flowgrid cb">
+          <div class="fbox"><svg class="fic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/></svg><div><b>Drop your roster PDF</b><small>The Personal Crew Schedule from eCrew</small></div></div>
+          <div class="farr" aria-hidden="true"><svg viewBox="0 0 40 16"><path d="M2 8h32M28 2l7 6-7 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <div class="fbox"><svg class="fic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17" cy="9" r="2.8"/><path d="M15.5 14.2A5.5 5.5 0 0 1 22 19.5"/></svg><div><b>Add friends by email</b><small>When you have added each other, your rosters appear side by side</small></div></div>
+          <div class="farr" aria-hidden="true"><svg viewBox="0 0 40 16"><path d="M2 8h32M28 2l7 6-7 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <div class="fbox"><div class="fdays" aria-hidden="true"><i class="d free"></i><i class="d duty"></i><i class="d duty"></i><i class="d sby"></i><i class="d free"></i><i class="d free"></i><i class="d duty"></i></div><div><b>See when you are all free</b><small>Green off · amber standby · red duty or away. Times in UTC.</small></div></div>
+        </div>
+        <div class="row-actions" style="margin:16px 0 0"><button class="btn ghost" type="button" data-go="crewbase">Open Crew Base</button></div>
+      </div>
+      <form class="card" id="fbForm">
+        <h3>Feedback</h3>
+        <p class="hint" style="margin:0 0 12px;font-size:14px">CrewBase Log is in a trial phase. Anything that is broken, confusing or missing, tell us. All feedback is appreciated.</p>
+        <div class="field"><label for="fbMsg">Your feedback</label><textarea id="fbMsg" rows="4" required placeholder="What worked, what didn't, what you'd like to see…"></textarea></div>
+        <div class="field"><label for="fbEmail">Your email (optional, if you'd like a reply)</label><input id="fbEmail" type="email"></div>
+        <div class="row-actions"><button class="btn" id="fbSend" type="submit">Send feedback</button><span id="fbStatus" class="ok-msg"></span></div>
+      </form>
+    </div>
+
     <!-- jobs -->
     <div data-p="jobs" class="hidden">
       <h2>Pilot jobs</h2>
@@ -1141,7 +1146,7 @@ function tab(t){
   $$("[data-p]").forEach(p => p.classList.toggle("hidden", p.dataset.p !== t));
   // the page is kept in the address, so a reload (an iPhone switching apps) opens it again
   try { if (location.hash !== "#" + t) history.replaceState(null, "", "#" + t); } catch {}
-  ({ overview: renderOverview, profile: () => { renderProfile(); renderSignature(); renderExpiries(); }, logbook: renderLogbook, add: openAddForm, import: renderYourData, stats: renderStats, crewbase: renderCrewBase, admin: renderAdmin })[t]?.();
+  ({ overview: renderOverview, profile: () => { renderProfile(); renderSignature(); renderExpiries(); }, logbook: renderLogbook, add: openAddForm, import: renderYourData, stats: renderStats, crewbase: renderCrewBase, admin: renderAdmin, help: renderHelp })[t]?.();
   window.scrollTo(0,0);
 }
 $("#tabs").addEventListener("click", e => { if (e.target.dataset.t) tab(e.target.dataset.t); });
@@ -1473,7 +1478,7 @@ function renderHome(){
   const box = $("#homeDash"); if (!box || !data?.flights) return; const F = data.flights;
   // roster legs and logbook lines compare by airport (FCO and LIRF are the same): the airport list first
   if (!AIRPORTS && data.crew?.me?.days && Object.keys(data.crew.me.days).length) { loadAirports().then(() => AIRPORTS && renderHome()); }
-  $("#howBox").open = !F.length; $('[data-p="overview"] .lead')?.classList.toggle("hidden", !!F.length);
+  $('[data-p="overview"] .lead')?.classList.toggle("hidden", !!F.length);
   if (!F.length) { box.innerHTML = installHTML(); return; }
   const yr = todayISO().slice(0, 4);
   const tile = (k, v, lim, note) => { const pc = lim ? v / (lim * 60) : 0, c = !lim ? "" : pc > 1 ? " bad" : pc >= 0.8 ? " warn" : "";
@@ -1511,10 +1516,12 @@ function renderHomeTop(){
       return `<a href="#" class="chip ${st.c}" data-go="profile" data-scroll="#expSection">${esc(e.name || "Item")} · ${st.c === "bad" ? "expired " + fmtDate(e.date) : `${fmtDate(e.date)} (${st.days} day${st.days === 1 ? "" : "s"})`}</a>`; }).join("")}</div></div>` : "");
 }
 document.addEventListener("click", e => { if (!e.target.closest("[data-finish]")) return; const m = setupItems().find(x => !x.done); openSetup(m ? m.step : 1); });
+function renderHelp(){
+  const fe = $("#fbEmail"); if (!fe.value || fe.value === fe.dataset.auto) fe.value = fe.dataset.auto = user.id === "sample" ? "" : user.email || "";
+}
 function renderOverview(){
   renderHomeTop();
   renderHome();
-  const fe = $("#fbEmail"); if (!fe.value || fe.value === fe.dataset.auto) fe.value = fe.dataset.auto = user.id === "sample" ? "" : user.email || "";
   const p = data.profile, first = (p.name || "").split(" ")[0];
   $("#hello").textContent = first ? `Welcome, ${first}` : "Welcome";
   // reminders: what is still to set up, and expiry dates due within 60 days
@@ -1533,7 +1540,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "30 Oct 2026 · 13";
+const APP_VERSION = "30 Oct 2026 · 14";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
