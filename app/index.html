@@ -1552,7 +1552,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "30 Oct 2026 · 20";
+const APP_VERSION = "30 Oct 2026 · 21";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
@@ -3358,9 +3358,13 @@ function flightSuggest(pre, k){
     const type = $("#" + pre + "acType").value.trim().toUpperCase(), last = new Map();
     // the starts of the registrations the pilot flies (Profile), while what is typed is still shorter than them
     const leads = (data.profile.regs ? data.profile.regs.split(", ") : []).map(regLead).filter(l => !val || (l.replace("-", "").startsWith(val.replace("-", "")) && val.replace("-", "").length < l.replace("-", "").length));
-    for (const f of F) if (f.reg && (!type || f.acType === type)) last.set(f.reg, { date: f.date, type: f.acType, c: (last.get(f.reg)?.c || 0) + 1 });
-    return withOut([...leads.map(l => ({ v: l, label: l + "…", note: "your registrations" })), ...[...last.entries()].sort((a, b) => b[1].date.localeCompare(a[1].date)).filter(([v]) => !val || v.replace("-", "").startsWith(val.replace("-", "")))
-      .slice(0, 8).map(([v, x]) => ({ v, label: v, note: `${x.type ? x.type + " · " : ""}${fmtDate(x.date)}` }))]);
+    // every registration flown before; what is typed is found anywhere in it, dash or not (STB finds G-STBA, GSTB too):
+    // those starting with it first, then the ones of the aircraft type entered, then the most recent
+    for (const f of F) if (f.reg && !(last.get(f.reg)?.date > f.date)) last.set(f.reg, { date: f.date, type: f.acType });
+    const bare = x => x.toUpperCase().replace(/[^A-Z0-9]/g, ""), q = bare(val);
+    const hits = [...last.entries()].filter(([v]) => !q || bare(v).includes(q))
+      .sort((a, b) => (q ? bare(b[0]).startsWith(q) - bare(a[0]).startsWith(q) : 0) || (type ? (b[1].type === type) - (a[1].type === type) : 0) || b[1].date.localeCompare(a[1].date));
+    return withOut([...leads.map(l => ({ v: l, label: l + "…", note: "your registrations" })), ...hits.slice(0, 10).map(([v, x]) => ({ v, label: v, note: `${x.type ? x.type + " · " : ""}${fmtDate(x.date)}` }))]);
   }
   return [];
 }
@@ -3794,8 +3798,8 @@ const hideSuggest = () => $$(".sugbox").forEach(b => b.remove());
 document.addEventListener("focusin", e => { if (SUG_KEYS.test(e.target.id || "")) Promise.all([loadAirports(), /(from|to)$/.test(e.target.id) && loadAptNames()]).then(() => document.activeElement === e.target && showSuggest(e.target)); else if (!e.target.closest?.(".sugbox")) hideSuggest(); });
 // airport codes are capitals, as they are typed
 document.addEventListener("input", e => {
-  const el = e.target; if (!/^(n_|e_)(from|to)$/.test(el.id || "")) return;
-  const up = el.value.toUpperCase().replace(/[^A-Z0-9]/g, ""); if (up === el.value) return;
+  const el = e.target, reg = /^(n_|e_)reg$/.test(el.id || ""); if (!/^(n_|e_)(from|to)$/.test(el.id || "") && !reg) return;
+  const up = el.value.toUpperCase().replace(reg ? /[^A-Z0-9-]/g : /[^A-Z0-9]/g, ""); if (up === el.value) return;
   const at = el.selectionStart; el.value = up; try { el.setSelectionRange(Math.min(at, up.length), Math.min(at, up.length)); } catch {}
 }, true);
 document.addEventListener("input", e => { if (SUG_KEYS.test(e.target.id || "")) showSuggest(e.target); });
@@ -3980,7 +3984,7 @@ function flightFieldsHTML(pre, f = {}){
       Array.from({ length: max + 1 }, (_, n) => `<option${v(k) !== "" && n === cur ? " selected" : ""}>${n}</option>`).join("") + `</select>` +
       (v(k) === "" ? `<button type="button" class="ldgcover" data-ldg="${pre}${k}" aria-label="1 landing"></button>` : "") + `</span>`; };
   const input = k => k.startsWith("ldg") ? ldg(k) : `<input id="${pre}${k}" data-k="${k}" value="${esc(String(v(k)))}"` +
-    (k === "date" ? ` type="date" required max="${logToday()}"` : LB_TIME.includes(k) ? ' class="mono" placeholder="HH:MM" inputmode="numeric" pattern="[0-9:]*" maxlength="5" autocomplete="off"' : LB_DUR.includes(k) ? ' class="mono" placeholder="H:MM" inputmode="numeric" pattern="[0-9:]*" maxlength="6" autocomplete="off"' : k === "from" || k === "to" ? ' class="mono" maxlength="4" autocapitalize="characters" autocomplete="off" spellcheck="false" style="text-transform:uppercase"' : "") + ">";
+    (k === "date" ? ` type="date" required max="${logToday()}"` : LB_TIME.includes(k) ? ' class="mono" placeholder="HH:MM" inputmode="numeric" pattern="[0-9:]*" maxlength="5" autocomplete="off"' : LB_DUR.includes(k) ? ' class="mono" placeholder="H:MM" inputmode="numeric" pattern="[0-9:]*" maxlength="6" autocomplete="off"' : k === "reg" ? ' style="text-transform:uppercase" autocapitalize="characters" autocomplete="off" spellcheck="false"' : k === "from" || k === "to" ? ' class="mono" maxlength="4" autocapitalize="characters" autocomplete="off" spellcheck="false" style="text-transform:uppercase"' : "") + ">";
   // pilot flying puts the landing in by itself (day or night, from the sun at the arrival airport); a saved flight with landings was flown
   const pfOn = /\bRELIEF\b/i.test(f.remarks || "") ? "rel" : f.ldgDay || f.ldgNight ? "pf" : "";   // blank until the pilot (or a confirmed return flight) says
   const r = (v, l) => `<label><input type="radio" name="${pre}pf" value="${v}"${pfOn === v ? " checked" : ""}> ${l}</label>`;
