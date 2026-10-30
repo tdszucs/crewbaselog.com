@@ -100,6 +100,7 @@ input.manual{color:var(--bad);border-color:var(--bad)}
 .bbar,.moremenu{display:none}
 @media (max-width:700px){
   #tabs{display:none}
+  .toast{bottom:calc(76px + env(safe-area-inset-bottom))}
   .bbar{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:30;background:var(--surface);border-top:1px solid var(--line);padding:4px 4px calc(4px + env(safe-area-inset-bottom))}
   .bbar button{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;background:none;border:0;padding:6px 0;color:var(--muted);font:500 11px Inter,sans-serif;cursor:pointer}
   .bbar button.on{color:var(--brand)}
@@ -536,7 +537,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
           <div class="field"><label for="pBase">Home base (ICAO or IATA)</label><input id="pBase" class="mono" maxlength="4" style="text-transform:uppercase" placeholder="e.g. LIPZ or VCE" autocapitalize="characters" autocomplete="off"></div>
           <div class="field"><label for="pAirline">Airline code (IATA or ICAO)</label><input id="pAirline" class="mono" style="text-transform:uppercase" maxlength="3" placeholder="e.g. EY or ETD" autocapitalize="characters" autocomplete="off"><div class="hint" style="font-size:13px;margin:4px 0 0">Goes in front of the flight numbers you enter: 101 becomes EY101.</div></div>
         </div>
-        <div class="row-actions"><button class="btn" type="submit">Save profile</button><span id="profSaved" class="ok-msg"></span></div>
+        <div class="row-actions"><span id="profSaved" class="hint">Every change is saved as you type.</span></div>
       </form>
       <h2 id="sigSection" style="margin-top:30px">Logbook signature</h2>
       <p class="lead">Used to sign each page of your printed logbook. Draw with a finger, stylus or mouse.</p>
@@ -837,7 +838,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
           <div class="row-actions" style="margin:0"><select id="cbTzOff" style="width:auto"></select><button class="btn small" type="button" id="cbTzOk">Convert to UTC and import</button><button class="btn ghost small" type="button" id="cbTzNo">Cancel</button></div>
         </div>
         <input type="file" id="cbFile" accept=".pdf,application/pdf" class="hidden">
-        <div class="row-actions" style="margin-top:14px"><button class="btn" id="cbSave" type="button">Save name and base</button><button class="btn ghost" id="cbShare" type="button">Export to send to a friend</button><button class="btn danger small" id="cbClearMe" type="button">Clear my roster</button><span id="cbMsg" class="hint"></span></div>
+        <div class="row-actions" style="margin-top:14px"><button class="btn hidden" id="cbSave" type="button">Save name and base</button><button class="btn ghost" id="cbShare" type="button">Export to send to a friend</button><button class="btn danger small" id="cbClearMe" type="button">Clear my roster</button><span id="cbMsg" class="hint"></span></div>
       </div>
 
       <div class="card">
@@ -1310,6 +1311,9 @@ function enterApp(){
   load(); show("#vApp"); tab(pages.includes(was) ? was : "overview");
   // a reload on another page (a flight half entered, the phone switching apps) goes back there, not into the setup
   if (!data.onboarded && !data.flights.length && user.id !== "sample" && !(pages.includes(was) && was !== "overview")) openSetup();
+  if (was === "logbook") resumeEdit();
+  // ask the browser to keep this site's data for good (Safari otherwise clears it after 7 days without a visit)
+  navigator.storage?.persist?.().catch(() => {});
   $("#whoEmail").textContent = isLocal() ? "On this device only" : user.email;
   $("#btnOut").textContent = isLocal() ? "Create account / Log in" : "Log out";
   if (moved) $('[data-p="overview"] h2').insertAdjacentHTML("afterend", '<div class="notice" style="margin:0 0 16px"><b>Your logbook is now with your account.</b> Everything you started without an account came along.</div>');
@@ -1616,15 +1620,21 @@ $("#pApply").addEventListener("click", async () => {
   if (!save()) return;
   msg.textContent = c.fn + c.ifr + c.night ? `Done: PIC/co-pilot time on ${c.fn}, IFR on ${c.ifr}, night time on ${c.night} flight${c.night === 1 ? "" : "s"}.` : "Nothing to fill in: your flights already have these.";
 });
-$("#profForm").addEventListener("submit", e => {
-  e.preventDefault();
-  for (const [id,k] of Object.entries(PF)) if (k !== "email") data.profile[k] = $("#"+id).value.trim();
-  for (const k of PF_DROPPED) delete data.profile[k];
-  data.profile.base = data.profile.base.toUpperCase(); data.profile.lic = data.profile.lic.toUpperCase(); data.profile.airline = (data.profile.airline || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
-  const why = codeProblem(data.profile.base, data.profile.airline); if (why) { load(); $("#profSaved").innerHTML = `<span style="color:var(--bad)">${esc(why)}</span>`; return; }
-  const fn = $("#n_flightNo"); if (fn && !fn.value && data.profile.airline) fn.value = data.profile.airline;   // an open "add a flight" form gets the code too
-  if (save()) { logEvent("profile_saved", { name: !!data.profile.name, licence: !!data.profile.lic }); $("#profSaved").textContent = "Saved on this device."; renderProfile(); $("#profSaved").textContent = "Saved on this device."; }
-});
+// the profile is saved as it is typed; a base or airline code that isn't right yet keeps the last good one until it is
+function profSave(){
+  const P = data.profile, was = { base: P.base, airline: P.airline };
+  for (const [id,k] of Object.entries(PF)) if (k !== "email") P[k] = $("#"+id).value.trim();
+  for (const k of PF_DROPPED) delete P[k];
+  P.base = P.base.toUpperCase(); P.lic = P.lic.toUpperCase(); P.airline = (P.airline || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const why = codeProblem(P.base, P.airline); if (why) Object.assign(P, was);
+  const fn = $("#n_flightNo"); if (fn && !fn.value && P.airline) fn.value = P.airline;   // an open "add a flight" form gets the code too
+  if (!save()) return;
+  $("#profSaved").innerHTML = why ? `<span style="color:var(--bad)">${esc(why)}</span>` : '<span class="ok-msg">✓ Saved</span>';
+  clearTimeout(profSave._log); profSave._log = setTimeout(() => logEvent("profile_saved", { name: !!P.name, licence: !!P.lic }), 4000);
+}
+$("#profForm").addEventListener("submit", e => { e.preventDefault(); profSave(); });
+$("#profForm").addEventListener("input", () => { clearTimeout(profSave._t); profSave._t = setTimeout(profSave, 350); });
+$("#profForm").addEventListener("change", () => { clearTimeout(profSave._t); profSave(); });
 
 /* ---------- expiries ---------- */
 function renderExpiries(){
@@ -1647,6 +1657,11 @@ function renderExpiries(){
       <div class="del"><button class="x" data-del="${e.id}" title="Remove" type="button">×</button></div>
     </div>`; }).join("");
 }
+$("#expList").addEventListener("input", e => {
+  const row = e.target.closest(".exp"); if (!row || !e.target.dataset.f) return;
+  const it = data.expiries.find(x => x.id === row.dataset.id); if (!it) return; it[e.target.dataset.f] = e.target.value.trim();
+  clearTimeout(row._t); row._t = setTimeout(() => { if (save()) flash("#expSaved"); }, 350);
+});
 $("#expList").addEventListener("change", e => {
   const row = e.target.closest(".exp"); if (!row) return;
   const it = data.expiries.find(x => x.id === row.dataset.id); it[e.target.dataset.f] = e.target.value.trim();
@@ -2478,6 +2493,7 @@ async function nextFile(){
   $("#impDoneLog").innerHTML = impLog.map(l => l.startsWith("<div") ? l : `<div>${l}</div>`).join("") + (nf + ns === 0 ? `<div>Your logbook has no flights yet: nothing in ${impLog.length === 1 ? "this file" : "these files"} has been flown. Planned flights belong in <a href="#" data-go="crewbase">Crew Base</a>.</div>` : `<div><b>Your logbook now:</b> ${nf.toLocaleString()} flight${nf === 1 ? "" : "s"}` + (ns ? ` · ${ns.toLocaleString()} simulator session${ns === 1 ? "" : "s"}` : "") + (restoredView() || checked ? "" : `<div class="hint"><a href="#" data-go="import" data-scroll="#chkBox">Check the totals against your old logbook's last page</a></div>`) + `</div>`);
   $("#impDone").classList.remove("hidden"); $("#impDone").scrollIntoView({ behavior: "smooth", block: "start" });
   setTimeout(() => dispatchEvent(new Event("cbl:imported")), 600);   // after the checks below have added their lines
+  if (impBatch?.added || impBatch?.updated) backupNudge(`${(impBatch.added + impBatch.updated).toLocaleString()} line${impBatch.added + impBatch.updated === 1 ? "" : "s"} came in from your file${impBatch.names.length === 1 ? "" : "s"}`);
   $("#chkUpto").value = ""; renderCheck();
   if (impBatch?.added && repGuest() && guestItems().length) for (const n of impBatch.names.filter(n => data.repSent.some(x => x.file_name === n)))
     guestCall("works", JSON.stringify({ items: guestItems(), file_name: n })).then(r => { if (!r.done) return;
@@ -2666,6 +2682,13 @@ document.addEventListener("click", e => {
 });
 // a short fingerprint of the flights: a backup reminder shows when it differs from the last download
 const flightsSig = () => { const F = data.flights; let h = 0; const t = JSON.stringify(F); for (let i = 0; i < t.length; i++) h = (h * 31 + t.charCodeAt(i)) | 0; return F.length + ":" + h; };
+// after a big change (an import, many lines corrected): a reminder at the bottom of the screen to download a backup file
+function backupNudge(what){
+  if (!data?.flights?.length || user?.id === "sample") return;
+  let t = $("#bkNudge"); if (!t) { t = document.createElement("div"); t.id = "bkNudge"; t.className = "toast good"; t.setAttribute("role", "status"); document.body.appendChild(t); }
+  t.innerHTML = `<div class="toast-ic" aria-hidden="true">⤓</div><div><div class="toast-h">Keep a copy of your logbook</div><div class="toast-b">${esc(what[0].toUpperCase() + what.slice(1))}. A backup file is your own copy, kept outside the app.<div class="fl-btns" style="margin-top:8px"><button class="btn small" type="button" data-backup>Download backup now</button></div></div></div><button type="button" class="toast-x" aria-label="Close">×</button>`;
+  t.querySelector(".toast-x").onclick = () => t.remove(); t.querySelector("[data-backup]").addEventListener("click", () => setTimeout(() => t.remove(), 300));
+}
 function markBackedUp(){ data.backup = { sig: flightsSig(), date: todayISO() }; save(); if (!$("[data-p=overview]").classList.contains("hidden")) renderOverview(); }
 /* ---------- previous experience (brought forward): data.prev, minutes and landings ---------- */
 const hasPrev = () => !!data.prev && EASA_PREV.some(k => data.prev[k]);
@@ -2938,7 +2961,7 @@ $("#fixCard").addEventListener("click", e => {
   const d = b.dataset, F = data.flights, C = id => FIX_CHECKS.find(c => c.id === id), copy = f => JSON.parse(JSON.stringify(f));
   if (d.acceptall) { acceptAsk = d.acceptall; return renderFix(); }
   if (d.acceptno !== undefined) { acceptAsk = ""; return renderFix(); }
-  if (d.acceptyes) return acceptAll(d.acceptyes);
+  if (d.acceptyes) { const r = acceptAll(d.acceptyes); backupNudge("many lines were corrected"); return r; }
   if (d.fixshow) { fixClosed.has(d.fixshow) ? fixClosed.delete(d.fixshow) : fixClosed.add(d.fixshow); return renderFix(); }
   if (d.role) { const f = F[+d.i], c0 = copy(f), id = FIX_CHECKS.find(c => c.roles && fixHits(c).includes(f))?.id || "noRole"; setRole(f, d.role);
     logFix(id, { kind: "mod", f, copy: c0, msg: `Logged as ${ROLE_PICK.find(x => x[0] === d.role)[1]}` }); return fixDone(); }
@@ -3879,10 +3902,29 @@ $("#lbSigClear").addEventListener("click", () => lbPad.reset());
 function lbOpenEdit(i){
   const f = data.flights[i]; if (!f) return; lbEditing = f; lbSigDrop = false;
   $("#lbEditFields").innerHTML = isSim(f) ? simFieldsHTML("e_", f) : flightFieldsHTML("e_", f);
+  // changes made earlier and not saved yet: back in the form
+  let back = false;
+  try { const d = JSON.parse(localStorage.getItem(editDraftKey()) || "null");
+    if (d && d.k === editKey(f)) { for (const [id, v] of Object.entries(d.v)) { const el = $("#" + id); if (el && el.value !== v) el.value = v; }
+      if (d.pf) { const r = document.querySelector(`[name="e_pf"][value="${d.pf}"]`); if (r) r.checked = true; }
+      back = true; } } catch {}
   if (!isSim(f)) { roleByType("e_"); timeSum("e_"); loadAirports().then(() => logBtns("e_")); Promise.all([loadAirports(), loadAptNames()]).then(() => aptFlags("e_")); }
   lbShowSig(); requestAnimationFrame(() => lbPad.reset()); loadAirports().then(() => gsCheck("e_"));
-  $("#lbEditTitle").textContent = (isSim(f) ? "Edit simulator session: " : "Edit flight: ") + flightLabel(f); $("#lbEditErr").textContent = "";
+  $("#lbEditTitle").textContent = (isSim(f) ? "Edit simulator session: " : "Edit flight: ") + flightLabel(f); $("#lbEditErr").innerHTML = back ? '<span style="color:var(--warn)">Your unsaved changes to this flight are back. Save flight to keep them, or Cancel.</span>' : "";
   $("#lbEdit").classList.remove("hidden"); $("#lbEdit").scrollIntoView({ behavior: "smooth", block: "start" }); $("#e_date").focus({ preventScroll: true });
+}
+const editDraftKey = () => "cbl_editdraft_" + (user?.id || "");
+// which flight a kept edit belongs to (plain codes: the airport list may not be loaded yet after a reload)
+const editKey = f => [f.date, f.from, f.to, f.out || f.flightNo, f.fstdTime || ""].join("|");
+$("#lbEditFields").addEventListener("input", () => { if (!lbEditing) return;
+  try { const v = {}; for (const el of $$("#lbEditFields [id^=e_]")) if ("value" in el) v[el.id] = el.value;
+    const pf = document.querySelector('[name="e_pf"]:checked')?.value; localStorage.setItem(editDraftKey(), JSON.stringify({ k: editKey(lbEditing), v, pf })); } catch {} });
+const dropEditDraft = () => { try { localStorage.removeItem(editDraftKey()); } catch {} };
+// an edit left unsaved (reload, another page): open that flight again with the changes
+function resumeEdit(){
+  let d; try { d = JSON.parse(localStorage.getItem(editDraftKey()) || "null"); } catch {} if (!d || lbEditing) return;
+  const i = data.flights.findIndex(f => editKey(f) === d.k); if (i < 0) return dropEditDraft();
+  tab("logbook"); lbOpenEdit(i);
 }
 function lbCloseEdit(){ lbEditing = null; $("#lbEdit").classList.add("hidden"); parkEdit(); }
 // the edit form can open inside Troubleshooting, under the line being fixed; it goes back to the Logbook tab when closed
@@ -3901,7 +3943,7 @@ function fixOpenEdit(i, btn){
 }
 function lbDelete(i){
   const f = data.flights[i]; if (!f || !confirm(`Delete the flight on ${flightLabel(f)}?`)) return;
-  const ctx = fixEditCtx; data.flights.splice(i, 1); lbCloseEdit(); save(); renderLogbook();
+  const ctx = fixEditCtx; data.flights.splice(i, 1); dropEditDraft(); lbCloseEdit(); save(); renderLogbook();
   if (ctx) { logFix(ctx.id, { kind: "del", copy: ctx.copy, msg: "Deleted" }); fixDone(); }
 }
 $("#lbTable").addEventListener("click", e => {
@@ -3909,7 +3951,7 @@ $("#lbTable").addEventListener("click", e => {
   if (ed) { lbCloseEdit(); lbOpenEdit(+ed.dataset.edit); } else if (del) lbDelete(+del.dataset.fdel);
 });
 $("#lbSearch").addEventListener("input", renderLogbook); $("#lbYear").addEventListener("change", renderLogbook); $("#lbType").addEventListener("change", renderLogbook);
-$("#lbEditCancel").addEventListener("click", lbCloseEdit);
+$("#lbEditCancel").addEventListener("click", () => { dropEditDraft(); lbCloseEdit(); });
 $("#lbEditDel").addEventListener("click", () => lbDelete(data.flights.indexOf(lbEditing)));
 /* After an edit to the date, airports or block times, update what was worked out from them, unless the pilot changed it too:
    total time (only if it was the block time), PIC / co-pilot / dual / instructor / IFR that equalled the total, and night time. */
@@ -3936,7 +3978,7 @@ $("#lbEdit").addEventListener("submit", async e => {
   if (data.flights.indexOf(lbEditing) !== at) return lbCloseEdit();
   data.flights[at] = f; data.flights.sort((a,b) => (a.date+a.out).localeCompare(b.date+b.out));
   const ctx = fixEditCtx; logEvent("edit_flight", { where: ctx ? "troubleshooting" : "logbook" });
-  if (save()) { lbCloseEdit(); renderLogbook(); cbMsg("#lbMsg", notes.length ? `Saved. Updated from the new times and route: ${notes.join(", ")}.` : "Saved.");
+  if (save()) { dropEditDraft(); lbCloseEdit(); renderLogbook(); cbMsg("#lbMsg", notes.length ? `Saved. Updated from the new times and route: ${notes.join(", ")}.` : "Saved.");
     // edited from Troubleshooting: listed there as corrected, with what it was and an undo
     if (ctx) { logFix(ctx.id, { kind: "mod", f, copy: ctx.copy, msg: notes.length ? `Edited (${notes.join(", ")})` : "Edited" }); fixDone(); } }
 });
@@ -4307,6 +4349,10 @@ async function cbSync(pull = true){
 $("#cbFRows").addEventListener("change", e => { const i = e.target.dataset.sh; if (i === undefined) return; cb().friends[+i].show = e.target.checked; save(); renderCrewBase(); });
 $("#cbFRows").addEventListener("click", e => { const b = e.target.closest("[data-del]"); if (!b) return; if (b.textContent !== "Sure?") { b.textContent = "Sure?"; return; } cb().friends.splice(+b.dataset.del, 1); save(); cbPush(); renderCrewBase(); });
 const cbKeepMe = () => { const C = cb(); C.me.name = $("#cbName").value.trim(); C.me.base = $("#cbBase").value.trim().toUpperCase(); };
+["cbName", "cbBase"].forEach(id => $("#" + id).addEventListener("input", () => {
+  cbKeepMe(); if (!save()) return; cbMsg("#cbMsg", "✓ Saved");
+  clearTimeout(cbKeepMe._t); cbKeepMe._t = setTimeout(() => cbPush(), 2000);
+}));
 $("#cbSave").addEventListener("click", () => {
   cbKeepMe(); const C = cb();
   if (save()) { cbPush(); const n = Object.keys(C.me.days).length; logEvent("roster_saved", { days: n }); cbMsg("#cbMsg", n ? `Saved. Your roster has ${n} days.` : "Saved your name and base. Drop your roster PDF next.", !n); renderCrewBase(); }
