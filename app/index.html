@@ -162,16 +162,17 @@ h2{font-size:24px;letter-spacing:-.02em;margin:0 0 6px}
 .lbcards{display:none}.lbcards.hlast{display:block}
 .hlast .lbcard{display:block;width:100%;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px;font:inherit;color:var(--ink);cursor:pointer}
 .hlast .lbcard .l1{display:flex;justify-content:space-between;gap:10px;font-weight:600;font-size:15px}.hlast .lbcard .l2{display:block;color:var(--muted);font-size:13px;margin-top:2px}
+.lbcards{display:block}.lbwide{display:none}#lbTable.tablewrap{border:0;overflow:visible}
+.lbmonth{display:flex;justify-content:space-between;align-items:baseline;margin:16px 2px 6px;font-size:14px}.lbmonth:first-child{margin-top:0}.lbmonth span{color:var(--muted);font-size:13px}
+.lbcard{display:block;width:100%;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:0 0 8px;font:inherit;color:var(--ink);cursor:pointer}.lbcard:hover{border-color:var(--brand)}
+.lbcard .l1{display:flex;justify-content:space-between;gap:10px;font-weight:600;font-size:15px}.lbcard .l1 b{font-family:"JetBrains Mono",monospace}
+.lbcard .l2{display:block;color:var(--muted);font-size:13px;margin-top:2px;overflow-wrap:anywhere}
+.lbbox #lbEdit{background:var(--surface)!important}
+.unf{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 0;border-top:1px solid var(--line)}.unf:first-child{border-top:0}.unf .fl-btns{margin:0}
 @media (max-width:700px){
-  .lbcards{display:block}.lbwide{display:none}
   /* the flights near the top: totals in one compact row, no explanations */
   #lbStats{grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px}#lbStats .stat{padding:8px 6px;text-align:center}#lbStats .k{font-size:10px;letter-spacing:.03em}#lbStats .v{font-size:15px}
   [data-p="logbook"] .lead,.lbhint{display:none}
-  #lbTable.tablewrap{border:0;overflow:visible}
-  .lbmonth{display:flex;justify-content:space-between;align-items:baseline;margin:14px 2px 6px;font-size:14px}.lbmonth:first-child{margin-top:0}.lbmonth span{color:var(--muted);font-size:13px}
-  .lbcard{display:block;width:100%;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:0 0 6px;font:inherit;color:var(--ink);cursor:pointer}
-  .lbcard .l1{display:flex;justify-content:space-between;gap:10px;font-weight:600;font-size:15px}.lbcard .l1 b{font-family:"JetBrains Mono",monospace}
-  .lbcard .l2{display:block;color:var(--muted);font-size:13px;margin-top:2px;overflow-wrap:anywhere}
 }
 /* the home screen */
 .howbox{margin:0 0 16px}.howbox>summary{cursor:pointer;list-style:none;padding:14px 16px;border:1px solid var(--line);border-radius:12px;background:var(--surface);font-size:15px;color:var(--muted)}
@@ -690,13 +691,18 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
         <div class="row-actions" style="margin:0"><button class="btn" type="submit" id="addSubmit">Add flight to logbook</button><button class="btn ghost" type="button" id="addClear">Clear</button><span class="err" id="addErr" style="margin:0"></span><span class="ok-msg" id="addOk"></span></div>
       </form>
       </div>
+      <div class="card hidden" id="unfCard">
+        <h3>Unfinished entries</h3>
+        <p class="hint step-sub">Started and not added yet. Complete one to carry on with it, or delete it.</p>
+        <div id="unfList"></div>
+      </div>
     </div>
     <div data-p="logbook" class="hidden">
       <h2>Logbook</h2>
       <p class="lead">Your flights are kept only in this browser. Downloads, backup and starting over are on <a href="#" data-go="import" data-scroll="#outCard">Your data</a>.</p>
       <div class="stats" id="lbStats"></div>
       <div class="row-actions" style="margin:0 0 16px"><button class="btn" type="button" data-go="add">+ Add a flight</button><span class="hint lbhint" style="margin:0;font-size:14px">For a flight or simulator session that isn't in any file.</span></div>
-      <div class="card">
+      <div class="lbbox">
         <form class="notice hidden" id="lbEdit" style="margin:0 0 14px;background:var(--bg);border-color:var(--line)" novalidate>
           <h3 style="margin:0 0 12px" id="lbEditTitle">Edit flight</h3>
           <div class="lbgrid" id="lbEditFields"></div>
@@ -1368,7 +1374,7 @@ document.addEventListener("click", e => {
   const a = e.target.closest("[data-rosteradd]"), k = e.target.closest("[data-rosterskip]"); if (!a && !k) return;
   const l = rosterPending()[+(a || k).dataset[a ? "rosteradd" : "rosterskip"]]; if (!l) return;
   if (k) { (data.rosterSkip ||= []).push(l.key); data.rosterSkip = data.rosterSkip.slice(-200); save(); renderHome(); return; }
-  tab("add"); addFormReset(); dropDraft();
+  stashForm(); tab("add"); addFormReset(); dropDraft();
   const set = (id, v) => { const i = $("#n_" + id); if (i) { i.value = v; i.dispatchEvent(new Event("input", { bubbles: true })); } };
   set("date", l.date); if (l.no) set("flightNo", withAirline(l.no)); set("from", l.from); set("to", l.to);
   const o = $("#n_out"); o.scrollIntoView({ behavior: "smooth", block: "center" }); o.focus();
@@ -1542,7 +1548,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "30 Oct 2026 · 16";
+const APP_VERSION = "30 Oct 2026 · 17";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
@@ -3022,19 +3028,24 @@ function renderYourData(){
 // adding a flight by hand lives on the Logbook tab, behind a button: most airline pilots import everything
 function openAddForm(){
   if (!$("#addFields").children.length) { addFormReset(); restoreDraft(); }
+  renderUnfinished(); scrollTo({ top: 0 });
   Promise.all([loadAirports(), loadAptNames()]).then(() => { aptFlags("n_"); logBtns("n_"); }); roleByType("n_"); timeSum("n_");
   loadAirports().then(renderAddPreview);
 }
 /* a flight half entered is kept on this device, so it is still there when the phone reloads the page (switching apps on an iPhone) */
 const draftKey = () => "cbl_draft_" + (user?.id || "");
-function saveDraft(){
-  try { const v = {}; for (const el of $$("#addFields [id^=n_]")) if (el.type === "checkbox" ? el.checked : el.value) v[el.id.slice(2)] = el.type === "checkbox" ? true : el.value;
+// what the form holds (or null while nothing is entered: today's date and the airline code alone don't count)
+function draftValues(){
+  const v = {}; for (const el of $$("#addFields [id^=n_]")) if (el.type === "checkbox" ? el.checked : el.value) v[el.id.slice(2)] = el.type === "checkbox" ? true : el.value;
     const pf = pfOf("n_"); if (pf) v._pf = pf; const rs = $("#n_relShare")?.dataset; if (rs?.share) Object.assign(v, { _share: rs.share, _keys: rs.keys || "", _full: rs.full || "" }); if ($("#n_total")?.dataset.auto) v._auto = 1; v._kind = addSim() ? "sim" : "flight";
-    if (Object.keys(v).some(k => !k.startsWith("_") && !(k === "flightNo" && v[k] === data.profile.airline) && !(k === "date" && v[k] === logToday()))) localStorage.setItem(draftKey(), JSON.stringify(v)); else localStorage.removeItem(draftKey()); } catch {}
+  return Object.keys(v).some(k => !k.startsWith("_") && !(k === "flightNo" && v[k] === data.profile.airline) && !(k === "date" && v[k] === logToday()) && !(k === "reg" && /-$/.test(v[k]))) ? v : null;
 }
+function saveDraft(){ try { const v = draftValues(); if (v) localStorage.setItem(draftKey(), JSON.stringify(v)); else localStorage.removeItem(draftKey()); } catch {} }
 const dropDraft = () => { try { localStorage.removeItem(draftKey()); } catch {} };
 function restoreDraft(){
-  let v; try { v = JSON.parse(localStorage.getItem(draftKey()) || "null"); } catch {} if (!v) return;
+  let v; try { v = JSON.parse(localStorage.getItem(draftKey()) || "null"); } catch {} if (v) restoreValues(v);
+}
+function restoreValues(v){
   if (v._kind === "sim" && !addSim()) { $('[name="addKind"][value="sim"]').checked = true; addFormReset(); }
   for (const [k, x] of Object.entries(v)) { const el = $("#n_" + k); if (el && !k.startsWith("_") && !k.startsWith("ldg")) { if (el.type === "checkbox") el.checked = !!x; else el.value = x; } }
   if ($("#n_ldgDay")) setLdg("n_", v.ldgDay ?? "", v.ldgNight ?? "");
@@ -3044,6 +3055,30 @@ function restoreDraft(){
   renderAddPreview(); loadAirports().then(() => logBtns("n_")); loadAirports().then(() => gsCheck("n_"));
 }
 $("#addFields").addEventListener("input", saveDraft); $("#addFields").addEventListener("change", saveDraft);
+/* Unfinished entries: + always opens a new, empty entry; one half filled in goes to the list at the bottom of the page,
+   to complete or delete later (kept on this device) */
+const unfKey = () => "cbl_unfinished_" + (user?.id || "");
+const unfList = () => store.get(unfKey(), []);
+function unfSet(L){ store.set(unfKey(), L); renderUnfinished(); }
+function stashForm(){ const v = $("#addFields").children.length && draftValues(); if (v) unfSet([{ id: Date.now().toString(36), at: new Date().toISOString(), v }, ...unfList()]); }
+function newEntry(){ stashForm(); addFormReset(); dropDraft(); $("#addOk").textContent = ""; }
+function renderUnfinished(){
+  const L = unfList(), box = $("#unfCard"); if (!box) return; box.classList.toggle("hidden", !L.length);
+  $("#unfList").innerHTML = L.map(e => { const v = e.v, sim = v._kind === "sim";
+    const what = sim ? ["Simulator", v.fstdType, v.fstdTime].filter(Boolean).join(" · ") : [v.flightNo && v.flightNo !== data.profile.airline ? v.flightNo : "", v.from || v.to ? `${v.from || "?"} → ${v.to || "?"}` : "", v.acType, v.out && v.in ? `${v.out}–${v.in}` : v.out ? `off-block ${v.out}` : ""].filter(Boolean).join(" · ");
+    return `<div class="unf"><div><b>${v.date ? fmtDate(v.date).slice(0, 5) : "No date"}</b> ${esc(what || "a few details")}<div class="hint">started ${fmtDate(e.at.slice(0, 10)).slice(0, 5)} ${e.at.slice(11, 16)} UTC</div></div>
+      <div class="fl-btns"><button class="btn small" type="button" data-unfgo="${e.id}">Complete</button><button class="btn ghost small" type="button" data-unfdel="${e.id}">Delete</button></div></div>`; }).join("");
+}
+document.addEventListener("click", e => {
+  const go = e.target.closest("[data-unfgo]"), del = e.target.closest("[data-unfdel]"); if (!go && !del) return;
+  const L = unfList(), id = (go || del).dataset[go ? "unfgo" : "unfdel"], it = L.find(x => x.id === id); if (!it) return;
+  if (del) { if (del.textContent !== "Sure?") { del.textContent = "Sure?"; return; } return unfSet(L.filter(x => x !== it)); }
+  stashForm(); const rest = unfList().filter(x => x.id !== id);
+  addFormReset(); restoreValues(it.v); saveDraft(); unfSet(rest); $("#addOk").textContent = "";
+  $("#addBlock").scrollIntoView({ behavior: "smooth", block: "start" });
+});
+// every + (menu, bottom bar, Home, Logbook) starts a new entry; a reload on the page keeps the one in progress
+document.addEventListener("click", e => { if (e.target.closest('[data-t="add"],[data-go="add"]') && $("#addFields").children.length) newEntry(); }, true);
 /* ---------- where to get the file from each logbook app (the same steps as switch-pilot-logbook-app.html) ---------- */
 const APP_GUIDES = {
   logten: ["LogTen Pro", ["Open <b>Reports</b> and choose <b>Exporters</b>, then <b>Export Flights (Tab)</b>. Not Dynamic Export: it leaves out the fields your logbook view hides.",
