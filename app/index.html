@@ -568,6 +568,13 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
         <div class="tablewrap"><table><thead><tr><th>Type</th><th class="r">Flights</th><th>Flown as</th></tr></thead><tbody id="acRows"></tbody></table></div>
         <div class="field" style="max-width:360px;margin:14px 0 0"><label for="acDefault">Types not on the list</label><select id="acDefault"></select><div class="hint">Used for new types until you set them here.</div></div>
       </div>
+      <!-- the site owner's account only: back to a brand-new account, for testing -->
+      <div class="card danger-zone hidden" id="wipeCard">
+        <h3 class="dz-title">Debug: wipe everything</h3>
+        <p class="hint step-sub">Only on your account. Deletes every flight, your profile, signature, expiries, previous experience, import checks, the half-entered flight and your Crew Base roster and friends (on this device and on the server), then starts again with the setup, like a new pilot.</p>
+        <button class="btn danger small" type="button" id="wipeBtn">Wipe everything</button>
+        <p class="err" id="wipeMsg"></p>
+      </div>
     </div>
 
     <!-- your data: import + export -->
@@ -1546,7 +1553,17 @@ function renderAcTypes(){
 }
 $("#acRows").addEventListener("change", e => { const t = e.target.dataset.ac; if (t === undefined) return; (data.acTypes ||= {})[t] = e.target.value; save(); renderAcTypes(); });
 $("#acDefault").addEventListener("change", e => { data.profile.crew = e.target.value; save(); renderAcTypes(); });
+$("#wipeBtn").addEventListener("click", async () => {
+  const b = $("#wipeBtn"); if (!isAdmin()) return;
+  if (b.dataset.sure !== "1") { b.dataset.sure = "1"; const n = data.flights.length; b.textContent = `Sure? Wipe ${n.toLocaleString()} flight${n === 1 ? "" : "s"} and everything else`; return; }
+  b.disabled = true; b.textContent = "Wiping…";
+  try { const db = Auth.db(); await db.from("crew_friends").delete().eq("user_id", user.id); await db.from("crew_rosters").delete().eq("user_id", user.id); } catch (e) { console.warn(e); }
+  try { localStorage.removeItem(key()); dropDraft(); } catch {}
+  logEvent("debug_wipe", {});
+  location.hash = ""; location.reload();
+});
 function renderProfile(){
+  $("#wipeCard").classList.toggle("hidden", !isAdmin());
   renderAcTypes();
   for (const [id,k] of Object.entries(PF)) $("#"+id).value = data.profile[k] || ""; $("#profSaved").textContent = "";
   $("#pRole").value = data.profile.role || "PIC"; $("#pIfr").checked = data.profile.autoIfr !== false; $("#pUsage").checked = data.profile.usage !== false; $("#pApt").value = data.profile.apt || ""; $("#pAptMsg").textContent = ""; $("#pNight").checked = data.profile.autoNight !== false; $("#pApplyMsg").textContent = "";
