@@ -1339,18 +1339,37 @@ async function pdfNow(btn){
   if (btn) { btn.disabled = false; btn.textContent = was; }
 }
 document.addEventListener("click", e => { const b = e.target.closest("[data-pdfnow]"); if (b) pdfNow(b); });
+/* "Add to Home Screen": the app then opens full screen like an app, works offline, and Safari keeps its data (a website's
+   data can be deleted after 7 days without a visit). Not shown in the installed app, or once dismissed */
+let installEvt = null;
+addEventListener("beforeinstallprompt", e => { e.preventDefault(); installEvt = e; renderHome(); });
+const standalone = () => navigator.standalone || matchMedia("(display-mode: standalone)").matches;
+function installHTML(){
+  if (standalone() || store.get("cbl_noinstall", null)) return "";
+  const ios = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  if (!ios && !installEvt) return "";
+  return `<div class="card hcard install"><h3>Put CrewBase Log on your Home Screen</h3>` +
+    (ios ? `<ol style="margin:0;padding-left:20px;font-size:15px;line-height:1.9"><li>Tap <b>Share</b> <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-4px;color:#0a84ff" aria-label="Share"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M5 11v9h14v-9"/></svg> at the bottom of Safari</li><li>Choose <b>Add to Home Screen</b> <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-4px" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M12 8v8M8 12h8"/></svg></li></ol>`
+      : `<p style="margin:0">One tap, and it opens like an app.</p>`) +
+    `<p class="hint" style="margin:8px 0 0;font-size:13.5px">It then opens full screen, works offline, and your logbook is kept: Safari can delete a website's data after 7 days without a visit.</p>` +
+    `<div class="fl-btns">${ios ? "" : '<button class="btn small" type="button" data-install>Install app</button>'}<button class="btn ghost small" type="button" data-noinstall>Not now</button></div></div>`;
+}
+document.addEventListener("click", async e => {
+  if (e.target.closest("[data-noinstall]")) { store.set("cbl_noinstall", 1); renderHome(); }
+  if (e.target.closest("[data-install]") && installEvt) { installEvt.prompt(); await installEvt.userChoice.catch(() => {}); installEvt = null; renderHome(); }
+});
 function renderHome(){
-  const box = $("#homeDash"), F = data.flights; if (!box) return;
+  const box = $("#homeDash"); if (!box || !data?.flights) return; const F = data.flights;
   // roster legs and logbook lines compare by airport (FCO and LIRF are the same): the airport list first
   if (!AIRPORTS && data.crew?.me?.days && Object.keys(data.crew.me.days).length) { loadAirports().then(() => AIRPORTS && renderHome()); }
   $("#howBox").open = !F.length; $('[data-p="overview"] .lead')?.classList.toggle("hidden", !!F.length);
-  if (!F.length) { box.innerHTML = ""; return; }
+  if (!F.length) { box.innerHTML = installHTML(); return; }
   const yr = todayISO().slice(0, 4);
   const tile = (k, v, lim, note) => { const pc = lim ? v / (lim * 60) : 0, c = !lim ? "" : pc > 1 ? " bad" : pc >= 0.8 ? " warn" : "";
     return `<div class="htile${c}"><div class="k">${k}</div><div class="v">${fmtHrs(v)}</div><div class="lim">${lim ? `limit ${lim.toLocaleString()} h` : note || ""}</div>${lim ? `<div class="bar"><i style="width:${Math.min(100, Math.round(pc * 100))}%"></i></div>` : ""}</div>`; };
   const last = [...F].filter(f => !isSim(f)).sort((a, b) => (b.date + b.out).localeCompare(a.date + a.out))[0], li = last ? F.indexOf(last) : -1;
   const rec = typeRecency(), hasLdg = F.some(f => f.ldgDay || f.ldgNight);
-  box.innerHTML = rosterAddHTML() +
+  box.innerHTML = installHTML() + rosterAddHTML() +
     `<div class="hgrid">${tile("Last 28 days", ftlSum(isoDaysAgo(27)), 100)}${tile("This year", ftlSum(yr + "-01-01"), 900)}${tile("Last 12 months", ftlSum(isoDaysAgo(364)), 1000)}${tile("Total time", F.reduce((s, f) => s + (f.total || 0), 0) + (data.prev?.total || 0), 0, "all time")}</div>` +
     (hasLdg && rec.length ? `<div class="card hcard"><h3>Landings: 3 in 90 days</h3><div class="hrow">${rec.map(r => `<span class="chip ${r.ok ? "ok" : "bad"}">${esc(r.type)} · ${r.in90} in 90 days · ${r.ok ? "until " + fmtDate(r.until) : "not current"}</span>`).join("")}</div></div>` : "") +
     (last ? `<div class="card hcard"><h3>Last flight</h3>${lbCards([{ f: last, i: li }], [{ f: last, i: li }]).replace('<div class="lbcards">', '<div class="lbcards hlast">').replace(/<div class="lbmonth">.*?<\/div>/, "")}` +
@@ -1371,9 +1390,6 @@ function renderOverview(){
   if (futureRemoved) lines.push(`<b>${futureRemoved} flight${futureRemoved === 1 ? " was" : "s were"} dated in the future and ${futureRemoved === 1 ? "has" : "have"} been taken out of your logbook.</b> The logbook only holds flights already flown; planned flights belong in <a href="#" data-go="crewbase">Crew Base</a>.`);
   if (data.flights.length && user.id !== "sample" && data.backup?.sig !== flightsSig())
     lines.push(`<b>Back up your logbook:</b> it has changed since ${data.backup?.date ? "your last download on " + fmtDate(data.backup.date) : "you added it"}. <a href="#" data-backup>Download full backup</a>`);
-  const ios = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-  if (ios && !navigator.standalone && !matchMedia("(display-mode: standalone)").matches)
-    lines.push("<b>On iPhone:</b> tap Share → <b>Add to Home Screen</b>. Safari can delete a website's data after 7 days without a visit; the Home Screen app keeps your logbook.");
   $("#setupNotice").innerHTML = lines.join("<br>"); $("#setupNotice").classList.toggle("hidden", !lines.length);
 }
 $("#ovBackup").addEventListener("click", () => $("#btnBackup").click());
