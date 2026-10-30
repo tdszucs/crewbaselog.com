@@ -57,6 +57,7 @@ input:focus,select:focus{outline:2px solid color-mix(in srgb,var(--brand) 40%,tr
 .sugbox{position:absolute;left:0;top:100%;min-width:100%;width:max-content;max-width:min(330px,calc(100vw - 32px));z-index:20;margin-top:4px;background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.18);max-height:300px;overflow:auto}
 .sugbox button{display:flex;width:100%;justify-content:space-between;gap:14px;white-space:nowrap;align-items:baseline;background:none;border:0;border-bottom:1px solid var(--line);padding:11px 12px;font:inherit;font-size:15px;color:var(--ink);text-align:left;cursor:pointer}
 .sugbox button:last-child{border-bottom:0}.sugbox button:hover,.sugbox button.on{background:var(--bg)}
+.sugbox button.apt{flex-wrap:wrap;row-gap:2px}.sugbox button.apt small{flex-basis:100%;white-space:normal;color:var(--muted);font-size:13px;line-height:1.3}
 .sugbox b{font-family:"JetBrains Mono",monospace;font-weight:600}.sugbox span{color:var(--muted);font-size:13px;text-align:right}
 .hint{font-size:12.5px;color:var(--muted);margin-top:4px}
 .err{color:var(--bad);font-size:13.5px;margin:8px 0 0;min-height:1em}
@@ -2019,6 +2020,15 @@ const isSim = f => !!f.fstdTime && !f.total;
    airfields.json: small airfields (LHBS, EDFZ, MYF...) and closed airports old logbooks still name (OMUQ); marked [lat, lon, 1] */
 let AIRPORTS = null;
 const isAirfield = c => !!AIRPORTS?.[c]?.[2];
+/* airport names: every airport with an IATA code, [ICAO, IATA, name, city, country, size 2 large / 1 medium / 0 small], loaded
+   the first time an airport box is used. APT_NAME finds a row by either code */
+let APT_LIST = null, APT_NAME = null, aptNamesP = null;
+function loadAptNames(){
+  return aptNamesP ||= fetch("airport-names.json").then(r => r.ok ? r.json() : []).catch(() => []).then(L => {
+    APT_LIST = L; APT_NAME = {}; for (const r of L) { if (r[0]) APT_NAME[r[0]] ||= r; APT_NAME[r[1]] ||= r; }
+    if (!L.length) aptNamesP = null; return L; });
+}
+const aptName = c => { const r = APT_NAME?.[c]; return r ? r[2] + (r[3] ? `, ${r[3]}` : "") + (r[4] ? ` · ${r[4]}` : "") : ""; };
 async function loadAirports(){
   if (AIRPORTS) return AIRPORTS;
   const get = u => fetch(u).then(r => r.ok ? r.json() : {}).catch(() => ({}));
@@ -3168,11 +3178,18 @@ function flightSuggest(pre, k){
     }
     for (const [v, c] of count(f => sty(f[k]))) add(v, n(c));
     if (k === "to") for (const [v, c] of count(f => sty(f.from))) add(v, n(c));
-    // typed text: matches the code or its other style (AUH / OMAA)
-    const alt = c => aptAlt()[c] || "";
+    // typed text: matches the code or its other style (AUH / OMAA); airports flown before first, then every airport with an
+    // IATA code whose ICAO or IATA code starts with it (big ones first), then names and cities ("ABU" finds Abu Dhabi)
+    const alt = c => aptAlt()[c] || APT_NAME?.[c]?.[c.length === 4 ? 1 : 0] || "";
     let list = [...out.values()].filter(o => !val || o.v.startsWith(val) || alt(o.v).startsWith(val));
-    if (val.length >= 3 && AIRPORTS && !list.some(o => o.v === sty(val) || alt(o.v) === val)) { const c = AIRPORTS[val] ? sty(val) : ""; if (c) list.push({ v: c, note: "airport" }); }
-    return list.slice(0, 8).map(o => ({ ...o, label: o.v + (alt(o.v) ? ` · ${alt(o.v)}` : "") }));
+    if (val && APT_LIST) {
+      const seen = new Set(list.flatMap(o => [o.v, alt(o.v)])), show = r => pref ? sty(r[0] || r[1]) : r[0] && r[0].startsWith(val) ? r[0] : r[1];
+      const byCode = APT_LIST.filter(r => r[1].startsWith(val) || r[0].startsWith(val)).sort((a, b) => (b[1] === val || b[0] === val) - (a[1] === val || a[0] === val) || b[5] - a[5] || a[1].localeCompare(b[1]));
+      const byName = val.length >= 3 ? APT_LIST.filter(r => !byCode.includes(r) && [r[2], r[3]].some(t => t.toUpperCase().split(/[\s\-/']+/).some(w => w.startsWith(val)))).sort((a, b) => b[5] - a[5]) : [];
+      for (const r of [...byCode, ...byName]) { const v = show(r); if (!v || seen.has(r[0]) || seen.has(r[1])) continue; seen.add(r[0]); seen.add(r[1]); list.push({ v, note: "" }); if (list.length >= 40) break; }
+    }
+    if (val.length >= 3 && AIRPORTS && !list.some(o => o.v === sty(val) || alt(o.v) === val)) { const c = AIRPORTS[val] ? sty(val) : ""; if (c) list.push({ v: c, note: "airfield" }); }
+    return list.slice(0, 40).map(o => ({ ...o, label: o.v + (alt(o.v) ? ` · ${alt(o.v)}` : ""), name: aptName(o.v) || aptName(alt(o.v)) }));
   }
   // total and function times: the block time worked out from off-block and on-block (and the total, once entered)
   if (FN_KEYS.includes(k)) {
@@ -3497,13 +3514,19 @@ function showSuggest(inp){
   if (!list.length || (list.length === 1 && list[0].v.toUpperCase() === inp.value.trim().toUpperCase())) { box?.remove(); return; }
   inp.parentNode.classList.add("sugwrap");   // the field's own box anchors the list: moving the input would take its focus (and the keyboard) away
   box ||= inp.parentNode.appendChild(Object.assign(document.createElement("div"), { className: "sugbox" }));
-  box.innerHTML = list.map((o, i) => `<button type="button" data-sug="${i}"><b>${esc(o.label)}</b><span>${esc(o.note || "")}</span></button>`).join("");
+  box.innerHTML = list.map((o, i) => `<button type="button" data-sug="${i}"${o.name ? ' class="apt"' : ""}><b>${esc(o.label)}</b><span>${esc(o.note || "")}</span>${o.name ? `<small>${esc(o.name)}</small>` : ""}</button>`).join("");
   box._list = list; box._inp = inp;
   // a field in the right-hand column: the list opens leftwards, so it stays on screen
   const r = inp.getBoundingClientRect(); box.style.left = r.left > innerWidth / 2 ? "auto" : "0"; box.style.right = r.left > innerWidth / 2 ? "0" : "auto";
 }
 const hideSuggest = () => $$(".sugbox").forEach(b => b.remove());
-document.addEventListener("focusin", e => { if (SUG_KEYS.test(e.target.id || "")) loadAirports().then(() => document.activeElement === e.target && showSuggest(e.target)); else if (!e.target.closest?.(".sugbox")) hideSuggest(); });
+document.addEventListener("focusin", e => { if (SUG_KEYS.test(e.target.id || "")) Promise.all([loadAirports(), /(from|to)$/.test(e.target.id) && loadAptNames()]).then(() => document.activeElement === e.target && showSuggest(e.target)); else if (!e.target.closest?.(".sugbox")) hideSuggest(); });
+// airport codes are capitals, as they are typed
+document.addEventListener("input", e => {
+  const el = e.target; if (!/^(n_|e_)(from|to)$/.test(el.id || "")) return;
+  const up = el.value.toUpperCase().replace(/[^A-Z0-9]/g, ""); if (up === el.value) return;
+  const at = el.selectionStart; el.value = up; try { el.setSelectionRange(Math.min(at, up.length), Math.min(at, up.length)); } catch {}
+}, true);
 document.addEventListener("input", e => { if (SUG_KEYS.test(e.target.id || "")) showSuggest(e.target); });
 // Landings: the first tap on an empty box puts 1 in it (most flights have one landing); the cover goes, so the next tap opens the picker
 document.addEventListener("click", e => {
@@ -3677,7 +3700,7 @@ function flightFieldsHTML(pre, f = {}){
       Array.from({ length: max + 1 }, (_, n) => `<option${v(k) !== "" && n === cur ? " selected" : ""}>${n}</option>`).join("") + `</select>` +
       (v(k) === "" ? `<button type="button" class="ldgcover" data-ldg="${pre}${k}" aria-label="1 landing"></button>` : "") + `</span>`; };
   const input = k => k.startsWith("ldg") ? ldg(k) : `<input id="${pre}${k}" data-k="${k}" value="${esc(String(v(k)))}"` +
-    (k === "date" ? ` type="date" required max="${logToday()}"` : LB_TIME.includes(k) ? ' class="mono" placeholder="HH:MM" inputmode="numeric"' : LB_DUR.includes(k) ? ' class="mono" placeholder="H:MM"' : k.startsWith("ldg") ? ' type="number" min="0" step="1"' : "") + ">";
+    (k === "date" ? ` type="date" required max="${logToday()}"` : LB_TIME.includes(k) ? ' class="mono" placeholder="HH:MM" inputmode="numeric"' : LB_DUR.includes(k) ? ' class="mono" placeholder="H:MM"' : k === "from" || k === "to" ? ' class="mono" maxlength="4" autocapitalize="characters" autocomplete="off" spellcheck="false" style="text-transform:uppercase"' : "") + ">";
   // pilot flying puts the landing in by itself (day or night, from the sun at the arrival airport); a saved flight with landings was flown
   const pfOn = /\bRELIEF\b/i.test(f.remarks || "") ? "rel" : f.ldgDay || f.ldgNight ? "pf" : "";   // blank until the pilot (or a confirmed return flight) says
   const r = (v, l) => `<label><input type="radio" name="${pre}pf" value="${v}"${pfOn === v ? " checked" : ""}> ${l}</label>`;
