@@ -833,7 +833,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
       </div>
       <div class="card">
         <h3>A file that doesn't work?</h3>
-        <p class="hint step-sub">A logbook from another app, an eCrew or airline report or a roster that CrewBase Log can't read, or reads wrongly? Send us the file. Files sent in are checked several times a day and CrewBase Log is taught to read them, for free. You see the progress here, and we email you when it works: then drop it again on Your data.</p>
+        <p class="hint step-sub">A logbook from another app, an eCrew or airline report or a roster that CrewBase Log can't read, or reads wrongly? Send us the file. Files sent in are checked several times a day and CrewBase Log is taught to read them, for free. Whether it works shows here after your next log-ins: then drop it again on Your data.</p>
         <div class="row-actions" style="margin:0"><button class="btn small" type="button" id="repPick">Send us a file</button><a class="hint" id="airMail" href="#">or email it to us</a></div>
         <input type="file" id="repFile" class="hidden">
         <div id="repMine"></div>
@@ -1497,7 +1497,7 @@ function renderHome(){
 function expBadge(){
   const n = data.expiries.filter(e => e.date && expStatus(e.date).c !== "ok").length;
   $$('[data-t="profile"]').forEach(b => b.classList.toggle("due", !!n));
-  $("#bbar [data-more]")?.classList.toggle("due", !!n);
+  $("#bbar [data-more]")?.classList.toggle("due", !!n || !!$('#moreMenu [data-t="help"].due'));
 }
 /* how complete the pilot's set-up is: each item and the setup page that asks for it */
 function setupItems(){
@@ -1542,7 +1542,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "30 Oct 2026 · 15";
+const APP_VERSION = "30 Oct 2026 · 16";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
@@ -2602,7 +2602,7 @@ async function handleFile(f){
   if (ec && works(ec)) { imp = { headers, rows: body, map: ec, sig, name: f.name, auto: true, kind: "airline" }; return; }
   const map = saved ? { ...saved } : (ec || guessMap(headers, body));
   // nothing in the file reads as a flight (no dates): not a logbook, so no matching screen
-  if (!saved && !works(map)) return "We can't read this file yet, but you can help us learn it: press “Help us read it”. We'll email you once your file imports correctly.";
+  if (!saved && !works(map)) return "We can't read this file yet, but you can help us learn it: press Share it with us. Help shows whether it works after your next log-ins.";
   imp = { headers, rows: body, map, sig, name: f.name, fromTemplate: !!saved, ecrew: !!ec };
   renderMapping();
 }
@@ -3134,14 +3134,20 @@ async function renderMyReports(justSent){
   const r = guest ? await guestCall("status", JSON.stringify(guestItems())).then(d => ({ data: d.sort((a, b) => b.id - a.id).map(x => ({ ...x, created_at: data.repSent.find(s => s.id === x.id)?.at || todayISO() })) }), e => ({ error: e }))
     : await Auth.db().from("file_reports").select("id,file_name,status,admin_note,created_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(20);
   if (r.error || !r.data?.length) { box.innerHTML = justSent ? '<p class="ok-msg" style="margin:12px 0 0">Thank you, your file was sent.</p>' : ""; return; }
-  box.innerHTML = (justSent ? '<p class="ok-msg" style="margin:12px 0 0">Thank you, your file was sent. You\'ll see here when it works.</p>' : "") +
+  box.innerHTML = (justSent ? '<p class="ok-msg" style="margin:12px 0 0">Thank you, your file was sent. When you log in next, this page shows whether it works.</p>' : "") +
     `<div class="tablewrap"><table><thead><tr><th>Sent</th><th>File</th><th>Status</th></tr></thead><tbody>` + r.data.map(x => { const [t, c] = REP_STATUS[x.status] || [x.status, ""];
       return `<tr><td style="white-space:nowrap">${fmtDate(x.created_at.slice(0, 10))}</td><td>${esc(x.file_name)}</td><td><b style="color:${c}">${t}</b>${x.admin_note ? `<div class="hint" style="margin:2px 0 0;font-size:13px">${esc(x.admin_note)}</div>` : ""}</td></tr>`; }).join("") + "</tbody></table></div>";
-  // good news shown once on the Overview
+  // a file that works now (or can't be read): said at the top of Help, with a dot on Help in the menu, until OK
   const seen = new Set(data.repSeen || []), news = r.data.filter(x => (x.status === "done" || x.status === "cannot") && !seen.has(x.id));
-  if (news.length) { const n = news[0];
-    $("#repNews")?.remove(); $('[data-p="overview"] h2').insertAdjacentHTML("afterend", `<div class="notice" id="repNews" style="margin:0 0 16px">${n.status === "done" ? `<b>Good news: CrewBase Log can now read ${esc(n.file_name)}.</b> <a href="#" data-go="import">Drop it again in Your data</a>.` : `<b>About ${esc(n.file_name)}:</b> ${esc(n.admin_note || "we couldn't make this file readable.")}`} <a href="#" id="repNewsOk">OK</a></div>`);
-    $("#repNewsOk").onclick = e => { e.preventDefault(); data.repSeen = [...seen, ...news.map(x => x.id)]; save(); $("#repNews").remove(); }; }
+  $("#repNews")?.remove(); $$('[data-t="help"]').forEach(b => b.classList.toggle("due", !!news.length));
+  $("#bbar [data-more]")?.classList.toggle("due", !!news.length || data.expiries.some(e => e.date && expStatus(e.date).c !== "ok"));
+  if (news.length) {
+    $('[data-p="help"] h2').insertAdjacentHTML("afterend", `<div class="notice" id="repNews" style="margin:0 0 16px">${news.map(n => n.status === "done"
+      ? `<div><b style="color:var(--ok)">✓ ${esc(n.file_name)} works now.</b> <a href="#" data-go="import">Drop it again on Your data</a>.</div>`
+      : `<div><b style="color:var(--warn)">${esc(n.file_name)} can't be read.</b> ${esc(n.admin_note || "We couldn't make CrewBase Log read this file.")}</div>`).join("")}
+      <div class="row-actions" style="margin:8px 0 0"><button class="btn small" type="button" id="repNewsOk">OK</button></div></div>`);
+    $("#repNewsOk").onclick = () => { data.repSeen = [...seen, ...news.map(x => x.id)]; save(); renderMyReports(); };
+  }
 }
 $("#airMail").addEventListener("click", e => {
   e.preventDefault();
