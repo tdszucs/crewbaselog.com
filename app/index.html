@@ -2980,6 +2980,12 @@ function reliefSet(pre, on){
   if (on) setPf(pre, "pm");
 }
 document.addEventListener("change", e => { const m = (e.target.id || "").match(/^(n_|e_)relief$/); if (m) reliefSet(m[1], e.target.checked); });
+// a relief pilot typing the actual seat time in Total time: the PIC or co-pilot time follows
+document.addEventListener("input", e => {
+  const m = (e.target.id || "").match(/^(n_|e_)total$/); if (!m || !e.isTrusted || !$("#" + m[1] + "relief")?.checked) return;
+  const t = parseDur(e.target.value); if (!t) return;
+  for (const k of ["pic", "copilot"]) { const i = $("#" + m[1] + k); if (i?.value) { i.value = fmtMin(t); i.dispatchEvent(new Event("input", { bubbles: true })); } }
+});
 function gsCheck(pre){
   const box = $("#" + pre + "gsNote"); if (!box) return;
   const g = x => ($("#" + pre + x)?.value || "").trim(), t = x => parseTime(g(x));
@@ -3163,7 +3169,7 @@ function flightFieldsHTML(pre, f = {}){
   // off-block, take-off, landing, on-block always side by side in one row, on any screen
   const times = `<div class="field wide"><div class="times">${LB_TIME.map(k => `<div><label for="${pre}${k}">${{ out: "Off-block", off: "Take-off", on: "Landing", in: "On-block" }[k]}</label>${input(k)}</div>`).join("")}</div></div>` +
     `<div class="field wide hidden" id="${pre}retNote"></div><div class="field wide hidden" id="${pre}gsNote"></div>` +
-    `<div class="field wide${/\bRELIEF\b/i.test(f.remarks || "") ? "" : " hidden"}" id="${pre}reliefRow"><label class="repok" style="margin:0"><input type="checkbox" id="${pre}relief"${/\bRELIEF\b/i.test(f.remarks || "") ? " checked" : ""}> <span>You acted as <b>relief pilot</b> on this flight: half the block time is logged, with no take-off or landing.</span></label></div>`;
+    `<div class="field wide${/\bRELIEF\b/i.test(f.remarks || "") ? "" : " hidden"}" id="${pre}reliefRow"><label class="repok" style="margin:0"><input type="checkbox" id="${pre}relief"${/\bRELIEF\b/i.test(f.remarks || "") ? " checked" : ""}> <span>You acted as <b>relief pilot</b> on this flight: log your time in a pilot's seat, as co-pilot, with no take-off or landing. Half the block time is filled in; if your airline logs the actual seat time, change Total time and the function time follows.</span></label></div>`;
   // pilot flying puts the landing in by itself (day or night, from the sun at the arrival airport); a saved flight with landings was flown
   const pfOn = f.ldgDay || f.ldgNight ? "pf" : "";   // blank until the pilot (or a confirmed return flight) says
   const pfSeg = `<div class="field wide"><div class="seg" id="${pre}pfSeg" role="radiogroup" aria-label="Pilot flying or pilot monitoring" style="margin:0">` +
