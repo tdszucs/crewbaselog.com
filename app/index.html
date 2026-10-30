@@ -550,6 +550,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
         <div class="found hidden" id="dropFound" aria-live="polite"></div>
         <p class="hint hidden" id="bkNote" style="margin:12px 0 0;font-size:14px"></p>
         <details class="whatdrop"><summary>What can I drop here?</summary>
+          <p class="hint" style="margin:8px 0 0;font-size:13.5px">A file that doesn't read right? <a href="#" data-go="help" data-scroll="#repPick">Send it to us</a> and we'll make it work.</p>
           <details class="wd"><summary><b>Your past logbook</b><span class="hint">From another app, an EASA PDF logbook, a spreadsheet, or your last CrewBase Log CSV</span></summary>
             <div class="wdbody"><div class="field" style="max-width:360px;margin:0 0 10px"><label for="appPick">Where is your logbook now?</label><select id="appPick">
               <option value="">Choose your logbook app…</option><option value="logten">LogTen Pro</option><option value="crewlounge">CrewLounge PILOTLOG (mccPILOTLOG)</option>
@@ -673,13 +674,6 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
           <div class="row-actions" style="margin:0"><button class="btn ghost small" type="button" data-backup>Download full backup first</button><button class="btn small dz-yes" type="button" id="soYes">Yes, clear everything</button><button class="btn ghost small" type="button" id="soNo">Cancel</button></div>
         </div>
         <p class="ok-msg" id="soDone" style="margin:10px 0 0"></p>
-      </div>
-      <div class="card">
-        <h3>Doesn't look right?</h3>
-        <p class="hint step-sub">Send us the file that isn't read correctly: a logbook from another app, an eCrew or airline report, or a roster. We'll make CrewBase Log read it, for free, and tell you here when it works.</p>
-        <div class="row-actions" style="margin:0"><button class="btn small" type="button" id="repPick">Send us a file</button><a class="hint" id="airMail" href="#">or email it to us</a></div>
-        <input type="file" id="repFile" class="hidden">
-        <div id="repMine"></div>
       </div>
     </div>
 
@@ -836,6 +830,13 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
           <div class="fbox"><div class="fdays" aria-hidden="true"><i class="d free"></i><i class="d duty"></i><i class="d duty"></i><i class="d sby"></i><i class="d free"></i><i class="d free"></i><i class="d duty"></i></div><div><b>See when you are all free</b><small>Green off · amber standby · red duty or away. Times in UTC.</small></div></div>
         </div>
         <div class="row-actions" style="margin:16px 0 0"><button class="btn ghost" type="button" data-go="crewbase">Open Crew Base</button></div>
+      </div>
+      <div class="card">
+        <h3>A file that doesn't work?</h3>
+        <p class="hint step-sub">A logbook from another app, an eCrew or airline report or a roster that CrewBase Log can't read, or reads wrongly? Send us the file. Files sent in are checked several times a day and CrewBase Log is taught to read them, for free. You see the progress here, and we email you when it works: then drop it again on Your data.</p>
+        <div class="row-actions" style="margin:0"><button class="btn small" type="button" id="repPick">Send us a file</button><a class="hint" id="airMail" href="#">or email it to us</a></div>
+        <input type="file" id="repFile" class="hidden">
+        <div id="repMine"></div>
       </div>
       <form class="card" id="fbForm">
         <h3>Feedback</h3>
@@ -1517,6 +1518,7 @@ function renderHomeTop(){
 }
 document.addEventListener("click", e => { if (!e.target.closest("[data-finish]")) return; const m = setupItems().find(x => !x.done); openSetup(m ? m.step : 1); });
 function renderHelp(){
+  renderMyReports();
   const fe = $("#fbEmail"); if (!fe.value || fe.value === fe.dataset.auto) fe.value = fe.dataset.auto = user.id === "sample" ? "" : user.email || "";
 }
 function renderOverview(){
@@ -1540,7 +1542,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "30 Oct 2026 · 14";
+const APP_VERSION = "30 Oct 2026 · 15";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
