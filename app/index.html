@@ -2904,6 +2904,14 @@ document.addEventListener("input", e => {
   pfAuto(m[1]);
   if (m[1] === "n_" && /^(date|from|to)$/.test(m[2])) retCheck();
 });
+// a block or flight time typed in full (0210 or 02:10) goes on to the next box: off-block → take-off → landing → on-block → aircraft type
+document.addEventListener("input", e => {
+  const m = (e.target.id || "").match(/^(n_|e_)(out|off|on|in)$/); if (!m || !(e.inputType || "").startsWith("insert")) return;
+  const raw = e.target.value.trim(); if (!/^\d{4}$|^\d{1,2}:\d{2}$/.test(raw)) return;
+  const t = parseTime(raw); if (!t) return;
+  if (t !== raw) { e.target.value = t; e.target.dispatchEvent(new Event("input", { bubbles: true })); }
+  $("#" + m[1] + { out: "off", off: "on", on: "in", in: "acType" }[m[2]])?.focus();
+});
 // "This looks like the return flight": same PIC, aircraft and registration, and the other pilot flies it
 function retCheck(){
   const box = $("#n_retNote"); if (!box) return;
