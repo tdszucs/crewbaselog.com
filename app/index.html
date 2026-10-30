@@ -57,6 +57,9 @@ input:focus,select:focus{outline:2px solid color-mix(in srgb,var(--brand) 40%,tr
 .sugbox{position:absolute;left:0;top:100%;min-width:100%;width:max-content;max-width:min(330px,calc(100vw - 32px));z-index:20;margin-top:4px;background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.18);max-height:300px;overflow:auto}
 .sugbox button{display:flex;width:100%;justify-content:space-between;gap:14px;white-space:nowrap;align-items:baseline;background:none;border:0;border-bottom:1px solid var(--line);padding:11px 12px;font:inherit;font-size:15px;color:var(--ink);text-align:left;cursor:pointer}
 .sugbox button:last-child{border-bottom:0}.sugbox button:hover,.sugbox button.on{background:var(--bg)}
+.nowwrap{position:relative;display:block}.nowwrap .nowbtn{position:absolute;right:4px;top:-9px;width:auto;margin:0;padding:1px 7px;font-size:11px;line-height:16px;z-index:1;box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.rollbox{display:flex;flex-direction:column;gap:4px;margin-top:5px}.rollbox.hidden{display:none}.rollbox .rollers{margin-top:0}
+.rollok{border:0;border-radius:8px;background:var(--brand);color:var(--on-brand);font:600 15px inherit;font-family:inherit;padding:5px 0;cursor:pointer}
 .nowbtn{display:block;width:100%;margin-top:5px;padding:5px 0;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--brand);font-family:inherit;font-size:12px;font-weight:600;cursor:pointer}.nowbtn:hover{background:var(--bg)}
 input.manual{color:var(--bad);border-color:var(--bad)}
 .timesum{display:flex;flex-wrap:wrap;gap:4px 18px;margin:10px 0 0;padding:8px 12px;border-radius:10px;background:var(--bg);border:1px solid var(--line);font-size:14px;color:var(--muted)}.timesum b{font-family:"JetBrains Mono",monospace;color:var(--ink);font-size:15px;margin-left:4px}
@@ -181,6 +184,7 @@ a.chip{text-decoration:none}.hcard h3{margin:0 0 8px}
 .setupin{max-width:520px;margin:0 auto}.suhead{display:flex;justify-content:space-between;align-items:center;margin:0 0 18px}.logo-sm{font-weight:700}
 .sudots{display:flex;gap:6px;margin:0 0 18px}.sudots i{flex:1;height:4px;border-radius:2px;background:var(--line)}.sudots i.on{background:var(--brand)}
 .setup h2{margin:0 0 6px}.setup .lead{margin:0 0 18px}.setup .drop{padding:34px 16px}
+.sunext{display:flex;gap:8px;align-items:center}
 .sunav{display:flex;justify-content:space-between;align-items:center;margin:22px 0 0}.sualt{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0 0}
 .suinfo{margin:14px 0 0}.suinfo>summary{cursor:pointer;color:var(--brand);font-weight:600}
 body.insetup .bbar{display:none}
@@ -577,6 +581,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
         <div class="tablewrap"><table><thead><tr><th>Type</th><th class="r">Flights</th><th>Flown as</th></tr></thead><tbody id="acRows"></tbody></table></div>
         <div class="field" style="max-width:360px;margin:14px 0 0"><label for="acDefault">Types not on the list</label><select id="acDefault"></select><div class="hint">Used for new types until you set them here.</div></div>
       </div>
+      <p class="hint" id="appVersion" style="text-align:center;margin:24px 0 0"></p>
     </div>
 
     <!-- your data: import + export -->
@@ -1426,12 +1431,12 @@ function openSetup(step = 1){ suStep = step; renderSetup(); $("#setup").classLis
 function closeSetup(done = true){ if ($("#setup").classList.contains("hidden")) return; $("#setup").classList.add("hidden"); document.body.classList.remove("insetup"); if (done) { data.onboarded = true; save(); } }
 function renderSetup(){
   const p = data.profile, dots = `<div class="sudots">${[1, 2, 3, 4, 5, 6].map(n => `<i class="${n <= suStep ? "on" : ""}"></i>`).join("")}</div>`;
-  const nav = (back, next) => `<div class="sunav">${back ? '<button class="btn ghost" type="button" data-su="back">‹ Back</button>' : "<span></span>"}${next || ""}</div>`;
+  const nav = (back, next) => `<div class="sunav">${back ? '<button class="btn ghost" type="button" data-su="back">‹ Back</button>' : "<span></span>"}${next ? `<span class="sunext">${suStep <= 4 ? '<button class="btn ghost" type="button" data-su="skipstep">Skip</button>' : ""}${next}</span>` : ""}</div>`;
   let h = "";
-  if (suStep === 1) h = `<h2>Welcome to CrewBase Log</h2><p class="lead">Your logbook in two minutes. First, your name, as on your licence: it goes on your PDF logbook.</p>
-    <div class="field"><label for="suName">Your name</label><input id="suName" autocomplete="name" value="${esc(p.name || "")}"></div>` + nav(false, '<button class="btn" type="button" data-su="next">Next ›</button>');
+  if (suStep === 1) h = `<h2>Welcome to CrewBase Log</h2><p class="lead">Your logbook in two minutes. Everything here can be skipped and added later: Home shows what's still missing.</p>
+    <div class="field"><label for="suName">Your name, as on your licence <span class="hint" style="font-weight:400">optional</span></label><input id="suName" autocomplete="name" value="${esc(p.name || "")}"></div>` + nav(false, '<button class="btn" type="button" data-su="next">Next ›</button>');
   if (suStep === 2) h = `<h2>Where do you fly from?</h2><p class="lead">Your base airport comes first when you add a flight.</p>
-    <div class="field"><label for="suBase">Base airport <span class="hint" style="font-weight:400">ICAO or IATA</span></label><input id="suBase" class="mono" maxlength="4" style="text-transform:uppercase" placeholder="e.g. KJFK or JFK" autocapitalize="characters" autocomplete="off" value="${esc(p.base || "")}"></div>
+    <div class="field"><label for="suBase">Base airport <span class="hint" style="font-weight:400">ICAO or IATA · optional</span></label><input id="suBase" class="mono" maxlength="4" style="text-transform:uppercase" placeholder="e.g. KJFK or JFK" autocapitalize="characters" autocomplete="off" value="${esc(p.base || "")}"></div>
     <div class="field"><label for="suAirline">Airline code <span class="hint" style="font-weight:400">IATA or ICAO · optional</span></label><input id="suAirline" class="mono" maxlength="3" style="text-transform:uppercase" placeholder="e.g. BA or BAW" autocapitalize="characters" autocomplete="off" value="${esc(p.airline || "")}"><div class="hint">Goes in front of your flight numbers: 101 becomes BA101.</div></div>
     <div class="field"><label>You fly as <span class="hint" style="font-weight:400">optional</span></label><div class="seg" style="margin:0;flex-wrap:wrap">${[["PIC", "Captain"], ["CP", "First officer"], ["", "Neither"]].map(([v, l]) => `<label><input type="radio" name="suRole" value="${v}"${(p.role || "") === v ? " checked" : ""}> ${l}</label>`).join("")}</div>
       <div class="hint">For airline crews: decides whether a flight's time goes to PIC or co-pilot. Flying single-pilot (a Cessna, say)? Leave it on Neither: your time goes to PIC.</div></div>
@@ -1440,12 +1445,12 @@ function renderSetup(){
     nav(true, '<button class="btn" type="button" data-su="next">Next ›</button>');
   const med = data.expiries.find(e => e.id === "med"), lic = data.expiries.find(e => e.id === "lic");
   if (suStep === 3) h = `<h2>Your licence</h2><p class="lead">It prints on your logbook, and the app reminds you before the dates come round.</p>
-    <div class="grid2"><div class="field"><label for="suType">Licence type</label><select id="suType">${["", "ATPL(A)", "CPL(A)", "MPL(A)", "PPL(A)", "LAPL(A)", "ATPL(H)", "CPL(H)", "PPL(H)"].map(t => `<option value="${t}"${(p.type || "") === t ? " selected" : ""}>${t || "Select…"}</option>`).join("")}${p.type && !["ATPL(A)", "CPL(A)", "MPL(A)", "PPL(A)", "LAPL(A)", "ATPL(H)", "CPL(H)", "PPL(H)"].includes(p.type) ? `<option selected>${esc(p.type)}</option>` : ""}</select></div>
-    <div class="field"><label for="suLic">Licence number</label><input id="suLic" class="mono" style="text-transform:uppercase" placeholder="e.g. UK.FCL.12345" autocomplete="off" value="${esc(p.lic || "")}"></div>
-    <div class="field"><label for="suMed">Medical expires</label><input id="suMed" type="date" value="${esc(med?.date || "")}"></div>
+    <div class="grid2"><div class="field"><label for="suType">Licence type <span class="hint" style="font-weight:400">optional</span></label><select id="suType">${["", "ATPL(A)", "CPL(A)", "MPL(A)", "PPL(A)", "LAPL(A)", "ATPL(H)", "CPL(H)", "PPL(H)"].map(t => `<option value="${t}"${(p.type || "") === t ? " selected" : ""}>${t || "Select…"}</option>`).join("")}${p.type && !["ATPL(A)", "CPL(A)", "MPL(A)", "PPL(A)", "LAPL(A)", "ATPL(H)", "CPL(H)", "PPL(H)"].includes(p.type) ? `<option selected>${esc(p.type)}</option>` : ""}</select></div>
+    <div class="field"><label for="suLic">Licence number <span class="hint" style="font-weight:400">optional</span></label><input id="suLic" class="mono" style="text-transform:uppercase" placeholder="e.g. UK.FCL.12345" autocomplete="off" value="${esc(p.lic || "")}"></div>
+    <div class="field"><label for="suMed">Medical expires <span class="hint" style="font-weight:400">optional</span></label><input id="suMed" type="date" value="${esc(med?.date || "")}"></div>
     <div class="field"><label for="suLicExp">Licence expires <span class="hint" style="font-weight:400">optional</span></label><input id="suLicExp" type="date" value="${esc(lic?.date || "")}"></div></div>` +
     nav(true, '<button class="btn" type="button" data-su="next">Next ›</button>');
-  if (suStep === 4) h = `<h2>Your signature</h2><p class="lead">It signs the pages of your PDF logbook. Draw it with your finger or mouse.</p>
+  if (suStep === 4) h = `<h2>Your signature</h2><p class="lead">It signs the pages of your PDF logbook. Draw it with your finger or mouse, or skip it for now.</p>
     ${data.signature ? `<p class="hint" style="margin:0 0 8px">Now: <img src="${data.signature}" alt="Your signature" style="height:40px;vertical-align:middle;background:#fff;border:1px solid var(--line);border-radius:6px;padding:2px 6px"> · draw below to replace it.</p>` : ""}
     <canvas id="suSig" class="sigpad" style="width:100%;height:150px"></canvas>
     <div class="row-actions" style="margin:8px 0 0"><button class="btn ghost small" type="button" id="suSigClear">Clear</button></div>` +
@@ -1478,6 +1483,7 @@ document.addEventListener("click", e => {
   const b = e.target.closest("[data-su]"); if (!b) return; const a = b.dataset.su, p = data.profile;
   if (a === "skip") { closeSetup(); return renderOverview(); }
   if (a === "back") { suStep = Math.max(1, suStep - 1); return renderSetup(); }
+  if (a === "skipstep") { suStep++; return renderSetup(); }
   if (a === "next" && suStep === 1) p.name = $("#suName").value.trim() || p.name || "";
   if (a === "next" && suStep === 2) {
     const base = $("#suBase").value.trim().toUpperCase(), airline = $("#suAirline").value.trim().toUpperCase(), why = codeProblem(base, airline);
@@ -1565,6 +1571,8 @@ $("#ovRestore").addEventListener("click", () => $("#restoreFile").click());
 document.addEventListener("click", e => { if (e.target.closest("[data-restore]")) { e.preventDefault(); $("#restoreFile").click(); } });
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
+// shown at the bottom of Profile, to tell which version a phone is running
+const APP_VERSION = "30 Oct 2026 · 4";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
@@ -1635,6 +1643,7 @@ $("#wipeBtn").addEventListener("click", async () => {
   location.hash = ""; location.reload();
 });
 function renderProfile(){
+  $("#appVersion").textContent = "CrewBase Log version " + APP_VERSION;
   renderAcTypes();
   for (const [id,k] of Object.entries(PF)) $("#"+id).value = data.profile[k] || ""; $("#profSaved").textContent = "";
   $("#pRole").value = data.profile.role || ""; $("#pIfr").checked = data.profile.autoIfr !== false; $("#pUsage").checked = data.profile.usage !== false; $("#pApt").value = data.profile.apt || ""; $("#pAptMsg").textContent = ""; $("#pNight").checked = data.profile.autoNight !== false; $("#pApplyMsg").textContent = "";
@@ -3626,7 +3635,7 @@ document.addEventListener("click", e => {
   const b = e.target.closest("[data-now]"); if (!b) return;
   const i = $("#" + b.dataset.now), pre = b.dataset.now.slice(0, 2), now = new Date().toISOString();
   const d = $("#" + pre + "date"); if (d && !d.value) { d.value = now.slice(0, 10); d.dispatchEvent(new Event("input", { bubbles: true })); }
-  i.value = now.slice(11, 16); i.dataset.ok = i.value; i.classList.remove("bad"); i.dataset.rolled = "1";
+  i.value = now.slice(11, 16); i.dataset.ok = i.value; i.classList.remove("bad");
   i.dispatchEvent(new Event("input", { bubbles: true })); i.dispatchEvent(new Event("change", { bubbles: true }));
 });
 // under the four times: block time (off-block to on-block) and flight time (take-off to landing), once they are in
@@ -3638,13 +3647,25 @@ function timeSum(pre){
 }
 document.addEventListener("input", e => { const m = (e.target.id || "").match(TIME_BOX); if (m) timeSum(m[1]); });
 // the rollers follow the box (and go when it is emptied: Now comes back); turning them writes the time
+// Now shows in an empty box; the wheels, once open, follow what is typed (and close when the box is emptied)
 function rollSync(i){
   const r = $("#" + i.id + "Roll"), b = i.parentNode.querySelector(".nowbtn"); if (!r) return;
-  const t = formTime(i.value), on = !!i.dataset.rolled && !!i.value.trim();
-  if (!i.value.trim()) delete i.dataset.rolled;
-  r.classList.toggle("hidden", !on); b?.classList.toggle("hidden", on);
-  if (on && t) { wheelTo(r.querySelector('[data-part="h"]'), +t.slice(0, 2)); wheelTo(r.querySelector('[data-part="m"]'), +t.slice(3)); }
+  const empty = !i.value.trim(), t = formTime(i.value); b?.classList.toggle("hidden", !empty);
+  if (empty) r.classList.add("hidden");
+  if (!r.classList.contains("hidden") && t) { wheelTo(r.querySelector('[data-part="h"]'), +t.slice(0, 2)); wheelTo(r.querySelector('[data-part="m"]'), +t.slice(3)); }
 }
+function rollOpen(i){
+  const r = $("#" + i.id + "Roll"), t = formTime(i.value); if (!r || !t) return;
+  $$(".rollbox").forEach(x => x !== r && x.classList.add("hidden"));
+  r.classList.remove("hidden"); i.blur(); requestAnimationFrame(() => rollSync(i));
+}
+// a tap on a time already in the box opens the wheels (no keyboard); with the wheels open, a tap goes into the box to type
+document.addEventListener("pointerdown", e => {
+  const i = e.target; if (!TIME_BOX.test(i.id || "") || !formTime(i.value)) return;
+  const r = $("#" + i.id + "Roll"); if (!r || !r.classList.contains("hidden")) return;
+  e.preventDefault(); rollOpen(i);
+});
+document.addEventListener("click", e => { const b = e.target.closest("[data-rollok]"); if (b) $("#" + b.dataset.rollok + "Roll").classList.add("hidden"); });
 // a wheel: one value per row, the middle row is the chosen one (rows snap to it)
 const wheelRow = w => w.firstElementChild?.offsetHeight || 24;
 const wheelAt = w => Math.max(0, Math.min(w.children.length - 1, Math.round(w.scrollTop / wheelRow(w))));
@@ -3887,7 +3908,7 @@ function flightFieldsHTML(pre, f = {}){
       Array.from({ length: max + 1 }, (_, n) => `<option${v(k) !== "" && n === cur ? " selected" : ""}>${n}</option>`).join("") + `</select>` +
       (v(k) === "" ? `<button type="button" class="ldgcover" data-ldg="${pre}${k}" aria-label="1 landing"></button>` : "") + `</span>`; };
   const input = k => k.startsWith("ldg") ? ldg(k) : `<input id="${pre}${k}" data-k="${k}" value="${esc(String(v(k)))}"` +
-    (k === "date" ? ` type="date" required max="${logToday()}"` : LB_TIME.includes(k) ? ' class="mono" placeholder="HH:MM" inputmode="numeric" pattern="[0-9:]*" maxlength="5" autocomplete="off"' : LB_DUR.includes(k) ? ' class="mono" placeholder="H:MM" inputmode="numeric" pattern="[0-9:]*" maxlength="6" autocomplete="off"' : k === "from" || k === "to" ? ' class="mono" maxlength="4" autocapitalize="characters" autocomplete="off" spellcheck="false" style="text-transform:uppercase"' : "") + ">";
+    (k === "date" ? ` type="date" required max="${logToday()}"` : LB_TIME.includes(k) ? ' class="mono" inputmode="numeric" pattern="[0-9:]*" maxlength="5" autocomplete="off"' : LB_DUR.includes(k) ? ' class="mono" placeholder="H:MM" inputmode="numeric" pattern="[0-9:]*" maxlength="6" autocomplete="off"' : k === "from" || k === "to" ? ' class="mono" maxlength="4" autocapitalize="characters" autocomplete="off" spellcheck="false" style="text-transform:uppercase"' : "") + ">";
   // pilot flying puts the landing in by itself (day or night, from the sun at the arrival airport); a saved flight with landings was flown
   const pfOn = /\bRELIEF\b/i.test(f.remarks || "") ? "rel" : f.ldgDay || f.ldgNight ? "pf" : "";   // blank until the pilot (or a confirmed return flight) says
   const r = (v, l) => `<label><input type="radio" name="${pre}pf" value="${v}"${pfOn === v ? " checked" : ""}> ${l}</label>`;
@@ -3896,11 +3917,11 @@ function flightFieldsHTML(pre, f = {}){
     `<div class="hint roleneed">Choose one: pilot flying logs the landing, pilot monitoring logs none.</div>` +
     `<div class="relshare${pfOn === "rel" ? "" : " hidden"}" id="${pre}relShare"><span style="width:100%">Log a share of the block time:</span>${[["1/2", "½"], ["1/3", "⅓"], ["2/3", "⅔"]].map(([v, l]) => `<button type="button" class="btn ghost small" data-share="${v}" aria-pressed="false">${l}</button>`).join("")}` +
     `<div class="hint" style="width:100%">Changes the total, function, night and IFR times together. Or type your actual seat time in Total time.</div></div></div>`;
-  // after Now: an hour wheel and a minute wheel right under the box, swiped up and down to set the time a few minutes either way
+  // a tap on a time already entered: an hour wheel and a minute wheel under the box, swiped up and down; ✓ closes them
   const two = n => Array.from({ length: n }, (_, i) => `<div>${String(i).padStart(2, "0")}</div>`).join("");
-  const rollers = id => `<span class="rollers hidden" id="${id}Roll"><div class="wheel" data-roll="${id}" data-part="h" role="listbox" aria-label="Hours">${two(24)}</div><b>:</b><div class="wheel" data-roll="${id}" data-part="m" role="listbox" aria-label="Minutes">${two(60)}</div></span>`;
+  const rollers = id => `<span class="rollbox hidden" id="${id}Roll"><span class="rollers"><div class="wheel" data-roll="${id}" data-part="h" role="listbox" aria-label="Hours">${two(24)}</div><b>:</b><div class="wheel" data-roll="${id}" data-part="m" role="listbox" aria-label="Minutes">${two(60)}</div></span><button type="button" class="rollok" data-rollok="${id}" aria-label="Done">✓</button></span>`;
   // off-block, take-off, landing, on-block always side by side in one row, on any screen; then the pilot flying / monitoring / relief switch
-  const times = `<div class="field wide"><div class="times">${LB_TIME.map(k => `<div><label for="${pre}${k}">${{ out: "Off-block", off: "Take-off", on: "Landing", in: "On-block" }[k]}</label>${input(k)}<button type="button" class="nowbtn" data-now="${pre}${k}" title="The time now, in UTC">Now</button>${rollers(pre + k)}</div>`).join("")}</div><div class="timesum hidden" id="${pre}timeSum" aria-live="polite"></div><p class="err hidden" id="${pre}timeErr" role="alert" style="margin:6px 0 0"></p></div>` + pfSeg +
+  const times = `<div class="field wide"><div class="times">${LB_TIME.map(k => `<div><label for="${pre}${k}">${{ out: "Off-block", off: "Take-off", on: "Landing", in: "On-block" }[k]}</label><span class="nowwrap">${input(k)}<button type="button" class="nowbtn${v(k) ? " hidden" : ""}" data-now="${pre}${k}" title="The time now, in UTC">Now</button></span>${rollers(pre + k)}</div>`).join("")}</div><div class="timesum hidden" id="${pre}timeSum" aria-live="polite"></div><p class="err hidden" id="${pre}timeErr" role="alert" style="margin:6px 0 0"></p></div>` + pfSeg +
     `<div class="field wide hidden" id="${pre}retNote"></div><div class="field wide hidden" id="${pre}gsNote"></div>`;
   const box = k => k === "date" ? `<span class="datewrap">${input(k)}</span>` : k === "from" || k === "to" ? `<span class="aptwrap">${input(k)}<span class="aptflag" id="${pre}${k}Flag" aria-hidden="true"></span></span>` : LOG_KEYS.includes(k) ? `<span class="logwrap">${input(k)}<button type="button" class="logbtn hidden" data-logfill="${pre}${k}"></button></span>` : input(k);
   const first = ["date", "flightNo", "acType", "reg", "from", "to"], order = [...first.map(k => FIELDS.find(x => x[0] === k)), ...FIELDS.filter(([k]) => !first.includes(k) && !LB_TIME.includes(k))];
