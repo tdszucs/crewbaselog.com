@@ -58,6 +58,7 @@ input:focus,select:focus{outline:2px solid color-mix(in srgb,var(--brand) 40%,tr
 .sugbox button{display:flex;width:100%;justify-content:space-between;gap:14px;white-space:nowrap;align-items:baseline;background:none;border:0;border-bottom:1px solid var(--line);padding:11px 12px;font:inherit;font-size:15px;color:var(--ink);text-align:left;cursor:pointer}
 .sugbox button:last-child{border-bottom:0}.sugbox button:hover,.sugbox button.on{background:var(--bg)}
 .nowbtn{display:block;width:100%;margin-top:5px;padding:5px 0;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--brand);font-family:inherit;font-size:12px;font-weight:600;cursor:pointer}.nowbtn:hover{background:var(--bg)}
+.rollers{display:flex;align-items:center;justify-content:center;gap:2px;margin-top:5px}.rollers select{width:auto;flex:1;min-width:0;padding:5px 2px;text-align:center;text-align-last:center;font:600 13px "JetBrains Mono",monospace;border-radius:8px;-webkit-appearance:none;appearance:none;background-image:none}.rollers b{font-size:13px}
 .aptwrap{position:relative;display:block}.aptflag{position:absolute;right:12px;top:50%;transform:translateY(-50%);font-size:18px;line-height:1;pointer-events:none}input.hasflag{padding-right:40px}
 .sugbox button.apt{flex-wrap:wrap;row-gap:2px}.sugbox button.apt small{flex-basis:100%;white-space:normal;color:var(--muted);font-size:13px;line-height:1.3}
 .sugbox b{font-family:"JetBrains Mono",monospace;font-weight:600}.sugbox span{color:var(--muted);font-size:13px;text-align:right}
@@ -3533,8 +3534,22 @@ document.addEventListener("click", e => {
   const b = e.target.closest("[data-now]"); if (!b) return;
   const i = $("#" + b.dataset.now), pre = b.dataset.now.slice(0, 2), now = new Date().toISOString();
   const d = $("#" + pre + "date"); if (d && !d.value) { d.value = now.slice(0, 10); d.dispatchEvent(new Event("input", { bubbles: true })); }
-  i.value = now.slice(11, 16); i.dataset.ok = i.value; i.classList.remove("bad");
+  i.value = now.slice(11, 16); i.dataset.ok = i.value; i.classList.remove("bad"); i.dataset.rolled = "1";
   i.dispatchEvent(new Event("input", { bubbles: true })); i.dispatchEvent(new Event("change", { bubbles: true }));
+});
+// the rollers follow the box (and go when it is emptied: Now comes back); turning them writes the time
+function rollSync(i){
+  const r = $("#" + i.id + "Roll"), b = i.parentNode.querySelector(".nowbtn"); if (!r) return;
+  const t = formTime(i.value), on = !!i.dataset.rolled && !!i.value.trim();
+  if (!i.value.trim()) delete i.dataset.rolled;
+  r.classList.toggle("hidden", !on); b?.classList.toggle("hidden", on);
+  if (on && t) { r.querySelector('[data-part="h"]').value = t.slice(0, 2); r.querySelector('[data-part="m"]').value = t.slice(3); }
+}
+document.addEventListener("input", e => { if (TIME_BOX.test(e.target.id || "")) rollSync(e.target); });
+document.addEventListener("change", e => {
+  const s = e.target.closest?.("[data-roll]"); if (!s) return;
+  const i = $("#" + s.dataset.roll), r = s.parentNode; i.value = `${r.querySelector('[data-part="h"]').value}:${r.querySelector('[data-part="m"]').value}`;
+  i.dataset.ok = i.value; i.classList.remove("bad"); i.dispatchEvent(new Event("input", { bubbles: true })); i.dispatchEvent(new Event("change", { bubbles: true }));
 });
 // a block or flight time typed in full (0210 or 02:10) goes on to the next box: off-block → take-off → landing → on-block → aircraft type
 document.addEventListener("input", e => {
@@ -3767,8 +3782,11 @@ function flightFieldsHTML(pre, f = {}){
     `<div class="hint roleneed">Choose one: pilot flying logs the landing, pilot monitoring logs none.</div>` +
     `<div class="relshare${pfOn === "rel" ? "" : " hidden"}" id="${pre}relShare"><span style="width:100%">Log a share of the block time:</span>${[["1/2", "½"], ["1/3", "⅓"], ["2/3", "⅔"]].map(([v, l]) => `<button type="button" class="btn ghost small" data-share="${v}" aria-pressed="false">${l}</button>`).join("")}` +
     `<div class="hint" style="width:100%">Changes the total, function, night and IFR times together. Or type your actual seat time in Total time.</div></div></div>`;
+  // after Now: hour and minute rollers (the wheel on an iPhone) to set the time a few minutes either way
+  const two = n => Array.from({ length: n }, (_, i) => `<option>${String(i).padStart(2, "0")}</option>`).join("");
+  const rollers = id => `<span class="rollers hidden" id="${id}Roll"><select data-roll="${id}" data-part="h" aria-label="Hours">${two(24)}</select><b>:</b><select data-roll="${id}" data-part="m" aria-label="Minutes">${two(60)}</select></span>`;
   // off-block, take-off, landing, on-block always side by side in one row, on any screen; then the pilot flying / monitoring / relief switch
-  const times = `<div class="field wide"><div class="times">${LB_TIME.map(k => `<div><label for="${pre}${k}">${{ out: "Off-block", off: "Take-off", on: "Landing", in: "On-block" }[k]}</label>${input(k)}<button type="button" class="nowbtn" data-now="${pre}${k}" title="The time now, in UTC">Now</button></div>`).join("")}</div><p class="err hidden" id="${pre}timeErr" role="alert" style="margin:6px 0 0"></p></div>` + pfSeg +
+  const times = `<div class="field wide"><div class="times">${LB_TIME.map(k => `<div><label for="${pre}${k}">${{ out: "Off-block", off: "Take-off", on: "Landing", in: "On-block" }[k]}</label>${input(k)}<button type="button" class="nowbtn" data-now="${pre}${k}" title="The time now, in UTC">Now</button>${rollers(pre + k)}</div>`).join("")}</div><p class="err hidden" id="${pre}timeErr" role="alert" style="margin:6px 0 0"></p></div>` + pfSeg +
     `<div class="field wide hidden" id="${pre}retNote"></div><div class="field wide hidden" id="${pre}gsNote"></div>`;
   const box = k => k === "date" ? `<span class="datewrap">${input(k)}</span>` : k === "from" || k === "to" ? `<span class="aptwrap">${input(k)}<span class="aptflag" id="${pre}${k}Flag" aria-hidden="true"></span></span>` : LOG_KEYS.includes(k) ? `<span class="logwrap">${input(k)}<button type="button" class="logbtn hidden" data-logfill="${pre}${k}"></button></span>` : input(k);
   const first = ["date", "flightNo", "acType", "reg", "from", "to"], order = [...first.map(k => FIELDS.find(x => x[0] === k)), ...FIELDS.filter(([k]) => !first.includes(k) && !LB_TIME.includes(k))];
