@@ -57,7 +57,7 @@ input:focus,select:focus{outline:2px solid color-mix(in srgb,var(--brand) 40%,tr
 .sugbox{position:absolute;left:0;top:100%;min-width:100%;width:max-content;max-width:min(330px,calc(100vw - 32px));z-index:20;margin-top:4px;background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.18);max-height:300px;overflow:auto}
 .sugbox button{display:flex;width:100%;justify-content:space-between;gap:14px;white-space:nowrap;align-items:baseline;background:none;border:0;border-bottom:1px solid var(--line);padding:11px 12px;font:inherit;font-size:15px;color:var(--ink);text-align:left;cursor:pointer}
 .sugbox button:last-child{border-bottom:0}.sugbox button:hover,.sugbox button.on{background:var(--bg)}
-.nowwrap{position:relative;display:block}.nowwrap .nowbtn{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:auto;margin:0;padding:3px 9px;font-size:12px;line-height:16px;z-index:1}
+.nowwrap{position:relative;display:block}.nowwrap .nowbtn{margin-top:5px}
 .rollbox{display:flex;flex-direction:column;gap:4px;margin-top:5px}.rollbox.hidden{display:none}.rollbox .rollers{margin-top:0}
 .rollok{border:0;border-radius:8px;background:var(--brand);color:var(--on-brand);font:600 15px inherit;font-family:inherit;padding:5px 0;cursor:pointer}
 .nowbtn{display:block;width:100%;margin-top:5px;padding:5px 0;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--brand);font-family:inherit;font-size:12px;font-weight:600;cursor:pointer}.nowbtn:hover{background:var(--bg)}
@@ -505,7 +505,6 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
         <div class="row-actions" style="margin:16px 0 0"><button class="btn ghost" type="button" data-go="crewbase">Open Crew Base</button></div>
       </div>
       </details>
-      <div class="card"><h3>Pilot jobs</h3><div class="hint" style="font-size:14px">No jobs posted yet. <a href="#" data-go="jobs">Why jobs?</a></div></div>
       <div class="card"><h3>Support CrewBase Log</h3><p class="hint" style="margin:0 0 12px;font-size:14px">CrewBase Log is free and stays free. Nobody has to pay. If it saves you time and you'd like to help with the running costs, you can buy us a coffee.</p><a class="btn ghost" href="https://ko-fi.com/tamas25712" target="_blank" rel="noopener" data-kofi>Buy us a coffee</a></div>
       <form class="card" id="fbForm">
         <h3>Feedback</h3>
@@ -1572,7 +1571,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "30 Oct 2026 · 6";
+const APP_VERSION = "30 Oct 2026 · 7";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
@@ -3665,7 +3664,7 @@ document.addEventListener("click", e => {
   const b = e.target.closest("[data-now]"); if (!b) return;
   const i = $("#" + b.dataset.now), pre = b.dataset.now.slice(0, 2), now = new Date().toISOString();
   const d = $("#" + pre + "date"); if (d && !d.value) { d.value = now.slice(0, 10); d.dispatchEvent(new Event("input", { bubbles: true })); }
-  i.value = now.slice(11, 16); i.dataset.ok = i.value; i.classList.remove("bad");
+  i.value = now.slice(11, 16); i.dataset.ok = i.value; i.classList.remove("bad"); i.dataset.fromNow = "1";
   i.dispatchEvent(new Event("input", { bubbles: true })); i.dispatchEvent(new Event("change", { bubbles: true }));
 });
 // under the four times: block time (off-block to on-block) and flight time (take-off to landing), once they are in
@@ -3689,13 +3688,15 @@ function rollOpen(i){
   $$(".rollbox").forEach(x => x !== r && x.classList.add("hidden"));
   r.classList.remove("hidden"); i.blur(); requestAnimationFrame(() => rollSync(i));
 }
-// a tap on a time already in the box opens the wheels (no keyboard); with the wheels open, a tap goes into the box to type
+// a tap on a time that Now put in opens the wheels (no keyboard) until the tick; any other tap types with the keypad
+document.addEventListener("input", e => { if (TIME_BOX.test(e.target.id || "") && e.isTrusted) delete e.target.dataset.fromNow; });
 document.addEventListener("pointerdown", e => {
-  const i = e.target; if (!TIME_BOX.test(i.id || "") || !formTime(i.value)) return;
+  const i = e.target; if (!TIME_BOX.test(i.id || "") || !i.dataset.fromNow || !formTime(i.value)) return;
   const r = $("#" + i.id + "Roll"); if (!r || !r.classList.contains("hidden")) return;
   e.preventDefault(); rollOpen(i);
 });
 document.addEventListener("click", e => { const b = e.target.closest("[data-rollok]"); if (b) $("#" + b.dataset.rollok + "Roll").classList.add("hidden"); });
+// the wheels write the time themselves (not typed), so it stays a Now time: a tap opens them again
 // a wheel: one value per row, the middle row is the chosen one (rows snap to it)
 const wheelRow = w => w.firstElementChild?.offsetHeight || 24;
 const wheelAt = w => Math.max(0, Math.min(w.children.length - 1, Math.round(w.scrollTop / wheelRow(w))));
@@ -3938,7 +3939,7 @@ function flightFieldsHTML(pre, f = {}){
       Array.from({ length: max + 1 }, (_, n) => `<option${v(k) !== "" && n === cur ? " selected" : ""}>${n}</option>`).join("") + `</select>` +
       (v(k) === "" ? `<button type="button" class="ldgcover" data-ldg="${pre}${k}" aria-label="1 landing"></button>` : "") + `</span>`; };
   const input = k => k.startsWith("ldg") ? ldg(k) : `<input id="${pre}${k}" data-k="${k}" value="${esc(String(v(k)))}"` +
-    (k === "date" ? ` type="date" required max="${logToday()}"` : LB_TIME.includes(k) ? ' class="mono" inputmode="numeric" pattern="[0-9:]*" maxlength="5" autocomplete="off"' : LB_DUR.includes(k) ? ' class="mono" placeholder="H:MM" inputmode="numeric" pattern="[0-9:]*" maxlength="6" autocomplete="off"' : k === "from" || k === "to" ? ' class="mono" maxlength="4" autocapitalize="characters" autocomplete="off" spellcheck="false" style="text-transform:uppercase"' : "") + ">";
+    (k === "date" ? ` type="date" required max="${logToday()}"` : LB_TIME.includes(k) ? ' class="mono" placeholder="HH:MM" inputmode="numeric" pattern="[0-9:]*" maxlength="5" autocomplete="off"' : LB_DUR.includes(k) ? ' class="mono" placeholder="H:MM" inputmode="numeric" pattern="[0-9:]*" maxlength="6" autocomplete="off"' : k === "from" || k === "to" ? ' class="mono" maxlength="4" autocapitalize="characters" autocomplete="off" spellcheck="false" style="text-transform:uppercase"' : "") + ">";
   // pilot flying puts the landing in by itself (day or night, from the sun at the arrival airport); a saved flight with landings was flown
   const pfOn = /\bRELIEF\b/i.test(f.remarks || "") ? "rel" : f.ldgDay || f.ldgNight ? "pf" : "";   // blank until the pilot (or a confirmed return flight) says
   const r = (v, l) => `<label><input type="radio" name="${pre}pf" value="${v}"${pfOn === v ? " checked" : ""}> ${l}</label>`;
