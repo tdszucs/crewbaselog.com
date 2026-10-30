@@ -1552,7 +1552,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "30 Oct 2026 · 18";
+const APP_VERSION = "30 Oct 2026 · 19";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
@@ -3594,6 +3594,19 @@ function totalFollow(pre){
   for (const k of ["pic", "copilot", "dual", "instructor", "ifr"]) { const i = $("#" + pre + k); if (i && parseDur(i.value) === was) i.value = fmtMin(now); }
 }
 document.addEventListener("focusin", e => { const m = (e.target.id || "").match(/^(n_|e_)total$/); if (m) e.target.dataset.was = e.target.value; });
+// PIC is SELF: the flight is PIC time straight away (and follows the total); co-pilot and dual can't be logged with it
+function selfPic(pre){
+  const name = $("#" + pre + "picName"), pic = $("#" + pre + "pic"); if (!name || !pic || !/^self$/i.test(name.value.trim())) return;
+  const tot = $("#" + pre + "total").value.trim(); if (!parseDur(tot)) return;
+  if (!pic.value.trim() || pic.dataset.auto) { pic.value = fmtMin(parseDur(tot)); pic.dataset.auto = "1"; }
+  for (const k of ["copilot", "dual"]) { const i = $("#" + pre + k); if (i?.value) i.value = ""; }
+}
+document.addEventListener("input", e => {
+  const m = (e.target.id || "").match(/^(n_|e_)(picName|total|out|in|pic)$/); if (!m) return;
+  if (m[2] === "pic" && e.isTrusted) delete e.target.dataset.auto;   // typed by hand: stays as typed
+  if (m[2] === "pic" || (m[1] === "e_" && m[2] !== "picName")) return;   // an edited flight: only when its PIC is changed to SELF
+  setTimeout(() => { selfPic(m[1]); logBtns(m[1]); clashShow?.(m[1]); renderAddPreview?.(); });   // after the total has followed the block time
+});
 // Total time is the block time by itself, until the pilot types another
 document.addEventListener("input", e => {
   const m = (e.target.id || "").match(/^(n_|e_)(out|in|total|from|to|date|pic|copilot|dual|instructor|night|ifr)$/); if (!m) return;
