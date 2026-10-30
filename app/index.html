@@ -168,12 +168,15 @@ h2{font-size:24px;letter-spacing:-.02em;margin:0 0 6px}
 .lbcard .l1{display:flex;justify-content:space-between;gap:10px;font-weight:600;font-size:15px}.lbcard .l1 b{font-family:"JetBrains Mono",monospace}
 .lbcard .l2{display:block;color:var(--muted);font-size:13px;margin-top:2px;overflow-wrap:anywhere}
 .lbbox #lbEdit{background:var(--surface)!important}
+.lbadded{display:flex;justify-content:space-between;align-items:center;gap:8px 12px;flex-wrap:wrap;margin:0 0 12px;border-color:var(--ok)}
+.lbaddednote{display:flex;justify-content:space-between;align-items:center;gap:8px 12px;flex-wrap:wrap;margin:-4px 0 10px;padding:8px 12px;border-radius:0 0 12px 12px;background:var(--ok-soft);font-size:14px}
+.lbcard.justadded{border-color:var(--ok);box-shadow:0 0 0 2px var(--ok-soft);animation:justadded 2s ease-out}@keyframes justadded{0%{background:var(--ok-soft)}100%{background:var(--surface)}}
 .lbcard.open{border-color:var(--brand);border-bottom-left-radius:0;border-bottom-right-radius:0;margin-bottom:0}
 #lbEdit.inplace{border:1px solid var(--brand)!important;border-top:0!important;border-radius:0 0 12px 12px;margin:0 0 8px!important;scroll-margin-top:150px}
 .lbdetail{border:1px solid var(--brand);border-top:0;border-radius:0 0 12px 12px;background:var(--surface);padding:10px 14px 14px;margin:0 0 8px}
 .ldhead{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:0 0 8px;font-size:14px}.ldx{border:0;background:var(--bg);color:var(--ink);width:32px;height:32px;border-radius:50%;font-size:20px;line-height:1;cursor:pointer;flex:none}
 .lbdetail dl{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px 14px;margin:0}.lbdetail dt{font-size:12px;color:var(--muted)}.lbdetail dd{margin:0;font-size:14px;font-family:"JetBrains Mono",monospace;overflow-wrap:anywhere}
-.unf{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 0;border-top:1px solid var(--line)}.unf:first-child{border-top:0}.unf .fl-btns{margin:0}
+.unf{display:flex;justify-content:space-between;align-items:center;gap:6px 10px;flex-wrap:wrap;padding:8px 0;border-top:1px solid var(--line)}.unf:first-child{border-top:0}.unf .fl-btns{margin:0}
 @media (max-width:700px){
   /* the flights near the top: totals in one compact row, no explanations */
   #lbStats{grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px}#lbStats .stat{padding:8px 6px;text-align:center}#lbStats .k{font-size:10px;letter-spacing:.03em}#lbStats .v{font-size:15px}
@@ -690,20 +693,18 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
     <!-- logbook -->
     <div data-p="add" class="hidden">
       <h2>Add a flight</h2>
-      <p class="lead">A flight or simulator session that isn't in any file. Your flights are on the <a href="#" data-go="logbook">Logbook</a> page.</p>
+      <div class="card hidden" id="unfCard">
+        <h3 style="margin:0 0 4px">Unfinished entries</h3>
+        <div id="unfList"></div>
+      </div>
       <div class="card" id="addBlock">
       <form id="addForm" novalidate>
         <div class="seg" role="radiogroup" aria-label="What to add"><label><input type="radio" name="addKind" value="flight" checked> Flight</label><label><input type="radio" name="addKind" value="sim"> Simulator session</label></div>
-        <p class="hint" style="margin:0 0 14px;font-size:14px">For a flight that isn't in any file. Times in UTC. Leave PIC/co-pilot, night and IFR empty to have them filled in from your <a href="#" data-go="profile">profile</a>. The preview shows the line exactly as it will appear in your EASA logbook.</p>
+        
         <div class="lbgrid" id="addFields"></div>
         <div class="field" style="margin-top:4px"><label>Preview: your logbook line</label><div class="tablewrap"><div id="addPreview"></div></div></div>
         <div class="row-actions" style="margin:0"><button class="btn" type="submit" id="addSubmit">Add flight to logbook</button><button class="btn ghost" type="button" id="addClear">Clear</button><span class="err" id="addErr" style="margin:0"></span><span class="ok-msg" id="addOk"></span></div>
       </form>
-      </div>
-      <div class="card hidden" id="unfCard">
-        <h3>Unfinished entries</h3>
-        <p class="hint step-sub">Started and not added yet. Complete one to carry on with it, or delete it.</p>
-        <div id="unfList"></div>
       </div>
     </div>
     <div data-p="logbook" class="hidden">
@@ -711,6 +712,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
       <p class="lead">Your flights are kept only in this browser. Downloads, backup and starting over are on <a href="#" data-go="import" data-scroll="#outCard">Your data</a>.</p>
       <div class="stats" id="lbStats"></div>
       <div class="row-actions" style="margin:0 0 16px"><button class="btn" type="button" data-go="add">+ Add a flight</button><span class="hint lbhint" style="margin:0;font-size:14px">For a flight or simulator session that isn't in any file.</span></div>
+      <div class="notice hidden lbadded" id="lbAdded" role="status"></div>
       <div class="lbbox">
         <form class="notice hidden" id="lbEdit" style="margin:0 0 14px;background:var(--bg);border-color:var(--line)" novalidate>
           <h3 style="margin:0 0 12px" id="lbEditTitle">Edit flight</h3>
@@ -1557,7 +1559,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "30 Oct 2026 · 23";
+const APP_VERSION = "30 Oct 2026 · 25";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
@@ -3075,7 +3077,7 @@ function renderUnfinished(){
   const L = unfList(), box = $("#unfCard"); if (!box) return; box.classList.toggle("hidden", !L.length);
   $("#unfList").innerHTML = L.map(e => { const v = e.v, sim = v._kind === "sim";
     const what = sim ? ["Simulator", v.fstdType, v.fstdTime].filter(Boolean).join(" · ") : [v.flightNo && v.flightNo !== data.profile.airline ? v.flightNo : "", v.from || v.to ? `${v.from || "?"} → ${v.to || "?"}` : "", v.acType, v.out && v.in ? `${v.out}–${v.in}` : v.out ? `off-block ${v.out}` : ""].filter(Boolean).join(" · ");
-    return `<div class="unf"><div><b>${v.date ? fmtDate(v.date).slice(0, 5) : "No date"}</b> ${esc(what || "a few details")}<div class="hint">started ${fmtDate(e.at.slice(0, 10)).slice(0, 5)} ${e.at.slice(11, 16)} UTC</div></div>
+    return `<div class="unf"><div><b>${v.date ? fmtDate(v.date).slice(0, 5) : "No date"}</b> ${esc(what || "a few details")}<span class="hint"> · started ${fmtDate(e.at.slice(0, 10)).slice(0, 5)} ${e.at.slice(11, 16)} UTC</span></div>
       <div class="fl-btns"><button class="btn small" type="button" data-unfgo="${e.id}">Complete</button><button class="btn ghost small" type="button" data-unfdel="${e.id}">Delete</button></div></div>`; }).join("");
 }
 document.addEventListener("click", e => {
@@ -3233,6 +3235,7 @@ $("#addClear").addEventListener("click", () => { addFormReset(); dropDraft(); })
 let lastAdded = null;
 document.addEventListener("click", e => {
   if (e.target.id !== "addReturn" || !lastAdded) return;
+  $("#lbAdded").classList.add("hidden"); $(".lbaddednote")?.remove(); tab("add"); newEntry();
   const L = lastAdded, set = (k, v) => { const i = $("#n_" + k); if (i) { i.value = v; i.dispatchEvent(new Event("input", { bubbles: true })); } };
   set("date", L.date); set("from", L.to); set("to", L.from); fillReturn(L);
   $("#n_retNote").dataset.no = dupKey(L); $("#n_retNote").classList.add("hidden");
@@ -3250,9 +3253,15 @@ $("#addForm").addEventListener("submit", e => {
   addFormReset(); dropDraft();
   const ns = data.flights.filter(isSim).length;
   logEvent(sim ? "add_sim" : "add_flight", {});
-  $("#addOk").innerHTML = esc(`Added ${flightLabel(f)}. Your logbook has ${(data.flights.length - ns).toLocaleString()} flight${data.flights.length - ns === 1 ? "" : "s"}${ns ? ` and ${ns} simulator session${ns === 1 ? "" : "s"}` : ""}.`) +
-    (!sim && f.from && f.to && f.from !== f.to ? ` <button class="btn small" type="button" id="addReturn" style="margin:8px 0 0">↩ Add the return flight</button>` : ""); renderPrint(); renderLogbook();
-  lastAdded = sim ? null : f;
+  lastAdded = sim ? null : f; renderPrint();
+  // the Logbook, with what was just added said at the top and its line marked
+  $("#lbSearch").value = ""; $("#lbYear").value = ""; $("#lbType").value = ""; tab("logbook");
+  // the note sits under the new line (the list drawn again takes it away)
+  const note = `<span><b>✓ Added.</b> Your logbook has ${(data.flights.length - ns).toLocaleString()} flight${data.flights.length - ns === 1 ? "" : "s"}${ns ? ` and ${ns} simulator session${ns === 1 ? "" : "s"}` : ""}.</span>` +
+    (!sim && f.from && f.to && f.from !== f.to ? `<button class="btn small" type="button" id="addReturn">↩ Add the return flight</button>` : "");
+  const i = data.flights.indexOf(f), card = $(`#lbTable .lbcard[data-edit="${i}"]`);
+  if (card) { card.classList.add("justadded"); card.insertAdjacentHTML("afterend", `<div class="lbaddednote" role="status">${note}</div>`); setTimeout(() => card.scrollIntoView({ behavior: "smooth", block: "center" }), 50); }
+  else { $("#lbAdded").innerHTML = note; $("#lbAdded").classList.remove("hidden"); scrollTo({ top: 0 }); }
 });
 
 /* ---------- suggestions in the flight form: airports, aircraft types and registrations already in the logbook ----------
@@ -3955,6 +3964,7 @@ function lbCards(rows, hits){
   }
   return h + "</div>";
 }
+document.addEventListener("click", e => { if (e.target.closest('[data-t]:not([data-t="logbook"]),[data-go]') && !e.target.closest("#lbAdded")) $("#lbAdded")?.classList.add("hidden"); }, true);
 function renderLogbook(){
   // the list is drawn again: a form open under a card goes back above it first (it would be wiped with the list)
   if ($("#lbEdit").closest("#lbTable")) { lbEditHome.after($("#lbEdit")); $("#lbEdit").classList.remove("inplace"); }
