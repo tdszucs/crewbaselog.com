@@ -2741,6 +2741,15 @@ function renderAddPreview(){
 $("#addFields").addEventListener("input", () => { renderAddPreview(); $("#addErr").textContent = ""; $("#addOk").textContent = ""; });
 
 $("#addClear").addEventListener("click", addFormReset);
+// the way back of the flight just added: route reversed, same date, aircraft, registration and PIC; the other pilot flies it
+let lastAdded = null;
+document.addEventListener("click", e => {
+  if (e.target.id !== "addReturn" || !lastAdded) return;
+  const L = lastAdded, set = (k, v) => { const i = $("#n_" + k); if (i) { i.value = v; i.dispatchEvent(new Event("input", { bubbles: true })); } };
+  set("date", L.date); set("from", L.to); set("to", L.from); fillReturn(L);
+  $("#n_retNote").dataset.no = dupKey(L); $("#n_retNote").classList.add("hidden");
+  $("#addOk").textContent = ""; $("#n_out").focus(); $("#n_out").scrollIntoView({ behavior: "smooth", block: "center" });
+});
 $("#addForm").addEventListener("change", e => { if (e.target.name === "addKind") { addFormReset(); $("#addOk").textContent = ""; } });
 $("#addForm").addEventListener("submit", e => {
   e.preventDefault(); $("#addOk").textContent = "";
@@ -2752,7 +2761,9 @@ $("#addForm").addEventListener("submit", e => {
   addFormReset();
   const ns = data.flights.filter(isSim).length;
   logEvent(sim ? "add_sim" : "add_flight", {});
-  $("#addOk").textContent = `Added ${flightLabel(f)}. Your logbook has ${(data.flights.length - ns).toLocaleString()} flight${data.flights.length - ns === 1 ? "" : "s"}${ns ? ` and ${ns} simulator session${ns === 1 ? "" : "s"}` : ""}.`; renderPrint(); renderLogbook();
+  $("#addOk").innerHTML = esc(`Added ${flightLabel(f)}. Your logbook has ${(data.flights.length - ns).toLocaleString()} flight${data.flights.length - ns === 1 ? "" : "s"}${ns ? ` and ${ns} simulator session${ns === 1 ? "" : "s"}` : ""}.`) +
+    (!sim && f.from && f.to && f.from !== f.to ? ` <button class="btn small" type="button" id="addReturn" style="margin:8px 0 0">↩ Add the return flight</button>` : ""); renderPrint(); renderLogbook();
+  lastAdded = sim ? null : f;
 });
 
 /* ---------- suggestions in the flight form: airports, aircraft types and registrations already in the logbook ----------
@@ -2777,11 +2788,19 @@ function flightSuggest(pre, k){
     let i4 = 0, i3 = 0; if (!data.profile.apt) for (const f of F) { if (f.from?.length === 4) i4++; else if (f.from?.length === 3) i3++; }
     const pref = data.profile.apt || (i4 > i3 ? "ICAO" : i3 ? "IATA" : ""), sty = c => aptStyle(c, pref);
     const legs = rosterLegs(date, sty), base = sty((data.profile.base || data.crew?.me?.base || "").toUpperCase()), from = k === "to" ? $("#" + pre + "from").value.trim().toUpperCase() : "";
-    if (k === "from") { for (const l of legs) add(l.from, `roster${l.no ? " · flight " + l.no : ""}`, { leg: l }); add(base, "home base"); }
-    else {
-      for (const l of legs) if (!from || sameApt(l.from, from)) add(l.to, `roster${l.no ? " · flight " + l.no : ""}`);
-      for (const [v, c] of count(f => sameApt(f.from, from) ? sty(f.to) : "")) add(v, `${n(c)} from ${from}`);
+    const recent = [...F].sort((a, b) => (b.date + b.out).localeCompare(a.date + a.out)), L = pre === "n_" ? lastFlight(pre) : null;
+    const recentApts = []; for (const f of recent.slice(0, 5)) for (const c of [f.to, f.from]) if (c && !recentApts.includes(sty(c))) recentApts.push(sty(c));
+    if (k === "from") {
+      for (const l of legs) add(l.from, `roster${l.no ? " · flight " + l.no : ""}`, { leg: l });
       add(base, "home base");
+      if (L) add(sty(L.to), `your last flight landed here`);
+      for (const c of recentApts) add(c, "recent flight");
+    } else {
+      for (const l of legs) if (!from || sameApt(l.from, from)) add(l.to, `roster${l.no ? " · flight " + l.no : ""}`);
+      if (L && sameApt(L.to, from)) add(sty(L.from), `return flight`);
+      if (!sameApt(base, from)) add(base, "home base");
+      for (const c of recentApts) if (!sameApt(c, from)) add(c, "recent flight");
+      for (const [v, c] of count(f => sameApt(f.from, from) ? sty(f.to) : "")) add(v, `${n(c)} from ${from}`);
     }
     for (const [v, c] of count(f => sty(f[k]))) add(v, n(c));
     if (k === "to") for (const [v, c] of count(f => sty(f.from))) add(v, n(c));
@@ -2809,28 +2828,102 @@ function flightSuggest(pre, k){
     const m = Math.min(nightMinutes(f), f.total), v = fmtMin(m);
     return (!val || v.startsWith(val)) ? [{ v, label: v, note: m ? `night on ${f.from}–${f.to} ${f.out}–${f.in}` : `all in daylight ${f.out}–${f.in}` }] : [];
   }
+  // the return of the last flight: its PIC, aircraft and registration first
+  const R = pre === "n_" && ["picName", "reg", "acType"].includes(k) ? returnOf(pre) : null;
+  const withOut = list => { if (!R || !R[k]) return list; const v = /^self$/i.test(R[k]) ? "SELF" : R[k]; if (val && !v.toUpperCase().startsWith(val)) return list;
+    return [{ v, label: v, note: "same as the outbound flight" }, ...list.filter(o => o.v !== v)].slice(0, 8); };
   // Name of PIC: SELF first as soon as the typed letters fit it (S, SE ...), then the names in the logbook, most used first
   if (k === "picName") {
     const names = count(f => /^self$/i.test(f.picName || "") ? "SELF" : (f.picName || "").trim()), low = val.toLowerCase();
     const fits = v => !low || v.toLowerCase().startsWith(low) || v.toLowerCase().split(/[\s,]+/).some(w => w.startsWith(low));
     const list = names.filter(([v]) => fits(v)).map(([v, c]) => ({ v, label: v, note: v === "SELF" ? "you were PIC · " + n(c) : n(c) }));
     if ("SELF".startsWith(val)) { const i = list.findIndex(o => o.v === "SELF"), self = i >= 0 ? list.splice(i, 1)[0] : { v: "SELF", label: "SELF", note: "you were PIC" }; if (val || i >= 0 || !list.length) list.unshift(self); else list.splice(Math.min(1, list.length), 0, self); }
-    return list.slice(0, 8);
+    return withOut(list.slice(0, 8));
   }
   // aircraft types: the one flown last first
   if (k === "acType") {
     const last = new Map(); for (const f of F) if (f.acType && !(last.get(f.acType) > f.date)) last.set(f.acType, f.date);
-    return [...last.entries()].sort((a, b) => b[1].localeCompare(a[1])).filter(([v]) => !val || v.startsWith(val)).slice(0, 8).map(([v, d]) => ({ v, label: v, note: `last ${fmtDate(d)}` }));
+    return withOut([...last.entries()].sort((a, b) => b[1].localeCompare(a[1])).filter(([v]) => !val || v.startsWith(val)).slice(0, 8).map(([v, d]) => ({ v, label: v, note: `last ${fmtDate(d)}` })));
   }
   if (k === "reg") {
     const type = $("#" + pre + "acType").value.trim().toUpperCase(), last = new Map();
     for (const f of F) if (f.reg && (!type || f.acType === type)) last.set(f.reg, { date: f.date, type: f.acType, c: (last.get(f.reg)?.c || 0) + 1 });
-    return [...last.entries()].sort((a, b) => b[1].date.localeCompare(a[1].date)).filter(([v]) => !val || v.replace("-", "").startsWith(val.replace("-", "")))
-      .slice(0, 8).map(([v, x]) => ({ v, label: v, note: `${x.type ? x.type + " · " : ""}${fmtDate(x.date)}` }));
+    return withOut([...last.entries()].sort((a, b) => b[1].date.localeCompare(a[1].date)).filter(([v]) => !val || v.replace("-", "").startsWith(val.replace("-", "")))
+      .slice(0, 8).map(([v, x]) => ({ v, label: v, note: `${x.type ? x.type + " · " : ""}${fmtDate(x.date)}` })));
   }
   return [];
 }
 const FN_KEYS = ["total", "pic", "copilot", "dual", "instructor", "ifr"];
+// the flight before the one being entered (its date or earlier), and whether the route entered is its way back (within 3 days)
+function lastFlight(pre){
+  const date = $("#" + pre + "date")?.value || logToday();
+  return data.flights.filter(f => !isSim(f) && f.from && f.to && f.date <= date).sort((a, b) => (b.date + b.out).localeCompare(a.date + a.out))[0] || null;
+}
+function returnOf(pre){
+  const g = x => ($("#" + pre + x)?.value || "").trim().toUpperCase(), from = g("from"), to = g("to"), date = $("#" + pre + "date")?.value || logToday(), L = lastFlight(pre);
+  return L && from && to && sameApt(L.to, from) && sameApt(L.from, to) && (Date.parse(date) - Date.parse(L.date)) / 864e5 <= 3 ? L : null;
+}
+/* Pilot flying / pilot monitoring: pilot flying puts the landing in, in the day or night box (sun more than 6° below the horizon
+   at the arrival airport at landing time, or on-block); pilot monitoring takes it out. A landing chosen by hand stays as it is */
+const pfOf = pre => document.querySelector(`[name="${pre}pf"]:checked`)?.value || "";
+function setLdg(pre, day, night){
+  for (const [k, v] of [["ldgDay", day], ["ldgNight", night]]) {
+    const sel = $("#" + pre + k); if (!sel) continue; sel.value = v === "" ? "" : String(v); const cov = sel.parentNode.querySelector(".ldgcover");
+    if (sel.value === "" && !cov) sel.parentNode.insertAdjacentHTML("beforeend", `<button type="button" class="ldgcover" data-ldg="${pre}${k}" aria-label="1 landing"></button>`);
+    else if (sel.value !== "" && cov) cov.remove();
+  }
+  $("#" + pre + "ldgDay")?.dispatchEvent(new Event("input", { bubbles: true }));
+}
+function landsAtNight(pre){
+  const g = x => ($("#" + pre + x)?.value || "").trim(), B = AIRPORTS?.[g("to").toUpperCase()], out = parseTime(g("out")), t = parseTime(g("on")) || parseTime(g("in")), date = g("date");
+  if (!B || !date || !t) return null;
+  const day = out && t < out ? new Date(Date.parse(date) + 864e5).toISOString().slice(0, 10) : date;
+  return sunElevation(B[0], B[1], Date.parse(`${day}T${t}:00Z`)) < -6;
+}
+function pfAuto(pre){
+  const seg = $("#" + pre + "pfSeg"); if (!seg || pfOf(pre) !== "pf") return;
+  const d = $("#" + pre + "ldgDay").value, n = $("#" + pre + "ldgNight").value, mine = seg.dataset.auto;
+  if (!(d === "" && n === "") && !(mine === "d" && d === "1" && n === "") && !(mine === "n" && n === "1" && d === "")) return;   // chosen by hand
+  const night = landsAtNight(pre); if (night === null) return;
+  setLdg(pre, night ? "" : 1, night ? 1 : ""); seg.dataset.auto = night ? "n" : "d";
+}
+function setPf(pre, v){ const r = document.querySelector(`[name="${pre}pf"][value="${v}"]`); if (r) r.checked = true; pfChanged(pre); }
+function pfChanged(pre){
+  const seg = $("#" + pre + "pfSeg"); if (!seg) return;
+  if (pfOf(pre) === "pf") pfAuto(pre); else if (pfOf(pre) === "pm") { setLdg(pre, "", ""); delete seg.dataset.auto; }
+}
+document.addEventListener("change", e => {
+  const m = (e.target.id || e.target.name || "").match(/^(n_|e_)(pf|ldgDay|ldgNight)$/); if (!m) return;
+  if (m[2] === "pf") return pfChanged(m[1]);
+  // a landing chosen by hand: pilot flying, and no longer filled in by itself
+  delete $("#" + m[1] + "pfSeg")?.dataset.auto;
+  if (+e.target.value > 0 && pfOf(m[1]) !== "pf") { const r = document.querySelector(`[name="${m[1]}pf"][value="pf"]`); if (r) r.checked = true; }
+});
+document.addEventListener("input", e => {
+  const m = (e.target.id || "").match(/^(n_|e_)(date|from|to|out|on|in)$/); if (!m) return;
+  pfAuto(m[1]);
+  if (m[1] === "n_" && /^(date|from|to)$/.test(m[2])) retCheck();
+});
+// "This looks like the return flight": same PIC, aircraft and registration, and the other pilot flies it
+function retCheck(){
+  const box = $("#n_retNote"); if (!box) return;
+  const L = returnOf("n_"), key = L && dupKey(L);
+  if (!L || box.dataset.no === key) { box.classList.add("hidden"); return; }
+  const same = [L.acType, L.reg].filter(Boolean).join(" "), pic = /^self$/i.test(L.picName || "") ? "SELF" : L.picName;
+  box.dataset.key = key; box.classList.remove("hidden");
+  box.innerHTML = `<div class="notice" style="margin:0"><b>↩ This looks like the return flight</b> of ${esc(flightLabel(L))}.` +
+    `<div style="margin:4px 0 0">Use the same ${[same && "aircraft (" + esc(same) + ")", pic && "PIC (" + esc(pic) + ")"].filter(Boolean).join(" and ") || "details"}${L.ldgDay || L.ldgNight ? ", with you monitoring this time" : ", with you flying this time"}?</div>` +
+    `<div class="fl-btns"><button class="btn small" type="button" data-retyes>Yes, fill them in</button><button class="btn ghost small" type="button" data-retno>No</button></div></div>`;
+}
+function fillReturn(L, pre = "n_"){
+  const set = (k, v) => { const i = $("#" + pre + k); if (i && v != null) { i.value = v; i.dispatchEvent(new Event("input", { bubbles: true })); } };
+  set("acType", L.acType); set("reg", L.reg); set("picName", /^self$/i.test(L.picName || "") ? "SELF" : L.picName || "");
+  setPf(pre, L.ldgDay || L.ldgNight ? "pm" : "pf");
+}
+document.addEventListener("click", e => {
+  if (e.target.closest("[data-retyes]")) { const L = returnOf("n_"); if (L) fillReturn(L); $("#n_retNote").dataset.no = dupKey(L); $("#n_retNote").classList.add("hidden"); }
+  if (e.target.closest("[data-retno]")) { $("#n_retNote").dataset.no = $("#n_retNote").dataset.key; $("#n_retNote").classList.add("hidden"); }
+});
 const SUG_KEYS = /^(n_|e_)(from|to|acType|reg|picName|total|pic|copilot|dual|instructor|ifr|night)$/;
 function showSuggest(inp){
   const [, pre, k] = inp.id.match(SUG_KEYS), list = flightSuggest(pre, k);
@@ -2850,7 +2943,7 @@ document.addEventListener("input", e => { if (SUG_KEYS.test(e.target.id || "")) 
 // Landings: the first tap on an empty box puts 1 in it (most flights have one landing); the cover goes, so the next tap opens the picker
 document.addEventListener("click", e => {
   const b = e.target.closest(".ldgcover"); if (!b) return;
-  const sel = $("#" + b.dataset.ldg); sel.value = "1"; b.remove(); sel.dispatchEvent(new Event("input", { bubbles: true })); sel.dispatchEvent(new Event("change", { bubbles: true }));
+  const sel = $("#" + b.dataset.ldg); sel.value = "1"; b.remove(); sel.dispatchEvent(new Event("input", { bubbles: true })); sel.dispatchEvent(new Event("change", { bubbles: true }));   // change: pilot flying
 });
 document.addEventListener("keydown", e => { if (e.key === "Escape") hideSuggest(); });
 // pointerdown (not click), so the field keeps its focus and the keyboard stays up while choosing
@@ -2969,8 +3062,13 @@ function flightFieldsHTML(pre, f = {}){
   const input = k => k.startsWith("ldg") ? ldg(k) : `<input id="${pre}${k}" data-k="${k}" value="${esc(String(v(k)))}"` +
     (k === "date" ? ` type="date" required max="${logToday()}"` : LB_TIME.includes(k) ? ' class="mono" placeholder="HH:MM" inputmode="numeric"' : LB_DUR.includes(k) ? ' class="mono" placeholder="H:MM"' : k.startsWith("ldg") ? ' type="number" min="0" step="1"' : "") + ">";
   // off-block, take-off, landing, on-block always side by side in one row, on any screen
-  const times = `<div class="field wide"><div class="times">${LB_TIME.map(k => `<div><label for="${pre}${k}">${{ out: "Off-block", off: "Take-off", on: "Landing", in: "On-block" }[k]}</label>${input(k)}</div>`).join("")}</div></div>`;
-  return FIELDS.filter(([k]) => !LB_TIME.includes(k)).map(([k, label]) => `<div class="field${k === "remarks" ? " wide" : ""}"><label for="${pre}${k}">${label}</label>${k === "date" ? `<span class="datewrap">${input(k)}</span>` : input(k)}</div>` + (k === "to" ? times : "")).join("");
+  const times = `<div class="field wide"><div class="times">${LB_TIME.map(k => `<div><label for="${pre}${k}">${{ out: "Off-block", off: "Take-off", on: "Landing", in: "On-block" }[k]}</label>${input(k)}</div>`).join("")}</div></div>` +
+    `<div class="field wide hidden" id="${pre}retNote"></div>`;
+  // pilot flying puts the landing in by itself (day or night, from the sun at the arrival airport); a saved flight with landings was flown
+  const pfOn = f.ldgDay || f.ldgNight ? "pf" : f.total ? "pm" : "";
+  const pfSeg = `<div class="field wide"><div class="seg" id="${pre}pfSeg" role="radiogroup" aria-label="Pilot flying or pilot monitoring" style="margin:0">` +
+    [["pf", "Pilot flying"], ["pm", "Pilot monitoring"]].map(([v, l]) => `<label><input type="radio" name="${pre}pf" value="${v}"${pfOn === v ? " checked" : ""}> ${l}</label>`).join("") + `</div></div>`;
+  return FIELDS.filter(([k]) => !LB_TIME.includes(k)).map(([k, label]) => (k === "ldgDay" ? pfSeg : "") + `<div class="field${k === "remarks" ? " wide" : ""}"><label for="${pre}${k}">${label}</label>${k === "date" ? `<span class="datewrap">${input(k)}</span>` : input(k)}</div>` + (k === "to" ? times : "")).join("");
 }
 // a simulator session: EASA FSTD columns (date, type, session time) and remarks
 function simFieldsHTML(pre, f = {}){
