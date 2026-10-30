@@ -175,7 +175,8 @@ h2{font-size:24px;letter-spacing:-.02em;margin:0 0 6px}
 .htile .bar{height:5px;border-radius:3px;background:var(--line);margin-top:6px;overflow:hidden}.htile .bar i{display:block;height:100%;background:var(--ok)}
 .htile.warn .bar i{background:var(--warn)}.htile.bad .bar i{background:var(--bad)}.htile.bad .v{color:var(--bad)}
 .hrow{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 0}
-.hcard{margin:0 0 14px}.hcard h3{margin:0 0 8px}
+.hcard{margin:0 0 14px}.setupbar .sbtop{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}.setupbar .bar{height:8px;border-radius:99px;background:var(--bg);border:1px solid var(--line);overflow:hidden}.setupbar .bar i{display:block;height:100%;background:var(--ok);border-radius:99px}
+a.chip{text-decoration:none}.hcard h3{margin:0 0 8px}
 .setup{position:fixed;inset:0;z-index:50;background:var(--bg);overflow:auto;padding:max(16px,env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom))}
 .setupin{max-width:520px;margin:0 auto}.suhead{display:flex;justify-content:space-between;align-items:center;margin:0 0 18px}.logo-sm{font-weight:700}
 .sudots{display:flex;gap:6px;margin:0 0 18px}.sudots i{flex:1;height:4px;border-radius:2px;background:var(--line)}.sudots i.on{background:var(--brand)}
@@ -427,7 +428,6 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
     <nav class="tabs" id="tabs">
       <button data-t="overview" class="on">Overview</button>
       <button data-t="profile">Profile</button>
-      <button data-t="expiry" id="tabExp">Expiry dates</button>
       <button data-t="import">Your data</button>
       <button data-t="logbook">Logbook</button>
       <button data-t="add" class="tabadd">+ Add flight</button>
@@ -446,7 +446,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
     <button data-more><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg><span>More</span></button>
   </nav>
   <div class="moremenu hidden" id="moreMenu" role="menu">
-    <button data-t="import">Your data</button><button data-t="crewbase">Crew Base</button><button data-t="jobs">Jobs</button><button data-t="expiry" id="moreExp">Expiry dates</button><button data-t="profile">Profile</button><button data-t="admin" id="moreAdmin" class="hidden">Admin</button>
+    <button data-t="import">Your data</button><button data-t="crewbase">Crew Base</button><button data-t="jobs">Jobs</button><button data-t="profile">Profile</button><button data-t="admin" id="moreAdmin" class="hidden">Admin</button>
   </div>
   <div class="setup hidden" id="setup" role="dialog" aria-label="Set up CrewBase Log"><div class="setupin"><div class="suhead"><span class="logo-sm">CrewBase Log</span><button class="btn ghost small" type="button" data-su="skip">Skip setup</button></div><div id="setupBody"></div></div></div>
   <main>
@@ -454,6 +454,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
     <div data-p="overview">
       <h2 id="hello">Welcome</h2>
       <p class="lead">A logbook that stays with you: nothing about your flying is uploaded.</p>
+      <div id="homeTop"></div>
       <div id="homeDash"></div>
       <div id="setupNotice" class="notice hidden"></div>
       <details id="howBox" class="howbox"><summary>First time here? <b>How CrewBase Log works</b></summary>
@@ -511,18 +512,6 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
       </form>
     </div>
 
-    <!-- expiry dates and recency -->
-    <div data-p="expiry" class="hidden">
-      <h2 id="expSection">Expiry dates</h2>
-      <p class="lead">Your licence, medical and OPC. Use <b>+ Add item</b> for anything else you want to track. Amber means due within 60 days.</p>
-      <div class="card" id="recencyCard"></div>
-      <div class="card">
-        <div class="exp exp-head" style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;padding-top:0"><div>Item</div><div>Expires</div><div>Note</div><div>Status</div><div></div></div>
-        <div id="expList"></div>
-        <div class="row-actions" style="margin-top:14px"><button class="btn ghost small" id="btnAddExp" type="button">+ Add item</button><span id="expSaved" class="ok-msg"></span></div>
-      </div>
-    </div>
-
     <!-- profile -->
     <div data-p="profile" class="hidden">
       <h2>Pilot profile</h2>
@@ -535,10 +524,19 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
           <div class="field"><label for="pType">Licence type</label>
             <select id="pType"><option value="">Select…</option><option>ATPL(A)</option><option>CPL(A)</option><option>MPL(A)</option><option>PPL(A)</option><option>ATPL(H)</option><option>CPL(H)</option><option>Other</option></select></div>
           <div class="field"><label for="pBase">Home base (ICAO or IATA)</label><input id="pBase" class="mono" maxlength="4" style="text-transform:uppercase" placeholder="e.g. LIPZ or VCE" autocapitalize="characters" autocomplete="off"></div>
-          <div class="field"><label for="pAirline">Airline code (IATA or ICAO)</label><input id="pAirline" class="mono" style="text-transform:uppercase" maxlength="3" placeholder="e.g. EY or ETD" autocapitalize="characters" autocomplete="off"><div class="hint" style="font-size:13px;margin:4px 0 0">Goes in front of the flight numbers you enter: 101 becomes EY101.</div></div>
+          <div class="field"><label for="pAirline">Airline code (IATA or ICAO)</label><input id="pAirline" class="mono" style="text-transform:uppercase" maxlength="3" placeholder="e.g. LH or DLH" autocapitalize="characters" autocomplete="off"><div class="hint" style="font-size:13px;margin:4px 0 0">Goes in front of the flight numbers you enter: 101 becomes LH101.</div></div>
+          <div class="field"><label for="pRegs">Registrations you fly</label><input id="pRegs" class="mono" style="text-transform:uppercase" placeholder="e.g. D-AI, G-, N" autocapitalize="characters" autocomplete="off"><div class="hint" style="font-size:13px;margin:4px 0 0">The start of your aircraft registrations, several with commas. The Registration box starts with it: A7 gives A7-, D-AI gives D-AI.</div></div>
         </div>
         <div class="row-actions"><span id="profSaved" class="hint">Every change is saved as you type.</span></div>
       </form>
+      <h2 id="expSection" style="margin-top:30px">Expiry dates</h2>
+      <p class="lead">Your licence, medical and OPC. Use <b>+ Add item</b> for anything else you want to track. Amber means due within 60 days.</p>
+      <div class="card" id="recencyCard"></div>
+      <div class="card">
+        <div class="exp exp-head" style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;padding-top:0"><div>Item</div><div>Expires</div><div>Note</div><div>Status</div><div></div></div>
+        <div id="expList"></div>
+        <div class="row-actions" style="margin-top:14px"><button class="btn ghost small" id="btnAddExp" type="button">+ Add item</button><span id="expSaved" class="ok-msg"></span></div>
+      </div>
       <h2 id="sigSection" style="margin-top:30px">Logbook signature</h2>
       <p class="lead">Used to sign each page of your printed logbook. Draw with a finger, stylus or mouse.</p>
       <div class="grid2" style="gap:18px">
@@ -566,7 +564,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
           <select id="pRole"><option value="">Not set (single pilot: time goes to PIC)</option><option value="PIC">Pilot in command (captain)</option><option value="CP">Co-pilot (first officer)</option></select>
           <div class="hint">Decides whether a flight's time goes to PIC or co-pilot. Files with their own PIC/co-pilot columns (like eCrew) keep their values.</div></div>
         <div class="field" style="max-width:360px"><label for="pApt">Airport codes</label>
-          <select id="pApt"><option value="">As in my files</option><option value="ICAO">ICAO, 4 letters (EGLL, OMAA)</option><option value="IATA">IATA, 3 letters (LHR, AUH)</option></select>
+          <select id="pApt"><option value="">As in my files</option><option value="ICAO">ICAO, 4 letters (EGLL, KJFK)</option><option value="IATA">IATA, 3 letters (LHR, JFK)</option></select>
           <div class="hint">Used for every flight you import or add, and on your PDF logbook. An airport that only has one code (closed for airlines, or a small airfield without an IATA code) keeps the code it has.</div><div class="ok-msg" id="pAptMsg"></div></div>
         <label style="display:flex;gap:8px;align-items:flex-start;font-weight:400;margin:0 0 8px"><input type="checkbox" id="pIfr" style="width:auto;margin-top:3px"> <span>Airline flights are IFR: a flight between two airports gets IFR time equal to its total time.</span></label>
         <label style="display:flex;gap:8px;align-items:flex-start;font-weight:400;margin:0 0 14px"><input type="checkbox" id="pNight" style="width:auto;margin-top:3px"> <span>Work out night time from the block times and airports (times in UTC). Night is when the sun is more than 6° below the horizon, along the route.</span></label>
@@ -823,7 +821,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
       <div class="card">
         <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:baseline"><h3>My roster</h3><span class="hint" id="cbMyInfo"></span></div>
         <div class="grid2" style="margin-top:12px">
-          <div class="field"><label for="cbName">Name shown to friends</label><input id="cbName" placeholder="e.g. Tamas"></div>
+          <div class="field"><label for="cbName">Name shown to friends</label><input id="cbName" placeholder="e.g. Sarah"></div>
           <div class="field"><label for="cbBase">Home base (IATA or ICAO)</label><input id="cbBase" class="mono" maxlength="4" placeholder="e.g. MXP" style="text-transform:uppercase"></div>
         </div>
         <div class="drop" id="cbDrop"><b>Drop your Personal Crew Schedule Report (PDF from AIMS)</b> or click to choose it<div class="hint">Every day is read from it: duty and layovers, days off, standby and available. Times are kept in UTC; a roster printed in local base time is converted to UTC.</div></div>
@@ -995,7 +993,7 @@ const Auth = (() => {
     async init(){
       await loadScript("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js");
       sb = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
-      sb.auth.onAuthStateChange((e, s) => { emit(s?.user ? { id: s.user.id, email: s.user.email } : null); if (e === "PASSWORD_RECOVERY") setTimeout(showReset, 0); });
+      sb.auth.onAuthStateChange((e, s) => { authTrace(e + (s ? "" : " (no session)")); emit(s?.user ? { id: s.user.id, email: s.user.email } : null); if (e === "PASSWORD_RECOVERY") setTimeout(showReset, 0); });
     },
     async signUp(email, pw){
       const { data, error } = await sb.auth.signUp({ email, password: pw, options: { emailRedirectTo: REDIRECT } });
@@ -1012,7 +1010,7 @@ const Auth = (() => {
     async resetPw(email){ const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: REDIRECT }); if (error) throw error; },
     async updatePw(pw){ const { error } = await sb.auth.updateUser({ password: pw }); if (error) throw error; },
     async resend(email){ const { error } = await sb.auth.resend({ type: "signup", email, options: { emailRedirectTo: REDIRECT } }); if (error) throw error; },
-    async signOut(){ await sb.auth.signOut(); emit(null); },
+    async signOut(){ authTrace("log out pressed"); await sb.auth.signOut({ scope: "local" }); emit(null); },
     async current(){ const { data } = await sb.auth.getSession(); const u = data.session?.user; return u ? { id: u.id, email: u.email } : null; }
   };
   const impl = LIVE ? L : D;
@@ -1157,7 +1155,7 @@ function tab(t){
   $$("[data-p]").forEach(p => p.classList.toggle("hidden", p.dataset.p !== t));
   // the page is kept in the address, so a reload (an iPhone switching apps) opens it again
   try { if (location.hash !== "#" + t) history.replaceState(null, "", "#" + t); } catch {}
-  ({ overview: renderOverview, profile: () => { renderProfile(); renderSignature(); }, expiry: renderExpiries, logbook: renderLogbook, add: openAddForm, import: renderYourData, stats: renderStats, crewbase: renderCrewBase, admin: renderAdmin })[t]?.();
+  ({ overview: renderOverview, profile: () => { renderProfile(); renderSignature(); renderExpiries(); }, logbook: renderLogbook, add: openAddForm, import: renderYourData, stats: renderStats, crewbase: renderCrewBase, admin: renderAdmin })[t]?.();
   window.scrollTo(0,0);
 }
 $("#tabs").addEventListener("click", e => { if (e.target.dataset.t) tab(e.target.dataset.t); });
@@ -1421,32 +1419,48 @@ document.addEventListener("click", async e => {
 /* First run: a full-screen assistant, one question per screen. 1 name, 2 base airport (airline code and captain or first
    officer too), 3 drop the logbook (or start fresh, or paper totals), then the result and the totals check. Which files
    work is there to open, not asked. Skip setup or any page change closes it */
-let suStep = 1;
-function openSetup(){ suStep = 1; renderSetup(); $("#setup").classList.remove("hidden"); document.body.classList.add("insetup"); }
+let suStep = 1, suPad = null;
+// steps: 1 name, 2 base / airline / role / registrations, 3 licence and its dates, 4 signature, 5 the logbook file, 6 the result
+const SU_LAST = 6;
+function openSetup(step = 1){ suStep = step; renderSetup(); $("#setup").classList.remove("hidden"); document.body.classList.add("insetup"); }
 function closeSetup(done = true){ if ($("#setup").classList.contains("hidden")) return; $("#setup").classList.add("hidden"); document.body.classList.remove("insetup"); if (done) { data.onboarded = true; save(); } }
 function renderSetup(){
-  const p = data.profile, dots = `<div class="sudots">${[1, 2, 3, 4].map(n => `<i class="${n <= suStep ? "on" : ""}"></i>`).join("")}</div>`;
+  const p = data.profile, dots = `<div class="sudots">${[1, 2, 3, 4, 5, 6].map(n => `<i class="${n <= suStep ? "on" : ""}"></i>`).join("")}</div>`;
   const nav = (back, next) => `<div class="sunav">${back ? '<button class="btn ghost" type="button" data-su="back">‹ Back</button>' : "<span></span>"}${next || ""}</div>`;
   let h = "";
   if (suStep === 1) h = `<h2>Welcome to CrewBase Log</h2><p class="lead">Your logbook in two minutes. First, your name, as on your licence: it goes on your PDF logbook.</p>
     <div class="field"><label for="suName">Your name</label><input id="suName" autocomplete="name" value="${esc(p.name || "")}"></div>` + nav(false, '<button class="btn" type="button" data-su="next">Next ›</button>');
   if (suStep === 2) h = `<h2>Where do you fly from?</h2><p class="lead">Your base airport comes first when you add a flight.</p>
-    <div class="field"><label for="suBase">Base airport <span class="hint" style="font-weight:400">ICAO or IATA</span></label><input id="suBase" class="mono" maxlength="4" style="text-transform:uppercase" placeholder="e.g. OMAA or AUH" autocapitalize="characters" autocomplete="off" value="${esc(p.base || "")}"></div>
-    <div class="field"><label for="suAirline">Airline code <span class="hint" style="font-weight:400">IATA or ICAO · optional</span></label><input id="suAirline" class="mono" maxlength="3" style="text-transform:uppercase" placeholder="e.g. EY or ETD" autocapitalize="characters" autocomplete="off" value="${esc(p.airline || "")}"><div class="hint">Goes in front of your flight numbers: 101 becomes EY101.</div></div>
+    <div class="field"><label for="suBase">Base airport <span class="hint" style="font-weight:400">ICAO or IATA</span></label><input id="suBase" class="mono" maxlength="4" style="text-transform:uppercase" placeholder="e.g. KJFK or JFK" autocapitalize="characters" autocomplete="off" value="${esc(p.base || "")}"></div>
+    <div class="field"><label for="suAirline">Airline code <span class="hint" style="font-weight:400">IATA or ICAO · optional</span></label><input id="suAirline" class="mono" maxlength="3" style="text-transform:uppercase" placeholder="e.g. BA or BAW" autocapitalize="characters" autocomplete="off" value="${esc(p.airline || "")}"><div class="hint">Goes in front of your flight numbers: 101 becomes BA101.</div></div>
     <div class="field"><label>You fly as <span class="hint" style="font-weight:400">optional</span></label><div class="seg" style="margin:0;flex-wrap:wrap">${[["PIC", "Captain"], ["CP", "First officer"], ["", "Neither"]].map(([v, l]) => `<label><input type="radio" name="suRole" value="${v}"${(p.role || "") === v ? " checked" : ""}> ${l}</label>`).join("")}</div>
       <div class="hint">For airline crews: decides whether a flight's time goes to PIC or co-pilot. Flying single-pilot (a Cessna, say)? Leave it on Neither: your time goes to PIC.</div></div>
+    <div class="field"><label for="suRegs">Registrations you fly <span class="hint" style="font-weight:400">optional</span></label><input id="suRegs" class="mono" style="text-transform:uppercase" placeholder="e.g. D-AI, G-, N" autocapitalize="characters" autocomplete="off" value="${esc(p.regs || "")}"><div class="hint">The start of your aircraft registrations: the Registration box starts with it when you add a flight.</div></div>
     <p class="err" id="suErr2" style="margin:4px 0 0"></p>` +
     nav(true, '<button class="btn" type="button" data-su="next">Next ›</button>');
-  if (suStep === 3) h = `<h2>Drop your logbook</h2><p class="lead">From another app, a PDF logbook, a spreadsheet, an eCrew report or a CrewBase Log backup. It stays on this device.</p>
+  const med = data.expiries.find(e => e.id === "med"), lic = data.expiries.find(e => e.id === "lic");
+  if (suStep === 3) h = `<h2>Your licence</h2><p class="lead">It prints on your logbook, and the app reminds you before the dates come round.</p>
+    <div class="grid2"><div class="field"><label for="suType">Licence type</label><select id="suType">${["", "ATPL(A)", "CPL(A)", "MPL(A)", "PPL(A)", "LAPL(A)", "ATPL(H)", "CPL(H)", "PPL(H)"].map(t => `<option value="${t}"${(p.type || "") === t ? " selected" : ""}>${t || "Select…"}</option>`).join("")}${p.type && !["ATPL(A)", "CPL(A)", "MPL(A)", "PPL(A)", "LAPL(A)", "ATPL(H)", "CPL(H)", "PPL(H)"].includes(p.type) ? `<option selected>${esc(p.type)}</option>` : ""}</select></div>
+    <div class="field"><label for="suLic">Licence number</label><input id="suLic" class="mono" style="text-transform:uppercase" placeholder="e.g. UK.FCL.12345" autocomplete="off" value="${esc(p.lic || "")}"></div>
+    <div class="field"><label for="suMed">Medical expires</label><input id="suMed" type="date" value="${esc(med?.date || "")}"></div>
+    <div class="field"><label for="suLicExp">Licence expires <span class="hint" style="font-weight:400">optional</span></label><input id="suLicExp" type="date" value="${esc(lic?.date || "")}"></div></div>` +
+    nav(true, '<button class="btn" type="button" data-su="next">Next ›</button>');
+  if (suStep === 4) h = `<h2>Your signature</h2><p class="lead">It signs the pages of your PDF logbook. Draw it with your finger or mouse.</p>
+    ${data.signature ? `<p class="hint" style="margin:0 0 8px">Now: <img src="${data.signature}" alt="Your signature" style="height:40px;vertical-align:middle;background:#fff;border:1px solid var(--line);border-radius:6px;padding:2px 6px"> · draw below to replace it.</p>` : ""}
+    <canvas id="suSig" class="sigpad" style="width:100%;height:150px"></canvas>
+    <div class="row-actions" style="margin:8px 0 0"><button class="btn ghost small" type="button" id="suSigClear">Clear</button></div>` +
+    nav(true, '<button class="btn" type="button" data-su="next">Next ›</button>');
+  if (suStep === 5) h = `<h2>Drop your logbook</h2><p class="lead">From another app, a PDF logbook, a spreadsheet, an eCrew report or a CrewBase Log backup. It stays on this device.</p>
     <div class="drop" id="suDrop"><b>Drop your file here</b><br><span class="hint">or tap to choose · several at once is fine</span><input type="file" id="suFile" accept=".csv,.txt,.tsv,.xlsx,.xls,.pdf,.json,.zip" multiple class="hidden"></div>
     <p class="err" id="suErr" style="margin:10px 0 0"></p>
     <details class="suinfo"><summary>Which files work?</summary><p class="hint" style="margin:8px 0 6px">Most used first. Tap one to see how to export it.</p>
       <ol class="sulist">${SU_FILES.map(([k, name, what]) => `<li><button type="button" class="sufile" data-guide="${k}" aria-expanded="false"><b>${name}</b><span class="hint">${what}</span></button><div class="suguide hidden"></div></li>`).join("")}</ol></details>
-    <div class="sualt"><button class="btn ghost" type="button" data-su="paper">Paper logbook: enter its totals</button><button class="btn ghost" type="button" data-su="fresh">Start fresh, no logbook</button></div>` + nav(true);
-  if (suStep === 4) h = `<h2>Your logbook is in</h2><div class="sumlog" id="suResult">${$("#impDoneLog").innerHTML}</div>` + nav(false, '<button class="btn" type="button" data-su="done">Done</button>');
+    <div class="sualt"><button class="btn ghost" type="button" data-su="paper">Paper logbook: enter its totals</button><button class="btn ghost" type="button" data-su="fresh">Start fresh, no logbook</button></div>` + nav(true, data.flights.length ? '<button class="btn" type="button" data-su="done">Done</button>' : "");
+  if (suStep === 6) h = `<h2>Your logbook is in</h2><div class="sumlog" id="suResult">${$("#impDoneLog").innerHTML}</div>` + nav(false, '<button class="btn" type="button" data-su="done">Done</button>');
   $("#setupBody").innerHTML = dots + h;
   if (suStep === 2) loadAirports();   // to check the base airport
-  if (suStep === 3) {
+  if (suStep === 4) { suPad = makePad($("#suSig")); requestAnimationFrame(() => suPad.reset()); $("#suSigClear").addEventListener("click", () => suPad.reset()); }
+  if (suStep === 5) {
     const d = $("#suDrop");
     d.addEventListener("click", () => $("#suFile").click()); $("#suFile").addEventListener("change", e => { $("#suErr").textContent = ""; handleFiles(e.target.files); e.target.value = ""; });
     ["dragenter", "dragover"].forEach(ev => d.addEventListener(ev, e => { e.preventDefault(); d.classList.add("over"); }));
@@ -1468,16 +1482,22 @@ document.addEventListener("click", e => {
   if (a === "next" && suStep === 2) {
     const base = $("#suBase").value.trim().toUpperCase(), airline = $("#suAirline").value.trim().toUpperCase(), why = codeProblem(base, airline);
     if (why) { $("#suErr2").textContent = why; return; }
-    p.base = base; p.airline = airline; p.role = $('[name="suRole"]:checked')?.value || "";
+    p.base = base; p.airline = airline; p.role = $('[name="suRole"]:checked')?.value || ""; p.regs = regsClean($("#suRegs").value);
   }
+  if (a === "next" && suStep === 3) {
+    p.type = $("#suType").value; p.lic = $("#suLic").value.trim().toUpperCase();
+    for (const [id, name, el] of [["med", "Medical", "#suMed"], ["lic", "Licence", "#suLicExp"]]) { const v = $(el).value; let it = data.expiries.find(e => e.id === id);
+      if (!it && v) data.expiries.unshift(it = { id, name, date: "", note: "" }); if (it) it.date = v; }
+  }
+  if (a === "next" && suStep === 4 && suPad?.inked()) data.signature = trimmedPNG($("#suSig"));
   if (a === "next") { suStep++; save(); return renderSetup(); }
   if (a === "fresh") { closeSetup(); return tab("add"); }
   if (a === "paper") { closeSetup(); tab("import"); $("#prevBox").open = true; return requestAnimationFrame(() => $("#prevCard").scrollIntoView({ behavior: "smooth", block: "start" })); }
   if (a === "done") { closeSetup(); tab("overview"); }
 });
 // the import's outcome, while the assistant is open
-addEventListener("cbl:imported", () => { if ($("#setup").classList.contains("hidden")) return; suStep = 4; renderSetup(); });
-addEventListener("cbl:importerr", () => { if ($("#setup").classList.contains("hidden") || suStep !== 3) return; $("#suErr").innerHTML = $("#impErr").innerHTML; });
+addEventListener("cbl:imported", () => { if ($("#setup").classList.contains("hidden")) return; suStep = 6; renderSetup(); });
+addEventListener("cbl:importerr", () => { if ($("#setup").classList.contains("hidden") || suStep !== 5) return; $("#suErr").innerHTML = $("#impErr").innerHTML; });
 // a backup brings its own profile: the toast says what came back, the home screen shows it
 addEventListener("cbl:restored", () => { if ($("#setup").classList.contains("hidden")) return; closeSetup(); tab("overview"); });
 // a file whose columns have to be matched: Your data takes over
@@ -1500,13 +1520,32 @@ function renderHome(){
     (hasLdg && rec.length ? `<div class="card hcard"><h3>Landings: 3 in 90 days</h3><div class="hrow">${rec.map(r => `<span class="chip ${r.ok ? "ok" : "bad"}">${esc(r.type)} · ${r.in90} in 90 days · ${r.ok ? "until " + fmtDate(r.until) : "not current"}</span>`).join("")}</div></div>` : "") +
     installHTML();
 }
-// expiry dates due within 60 days or expired: a count on the Expiry dates menu item (and a dot on More on a phone)
+// expiry dates due within 60 days or expired: Profile (where they are) is marked, and More on a phone
 function expBadge(){
-  const n = data.expiries.filter(e => e.date && expStatus(e.date).c !== "ok").length, t = n ? `Expiry dates · ${n} due` : "Expiry dates";
-  for (const id of ["#tabExp", "#moreExp"]) { const b = $(id); if (b) { b.textContent = t; b.classList.toggle("due", !!n); } }
+  const n = data.expiries.filter(e => e.date && expStatus(e.date).c !== "ok").length;
+  $$('[data-t="profile"]').forEach(b => b.classList.toggle("due", !!n));
   $("#bbar [data-more]")?.classList.toggle("due", !!n);
 }
+/* how complete the pilot's set-up is: each item and the setup page that asks for it */
+function setupItems(){
+  const p = data.profile, med = data.expiries.find(e => e.id === "med");
+  return [["Name", !!p.name, 1], ["Home base", !!p.base, 2], ["Registrations you fly", !!p.regs, 2], ["Licence type and number", !!(p.type && p.lic), 3],
+    ["Medical expiry date", !!med?.date, 3], ["Signature", !!data.signature, 4], ["Your logbook", !!(data.flights.length || data.prev?.total), 5]]
+    .map(([label, done, step]) => ({ label, done, step }));
+}
+// top of Home: the set-up bar while something is missing, and the expiry dates that are due (60 days or less, or expired)
+function renderHomeTop(){
+  const box = $("#homeTop"); if (!box) return; if (user?.id === "sample") { box.innerHTML = ""; return; }
+  const it = setupItems(), done = it.filter(x => x.done).length, pct = Math.round(done / it.length * 100), miss = it.filter(x => !x.done);
+  const due = data.expiries.filter(e => e.date && expStatus(e.date).c !== "ok").sort((a, b) => a.date.localeCompare(b.date));
+  box.innerHTML = (miss.length ? `<div class="card hcard setupbar"><div class="sbtop"><b>Your profile is ${pct}% complete</b><button class="btn small" type="button" data-finish>Finish setup</button></div>
+      <div class="bar"><i style="width:${pct}%"></i></div><div class="hint" style="margin-top:6px">Still to do: ${miss.map(x => x.label.toLowerCase().replace(/^your /, "")).join(", ")}.</div></div>` : "") +
+    (due.length ? `<div class="card hcard"><h3>Due</h3><div class="hrow">${due.map(e => { const st = expStatus(e.date);
+      return `<a href="#" class="chip ${st.c}" data-go="profile" data-scroll="#expSection">${esc(e.name || "Item")} · ${st.c === "bad" ? "expired " + fmtDate(e.date) : `${fmtDate(e.date)} (${st.days} day${st.days === 1 ? "" : "s"})`}</a>`; }).join("")}</div></div>` : "");
+}
+document.addEventListener("click", e => { if (!e.target.closest("[data-finish]")) return; const m = setupItems().find(x => !x.done); openSetup(m ? m.step : 1); });
 function renderOverview(){
+  renderHomeTop();
   renderHome();
   const fe = $("#fbEmail"); if (!fe.value || fe.value === fe.dataset.auto) fe.value = fe.dataset.auto = user.id === "sample" ? "" : user.email || "";
   const p = data.profile, first = (p.name || "").split(" ")[0];
@@ -1516,11 +1555,8 @@ function renderOverview(){
   if (!p.name) missing.push('<a href="#" data-go="profile">add your name</a>');
   if (!data.signature) missing.push('<a href="#" data-go="profile" data-scroll="#sigSection">add your signature</a>');
   if (!data.flights.length) missing.push('<a href="#" data-go="import">import your flights</a>');
-  if (missing.length && !$("#homeDash .ob")) lines.push("<b>Finish setting up:</b> " + missing.join(", ") + ".");   // not while the first-run questions show
   expBadge();
   if (futureRemoved) lines.push(`<b>${futureRemoved} flight${futureRemoved === 1 ? " was" : "s were"} dated in the future and ${futureRemoved === 1 ? "has" : "have"} been taken out of your logbook.</b> The logbook only holds flights already flown; planned flights belong in <a href="#" data-go="crewbase">Crew Base</a>.`);
-  if (data.flights.length && user.id !== "sample" && data.backup?.sig !== flightsSig())
-    lines.push(`<b>Back up your logbook:</b> it has changed since ${data.backup?.date ? "your last download on " + fmtDate(data.backup.date) : "you added it"}. <a href="#" data-backup>Download full backup</a>`);
   $("#setupNotice").innerHTML = lines.join("<br>"); $("#setupNotice").classList.toggle("hidden", !lines.length);
 }
 $("#ovBackup").addEventListener("click", () => $("#btnBackup").click());
@@ -1551,12 +1587,16 @@ document.addEventListener("click", e => { const g = e.target.closest("[data-go]"
 /* ---------- profile ---------- */
 // base airport: ICAO (4) or IATA (3); airline: IATA (2, may hold a digit) or ICAO (3 letters). Empty is fine
 function codeProblem(base, airline){
-  if (base && !/^[A-Z]{4}$|^[A-Z]{3}$/.test(base)) return "Base airport: 4 letters (ICAO, e.g. OMAA) or 3 letters (IATA, e.g. AUH).";
-  if (base && AIRPORTS && !AIRPORTS[base]) return `Base airport: ${base} isn't an airport we know. Check it, e.g. OMAA or AUH.`;
-  if (airline && !/^(?=[A-Z0-9]{2}$)[A-Z0-9]*[A-Z][A-Z0-9]*$|^[A-Z]{3}$/.test(airline)) return "Airline code: 2 characters (IATA, e.g. EY) or 3 letters (ICAO, e.g. ETD).";
+  if (base && !/^[A-Z]{4}$|^[A-Z]{3}$/.test(base)) return "Base airport: 4 letters (ICAO, e.g. EDDF) or 3 letters (IATA, e.g. FRA).";
+  if (base && AIRPORTS && !AIRPORTS[base]) return `Base airport: ${base} isn't an airport we know. Check it, e.g. EDDF or FRA.`;
+  if (airline && !/^(?=[A-Z0-9]{2}$)[A-Z0-9]*[A-Z][A-Z0-9]*$|^[A-Z]{3}$/.test(airline)) return "Airline code: 2 characters (IATA, e.g. AF) or 3 letters (ICAO, e.g. AFR).";
   return "";
 }
-const PF = { pName: "name", pEmail: "email", pLic: "lic", pType: "type", pBase: "base", pAirline: "airline" };
+const PF = { pName: "name", pEmail: "email", pLic: "lic", pType: "type", pBase: "base", pAirline: "airline", pRegs: "regs" };
+// "a7, g d-ai" → "A7, G, D-AI": registration starts the pilot flies
+const regsClean = v => [...new Set(String(v || "").toUpperCase().split(/[\s,;]+/).map(x => x.replace(/[^A-Z0-9-]/g, "").replace(/-+$/, "")).filter(Boolean))].join(", ");
+// a start as typed in the Registration box: N, JA, HL and digits-only starts have no dash (N123AB); the rest get one (A7-, G-), a longer one stays (D-AI)
+const regLead = x => x.includes("-") ? x : /^(N|JA|HL)$/.test(x) ? x : x + "-";
 const PF_DROPPED = ["auth", "phone", "employer", "location", "lic2", "auth2", "type2"];
 // the type family (one type rating) each variant belongs to: A319 and A320 -> Airbus A320 family, B787-10 -> Boeing 787
 function acFamily(t){
@@ -1625,7 +1665,7 @@ function profSave(){
   const P = data.profile, was = { base: P.base, airline: P.airline };
   for (const [id,k] of Object.entries(PF)) if (k !== "email") P[k] = $("#"+id).value.trim();
   for (const k of PF_DROPPED) delete P[k];
-  P.base = P.base.toUpperCase(); P.lic = P.lic.toUpperCase(); P.airline = (P.airline || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  P.base = P.base.toUpperCase(); P.lic = P.lic.toUpperCase(); P.airline = (P.airline || "").toUpperCase().replace(/[^A-Z0-9]/g, ""); P.regs = regsClean(P.regs);
   const why = codeProblem(P.base, P.airline); if (why) Object.assign(P, was);
   const fn = $("#n_flightNo"); if (fn && !fn.value && P.airline) fn.value = P.airline;   // an open "add a flight" form gets the code too
   if (!save()) return;
@@ -2069,7 +2109,7 @@ const aptCountry = c => APT_NAME?.[c]?.[4] || APT_NAME?.[aptAlt()[c]]?.[4] || (A
 function aptFlags(pre){
   for (const k of ["from", "to"]) {
     const i = $("#" + pre + k), f = $("#" + pre + k + "Flag"); if (!i || !f) continue;
-    // 3 letters while still typing may be the start of an ICAO code (OMA… for OMAA): its flag waits until the box is left
+    // 3 letters while still typing may be the start of an ICAO code (EDD… for EDDF): its flag waits until the box is left
     const c = i.value.trim().toUpperCase(), cc = c.length === 4 || (c.length === 3 && document.activeElement !== i) ? aptCountry(c) : "";
     f.textContent = flagOf(cc); f.title = cc ? aptName(c) || aptName(aptAlt()[c]) : ""; i.classList.toggle("hasflag", !!cc);
   }
@@ -2155,7 +2195,7 @@ const aptStyle = (c, pref = data?.profile?.apt) => !c || !pref ? c : (pref === "
 // the logbook's codes in one style; returns how many changed
 function aptConvert(pref){ let n = 0; for (const f of data.flights) for (const k of ["from", "to"]) { const v = aptStyle(f[k], pref); if (v !== f[k]) { f[k] = v; n++; } } return n; }
 // both styles in the logbook (a 4-letter code that has an IATA one, next to 3-letter codes)?
-const aptMixed = () => { const A = aptAlt(); let i3 = 0, i4 = 0; for (const f of data.flights) for (const c of [f.from, f.to]) { if (c?.length === 3 && A[c]) i3++; else if (c?.length === 4 && A[c]) i4++; if (i3 && i4) return { i3, i4 }; } return null; };   // AUH and OMAA: same position, same airport
+const aptMixed = () => { const A = aptAlt(); let i3 = 0, i4 = 0; for (const f of data.flights) for (const c of [f.from, f.to]) { if (c?.length === 3 && A[c]) i3++; else if (c?.length === 4 && A[c]) i4++; if (i3 && i4) return { i3, i4 }; } return null; };   // LHR and EGLL: same position, same airport
 // one flight logged twice with different times (planned and actual, or corrected): same day and route, and the same flight
 // number, or (without numbers) block times that overlap. Back-to-back sorties (circuits, a shuttle) never overlap.
 const hm2m = t => { const [h, m] = String(t).split(":").map(Number); return h * 60 + m; };
@@ -3200,8 +3240,8 @@ $("#addForm").addEventListener("submit", e => {
 /* ---------- suggestions in the flight form: airports, aircraft types and registrations already in the logbook ----------
    From: the Crew Base roster's departures that day, the home base, then the airports flown from most.
    To: the roster's arrival after that departure, the places flown to from there, then the rest.
-   Typing either code finds the airport (AUH or OMAA); the pilot's ICAO / IATA style is filled in. */
-// the roster's legs on a date: [{ from, to, no }] from the day's label ("flight 101 · AUH-LHR-AUH")
+   Typing either code finds the airport (FRA or EDDF); the pilot's ICAO / IATA style is filled in. */
+// the roster's legs on a date: [{ from, to, no }] from the day's label ("flight 101 · FRA-LHR-FRA")
 function rosterLegs(iso, st = aptStyle){
   const d = data.crew?.me?.days?.[iso]; if (!d || d.free || !d.code) return [];
   const nos = [...d.code.matchAll(/flight (\w+)/g)].map(m => m[1]), legs = [];
@@ -3235,8 +3275,8 @@ function flightSuggest(pre, k){
     }
     for (const [v, c] of count(f => sty(f[k]))) add(v, n(c));
     if (k === "to") for (const [v, c] of count(f => sty(f.from))) add(v, n(c));
-    // typed text: matches the code or its other style (AUH / OMAA); airports flown before first, then every airport with an
-    // IATA code whose ICAO or IATA code starts with it (big ones first), then names and cities ("ABU" finds Abu Dhabi)
+    // typed text: matches the code or its other style (FRA / EDDF); airports flown before first, then every airport with an
+    // IATA code whose ICAO or IATA code starts with it (big ones first), then names and cities ("HEA" finds London Heathrow)
     const alt = c => aptAlt()[c] || APT_NAME?.[c]?.[c.length === 4 ? 1 : 0] || "";
     let list = [...out.values()].filter(o => !val || o.v.startsWith(val) || alt(o.v).startsWith(val));
     if (val && APT_LIST) {
@@ -3294,14 +3334,16 @@ function flightSuggest(pre, k){
   }
   if (k === "reg") {
     const type = $("#" + pre + "acType").value.trim().toUpperCase(), last = new Map();
+    // the starts of the registrations the pilot flies (Profile), while what is typed is still shorter than them
+    const leads = (data.profile.regs ? data.profile.regs.split(", ") : []).map(regLead).filter(l => !val || (l.replace("-", "").startsWith(val.replace("-", "")) && val.replace("-", "").length < l.replace("-", "").length));
     for (const f of F) if (f.reg && (!type || f.acType === type)) last.set(f.reg, { date: f.date, type: f.acType, c: (last.get(f.reg)?.c || 0) + 1 });
-    return withOut([...last.entries()].sort((a, b) => b[1].date.localeCompare(a[1].date)).filter(([v]) => !val || v.replace("-", "").startsWith(val.replace("-", "")))
-      .slice(0, 8).map(([v, x]) => ({ v, label: v, note: `${x.type ? x.type + " · " : ""}${fmtDate(x.date)}` })));
+    return withOut([...leads.map(l => ({ v: l, label: l + "…", note: "your registrations" })), ...[...last.entries()].sort((a, b) => b[1].date.localeCompare(a[1].date)).filter(([v]) => !val || v.replace("-", "").startsWith(val.replace("-", "")))
+      .slice(0, 8).map(([v, x]) => ({ v, label: v, note: `${x.type ? x.type + " · " : ""}${fmtDate(x.date)}` }))]);
   }
   return [];
 }
 const FN_KEYS = ["total", "pic", "copilot", "dual", "instructor", "ifr"];
-// the airline's code in front of a bare flight number (101 → EY101), when the profile has one
+// the airline's code in front of a bare flight number (101 → LH101), when the profile has one
 const withAirline = no => { const a = data.profile.airline || ""; return a && /^\d{1,4}[A-Z]?$/.test(no || "") ? a + no : no || ""; };
 // the Flight no. box starts with the airline's code (a new flight's form opens with it; an edit gets it on the first tap),
 // the cursor after it, ready for the number. On its own it counts as no flight number
@@ -3309,6 +3351,11 @@ document.addEventListener("focusin", e => {
   if (!/^(n_|e_)flightNo$/.test(e.target.id || "") || !data.profile.airline) return;
   if (!e.target.value) e.target.value = data.profile.airline;
   if (e.target.value === data.profile.airline) requestAnimationFrame(() => { try { e.target.setSelectionRange(99, 99); } catch {} });
+});
+// a new flight's Registration box starts with the pilot's registration start, when there is just one (A7-, G-, D-AI)
+document.addEventListener("focusin", e => {
+  if (e.target.id !== "n_reg" || e.target.value || !data.profile.regs || data.profile.regs.includes(",")) return;
+  e.target.value = regLead(data.profile.regs); requestAnimationFrame(() => { try { e.target.setSelectionRange(99, 99); } catch {} showSuggest(e.target); });
 });
 // the flight before the one being entered (its date or earlier), and whether the route entered is its way back (within 3 days)
 function lastFlight(pre){
@@ -3880,6 +3927,7 @@ function readFlightForm(pre, base = {}){
   const g = k => $("#" + pre + k).value.trim(), bad = [], f = { ...base };
   f.date = g("date"); if (!/^\d{4}-\d{2}-\d{2}$/.test(f.date)) bad.push("date");
   for (const k of ["flightNo","from","to","reg"]) f[k] = g(k).toUpperCase();
+  if (/-$/.test(f.reg) || (data.profile.regs || "").split(", ").map(regLead).includes(f.reg)) f.reg = "";   // only the start the box began with
   f.flightNo = f.flightNo === data.profile.airline ? "" : withAirline(f.flightNo);
   f.from = aptStyle(f.from); f.to = aptStyle(f.to);
   f.acType = acTypeName(g("acType")); f.picName = g("picName"); f.remarks = g("remarks");
@@ -4057,7 +4105,7 @@ const cbDur = m => `${Math.floor(m/60)}h${m%60 ? String(m%60).padStart(2,"0") : 
 const cbMsg = (id, s, bad) => { const e = $(id); e.textContent = s; e.style.color = bad ? "var(--bad)" : "var(--ok)"; };
 let cbMonth = null, cbSel = null;
 
-/* AIMS "Personal Crew Schedule Report" PDF (e.g. Etihad): one column per date, each holding that day's
+/* AIMS "Personal Crew Schedule Report" PDF (used by many airlines): one column per date, each holding that day's
    report time, flight number, airports, times and release time, or a code (OFF, >OFF, SBY 02:00 10:00, AVLB, SSI).
    "↓" at the top of a column means the duty carries on from the day before. Read in the browser with PDF.js. */
 const PDFJS = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/";
@@ -4103,12 +4151,12 @@ async function cbParseRosterPDF(buf){
   // "(All times in UTC)", or a local-time roster that has to be converted
   const tz = text.match(/all times in ([^)]{1,40})\)/i);
   meta.tzLabel = tz ? tz[1].trim() : "UTC"; meta.utc = !tz || /\b(UTC|GMT|Z|Zulu)\b/i.test(tz[1]);
-  // crew line "12345 MORGAN Alex James AUH-CP-789": name and base
+  // crew line "12345 MORGAN Alex James JFK-CP-789": name and base
   const crew = text.match(/\b\d{3,7}\s+([A-Za-z][A-Za-z' .-]*?)\s+([A-Z]{3})-(CP|FO|SFO|CPT|CA|SO|FE)\b/);
   if (crew) { meta.name = crew[1].trim(); meta.base = crew[2]; }
   // Each column is read top to bottom as segments: duty (flights, sims, training), standby/available, off/rest.
   // "↓" at the top continues the segment still running at midnight; "→" at the end runs it to midnight.
-  // e.g. 24/10 "↓ AUH A00:41 [789] 01:11 SBY 19:00 →" = a landing, then standby from 19:00 into the next day.
+  // e.g. 24/10 "↓ JFK A00:41 [789] 01:11 SBY 19:00 →" = a landing, then standby from 19:00 into the next day.
   const isFree = x => kind[x] ? kind[x] === "free" : CB_FREE.test(x), isSby = x => kind[x] ? kind[x] === "sby" : CB_SBY.test(x);
   const isApt = x => /^[A-Z]{3}$/.test(x) && !!AIRPORTS?.[x] && !isAirfield(x) && !kind[x] && !CB_CODE.test(x) && !CB_FREE.test(x) && !CB_SBY.test(x);
   let carry = null;
@@ -4379,7 +4427,7 @@ function takeRoster(f){
   tab("crewbase"); scrollTo({ top: 0 }); cbTakeMine(f, "This is your roster, so it went to Crew Base, not your logbook. ");
 }
 const cbTakeMine = (f, why = "") => cbReadFile(f, (days0, meta) => { if (!Object.keys(days0).length) return cbMsg("#cbMsg", cbWhy(meta), true); cbAskTz(days0, meta, days => { const n = Object.keys(days).length; cbKeepMe();
-  // the base printed on the roster (e.g. AUH-CP-789) is the one that counts
+  // the base printed on the roster (e.g. JFK-CP-789) is the one that counts
   const C = cb(); if (meta.base) { C.me.base = String(meta.base).toUpperCase(); $("#cbBase").value = C.me.base; } Object.assign(C.me.days, days); if (save()) { cbPush(); cbMsg("#cbMsg", `${why}Read ${n} days from ${f.name}${meta.utc === false ? ", converted to UTC" : ""}.`);
     // dropped where logbooks go: say so at the top, and show the roster's first month
     if (why) { const d = Object.keys(days).sort(); cbMonth = d.find(x => x >= todayISO())?.slice(0, 7) || d[0]?.slice(0, 7) || cbMonth;
@@ -4978,16 +5026,37 @@ $("#btnSample").addEventListener("click", e => {
   if (Auth.live) enterApp();
 });
 
+/* ---------- sign-in trace: the last sign-in events on this device. If the log-in page shows although a saved sign-in was
+   there, the trace goes to the admin activity log at the next log-in, so it can be fixed */
+function authTrace(ev){ try { const t = JSON.parse(localStorage.getItem("cbl_authtrace") || "[]"); t.push(new Date().toISOString().slice(5, 19) + " " + ev); localStorage.setItem("cbl_authtrace", JSON.stringify(t.slice(-25))); } catch {} }
+const savedSignIn = () => { try { return Object.keys(localStorage).some(k => /^sb-.+-auth-token$/.test(k)); } catch { return false; } };
+function authTraceSend(){
+  try { const t = JSON.parse(localStorage.getItem("cbl_authtrace") || "[]");
+    if (t.some(x => /log-in page.*saved sign-in/.test(x))) { logEvent("auth_trace", { trace: t.join(" | ").slice(-1800), ua: navigator.userAgent.slice(0, 160), standalone: matchMedia("(display-mode: standalone)").matches }); localStorage.setItem("cbl_authtrace", "[]"); } } catch {}
+}
+function showLogin(why){ authTrace("log-in page: " + why + (savedSignIn() ? " (a saved sign-in was there)" : "")); setMode(/^#(signup|start)$/.test(location.hash) ? "signup" : "login"); localLabel(); show("#vAuth"); }
+
 /* ================= BOOT ================= */
 (async () => {
   $("#demoBanner").classList.toggle("hidden", Auth.live);
   try { await Auth.init(); } catch (x) { console.error(x); }
-  Auth.onChange(u => { if (!u && (isLocal() || user?.id === "sample")) return; user = u; if (u) enterApp(); else { setMode(/^#(signup|start)$/.test(location.hash) ? "signup" : "login"); localLabel(); show("#vAuth"); } });
-  try { user = await Auth.current(); } catch (x) { user = null; $("#authErr").textContent = "Couldn't reach the sign-in service. Check your connection and reload."; }
-  if (user) enterApp();
+  authTrace("app opened");
+  Auth.onChange(u => {
+    if (!u && (isLocal() || user?.id === "sample")) return;
+    if (u && user?.id === u.id && !$("#vApp").classList.contains("hidden")) return;   // the same account again (a token refresh): stay where you are
+    user = u; if (u) { enterApp(); authTraceSend(); } else showLogin("signed out");
+  });
+  // the saved sign-in: read it, and if it is there but not ready yet (another tab holding it, a slow start), wait for it a moment
+  let err = null;
+  for (let i = 0; i < 5; i++) {
+    try { user = await Auth.current(); err = null; } catch (x) { user = null; err = x; authTrace("reading the sign-in failed: " + String(x?.message || x).slice(0, 80)); }
+    if (user || !Auth.live || !savedSignIn()) break;
+    await new Promise(r => setTimeout(r, 700));
+  }
+  if (user && $("#vApp").classList.contains("hidden")) { enterApp(); authTraceSend(); }
+  else if (user) {}
   else if (location.hash === "#sample") $("#btnSample").click();
-  else { setMode(/^#(signup|start)$/.test(location.hash) ? "signup" : "login"); show("#vAuth"); }
-  if (!user) localLabel();
+  else { showLogin(err ? "couldn't read the sign-in" : "no sign-in"); if (err) $("#authErr").textContent = "Couldn't reach the sign-in service. Check your connection and reload."; }
   if ("serviceWorker" in navigator && (location.protocol === "https:" || ["localhost", "127.0.0.1"].includes(location.hostname))) navigator.serviceWorker.register("sw.js").catch(e => console.warn("service worker", e));
 })();
 </script>
