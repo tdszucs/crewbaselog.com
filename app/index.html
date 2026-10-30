@@ -81,6 +81,7 @@ input:focus,select:focus{outline:2px solid color-mix(in srgb,var(--brand) 40%,tr
 .tabs{max-width:1120px;margin:0 auto;padding:0 16px;display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
 .tabs button{flex:none;background:none;border:0;border-bottom:2px solid transparent;padding:10px 12px;font:500 14px Inter,sans-serif;color:var(--muted);cursor:pointer}
 .tabs button.on{color:var(--ink);border-bottom-color:var(--accent)}
+.tabs button.tabadd{color:var(--brand);font-weight:700}
 @media (max-width:640px){ .tabs{flex-wrap:wrap;overflow:visible;gap:0;padding:0 8px} .tabs button{padding:9px 9px;font-size:13.5px} }
 main{max-width:1120px;margin:0 auto;padding:28px 16px 64px}
 h2{font-size:24px;letter-spacing:-.02em;margin:0 0 6px}
@@ -357,6 +358,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
       <button data-t="profile">Profile</button>
       <button data-t="import">Your data</button>
       <button data-t="logbook">Logbook</button>
+      <button data-t="add" class="tabadd">+ Add flight</button>
       <button data-t="stats">Statistics</button>
       <button data-t="crewbase">Crew Base</button>
       <button data-t="jobs">Jobs</button>
@@ -1047,7 +1049,14 @@ function tab(t){
   ({ overview: renderOverview, profile: () => { renderProfile(); renderExpiries(); renderSignature(); }, logbook: renderLogbook, import: renderYourData, stats: renderStats, crewbase: renderCrewBase, admin: renderAdmin })[t]?.();
   window.scrollTo(0,0);
 }
-$("#tabs").addEventListener("click", e => { if (e.target.dataset.t) tab(e.target.dataset.t); });
+$("#tabs").addEventListener("click", e => { const t = e.target.dataset.t; if (t === "add") addFlightNow(); else if (t) tab(t); });
+// "+ Add flight" in the menu: the Logbook tab with the add form open, scrolled to it
+function addFlightNow(){
+  tab("logbook"); openAddForm();
+  $$("#tabs button").forEach(b => b.classList.toggle("on", b.dataset.t === "add"));
+  const card = $("#addForm").closest(".card") || $("#addForm");
+  requestAnimationFrame(() => window.scrollTo(0, card.getBoundingClientRect().top + scrollY - ($("#vApp .top")?.offsetHeight || 0) - 8));
+}
 
 /* ---------- activity: what each signed-in pilot did, for the site owner (Admin tab). Counts and formats only:
    never flights, file names or file contents. Rules in supabase/admin_activity.sql ---------- */
