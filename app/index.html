@@ -175,6 +175,8 @@ h2{font-size:24px;letter-spacing:-.02em;margin:0 0 6px}
 #lbEdit.inplace{border:1px solid var(--brand)!important;border-top:0!important;border-radius:0 0 12px 12px;margin:0 0 8px!important;scroll-margin-top:150px}
 .sigthumb{height:30px;vertical-align:middle;background:#fff;border:1px solid var(--line);border-radius:6px;padding:1px 6px}
 .ldsig{display:flex;align-items:center;gap:10px;margin:10px 0 0}.ldsig img{height:40px;max-width:60%;background:#fff;border:1px solid var(--line);border-radius:8px;padding:2px 8px}
+.extras{display:flex;flex-direction:column;gap:12px;padding:12px 0 0;border-top:1px solid var(--line)}.tick{display:flex;gap:10px;align-items:flex-start;font-weight:400;margin:0;cursor:pointer}.tick input{width:22px;height:22px;flex:none;margin:1px 0 0}.tick .hint{display:block;font-size:13px}
+.crewbox{display:flex;flex-wrap:wrap;align-items:center;gap:8px}.clabel{font-weight:600;font-size:14px;margin-right:4px}.crewlist{display:contents}.crewchip{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:10px;background:var(--bg);padding:0 2px 0 0}.crewchip input{border:0;background:transparent;width:120px;padding:8px 10px;text-transform:uppercase}.crewx{border:0;background:none;font-size:18px;color:var(--muted);cursor:pointer;padding:0 8px}
 .lbline tr.mark td{background:var(--accent-soft);font-weight:600}
 .lbdetail{border:1px solid var(--brand);border-top:0;border-radius:0 0 12px 12px;background:var(--surface);padding:10px 14px 14px;margin:0 0 8px}
 .ldhead{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:0 0 8px;font-size:14px}.ldx{border:0;background:var(--bg);color:var(--ink);width:32px;height:32px;border-radius:50%;font-size:20px;line-height:1;cursor:pointer;flex:none}
@@ -1584,7 +1586,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "30 Oct 2026 · 28";
+const APP_VERSION = "30 Oct 2026 · 29";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
@@ -3082,6 +3084,7 @@ function restoreDraft(){
   let v; try { v = JSON.parse(localStorage.getItem(draftKey()) || "null"); } catch {} if (v) restoreValues(v);
 }
 function restoreValues(v){
+  queueMicrotask(() => { crewRender("n_"); if ($("#n_picus")?.checked) $("#n_sigBox")?.classList.remove("hidden"); });
   if (v._kind === "sim" && !addSim()) { $('[name="addKind"][value="sim"]').checked = true; addFormReset(); }
   for (const [k, x] of Object.entries(v)) { const el = $("#n_" + k); if (el && !k.startsWith("_") && !k.startsWith("ldg")) { if (el.type === "checkbox") el.checked = !!x; else el.value = x; } }
   if ($("#n_ldgDay")) setLdg("n_", v.ldgDay ?? "", v.ldgNight ?? "");
@@ -3271,12 +3274,13 @@ document.addEventListener("click", e => {
   $("#addOk").textContent = ""; $("#n_out").focus(); $("#n_out").scrollIntoView({ behavior: "smooth", block: "center" });
 });
 $("#addForm").addEventListener("change", e => { if (e.target.name === "addKind") { addFormReset(); $("#addOk").textContent = ""; } });
-$("#addForm").addEventListener("submit", e => {
+$("#addForm").addEventListener("submit", async e => {
   e.preventDefault(); $("#addOk").textContent = "";
   const sim = addSim(), { f, err } = sim ? readSimForm("n_") : readFlightForm("n_"); if (err) return $("#addErr").textContent = err;
   if (!sim && !pfOf("n_")) { $("#addErr").textContent = "Choose your role: pilot flying, pilot monitoring or relief crew."; $("#n_roleField").classList.add("need", "flash"); setTimeout(() => $("#n_roleField")?.classList.remove("flash"), 1600); return $("#n_roleField").scrollIntoView({ behavior: "smooth", block: "center" }); }
   if (!sim) autoFill(f);
   if (data.flights.some(x => dupKey(x) === dupKey(f))) return $("#addErr").textContent = `That ${sim ? "session" : "flight"} is already in your logbook.`;
+  if (!sim && $("#n_picus")?.checked && addPad?.inked()) f.remarkSig = await smallSigPNG($("#n_sigPad"));
   data.flights.push(f); data.flights.sort((a,b) => (a.date+a.out).localeCompare(b.date+b.out));
   if (!save()) return;
   addFormReset(); dropDraft();
@@ -4047,8 +4051,45 @@ function flightFieldsHTML(pre, f = {}){
   const box = k => k === "date" ? `<span class="datewrap">${input(k)}</span>` : k === "from" || k === "to" ? `<span class="aptwrap">${input(k)}<span class="aptflag" id="${pre}${k}Flag" aria-hidden="true"></span></span>` : LOG_KEYS.includes(k) ? `<span class="logwrap">${input(k)}<button type="button" class="logbtn hidden" data-logfill="${pre}${k}"></button></span>` : input(k);
   const first = ["date", "flightNo", "acType", "reg", "from", "to"], order = [...first.map(k => FIELDS.find(x => x[0] === k)), ...FIELDS.filter(([k]) => !first.includes(k) && !LB_TIME.includes(k))];
   return order.map(([k, label]) => `<div class="field${k === "remarks" ? " wide" : ""}"><label for="${pre}${k}">${label}</label>${box(k)}</div>` + (k === "to" ? times : "") +
-    (k === "ldgNight" ? `<div class="field wide err hidden" id="${pre}clash" role="alert" style="margin:0"></div>` : "")).join("");
+    (k === "ldgNight" ? `<div class="field wide err hidden" id="${pre}clash" role="alert" style="margin:0"></div>` + extrasHTML(pre, f) : "")).join("");
 }
+/* above Remarks: PICUS (a tick: PIC time, "(PICUS)" in the remarks, the PIC signs) and the crew on board (+ to add a name) */
+function extrasHTML(pre, f){
+  const picus = /\bPIC\s*\(?\s*US\s*\)?|\bPICUS\b/i.test(f.remarks || ""), crew = f.crew || [];
+  return `<div class="field wide extras"><label class="tick"><input type="checkbox" id="${pre}picus"${picus ? " checked" : ""}> <span><b>PICUS</b> <span class="hint">pilot in command under supervision: PIC time, (PICUS) in the remarks, signed by the PIC</span></span></label>` +
+    (pre === "n_" ? `<div class="${picus ? "" : "hidden "}sigbox" id="n_sigBox"><div class="hint" style="margin:8px 0 6px">The PIC signs here</div><canvas id="n_sigPad" class="sigpad" style="height:130px;max-width:520px"></canvas><button class="btn ghost small" type="button" id="n_sigClear" style="margin-top:6px">Clear</button></div>` : "") +
+    `<div class="crewbox"><span class="clabel">Crew</span><span class="crewlist" id="${pre}crewList">${crew.map(n => crewChip(n)).join("")}</span><button class="btn ghost small" type="button" data-crewadd="${pre}">+ Add crew</button>
+      <input type="hidden" id="${pre}crew" value="${esc(crew.join(";"))}"></div></div>`;
+}
+const crewChip = n => `<span class="crewchip"><input class="crewin" list="crewNames" value="${esc(n)}" placeholder="Name" autocapitalize="characters" autocomplete="off" aria-label="Crew member"><button type="button" class="crewx" aria-label="Remove">×</button></span>`;
+// the names in the hidden box (kept in the draft), and the names to suggest: crew and PICs of earlier flights
+function crewSync(pre){ const h = $("#" + pre + "crew"); if (!h) return; h.value = $$(`#${pre}crewList .crewin`).map(i => i.value.trim().toUpperCase()).filter(Boolean).join(";"); }
+function crewNames(){
+  let dl = $("#crewNames"); if (!dl) { dl = document.createElement("datalist"); dl.id = "crewNames"; document.body.appendChild(dl); }
+  const n = new Map(); for (const f of data.flights) for (const x of [...(f.crew || []), /^self$/i.test(f.picName || "") ? "" : f.picName]) if (x) n.set(x.toUpperCase(), (n.get(x.toUpperCase()) || 0) + 1);
+  dl.innerHTML = [...n.entries()].sort((a, b) => b[1] - a[1]).slice(0, 200).map(([v]) => `<option value="${esc(v)}">`).join("");
+}
+function crewRender(pre){ const h = $("#" + pre + "crew"), L = $("#" + pre + "crewList"); if (h && L) L.innerHTML = h.value.split(";").filter(Boolean).map(crewChip).join(""); }
+document.addEventListener("click", e => {
+  const add = e.target.closest("[data-crewadd]"), x = e.target.closest(".crewx");
+  if (add) { const pre = add.dataset.crewadd; crewNames(); $("#" + pre + "crewList").insertAdjacentHTML("beforeend", crewChip("")); $(`#${pre}crewList .crewchip:last-child input`).focus(); }
+  if (x) { const L = x.closest(".crewlist"), pre = L.id.slice(0, 2); x.closest(".crewchip").remove(); crewSync(pre); $("#" + pre + "crew").dispatchEvent(new Event("input", { bubbles: true })); }
+});
+document.addEventListener("input", e => { if (!e.target.classList?.contains("crewin")) return; const el = e.target, at = el.selectionStart; el.value = el.value.toUpperCase(); try { el.setSelectionRange(at, at); } catch {} const pre = el.closest(".crewlist").id.slice(0, 2); crewSync(pre); if (pre === "n_") saveDraft(); });
+// PICUS ticked: PIC time (the whole flight), no co-pilot time, "(PICUS)" in front of the remarks, and the PIC signs
+let addPad = null;
+document.addEventListener("change", e => {
+  const m = (e.target.id || "").match(/^(n_|e_)picus$/); if (!m) return; const pre = m[1], on = e.target.checked, rem = $("#" + pre + "remarks");
+  const bare = rem.value.replace(/\s*\(?\s*PIC\s*\(?\s*US\s*\)?\s*\)?\s*/i, " ").trim();
+  rem.value = on ? ("(PICUS) " + bare).trim() : bare;
+  if (on) { const tot = $("#" + pre + "total").value.trim(); if (tot) $("#" + pre + "pic").value = tot; $("#" + pre + "copilot").value = "";
+    if (/^self$/i.test($("#" + pre + "picName").value.trim())) $("#" + pre + "picName").value = ""; }
+  if (pre === "n_") { $("#n_sigBox").classList.toggle("hidden", !on); if (on) { addPad = makePad($("#n_sigPad")); requestAnimationFrame(() => addPad.reset()); } }
+  else if (on && $("#lbSigBox").classList.contains("hidden")) $("#lbSigOpen").click();
+  if (pre === "e_") $("#lbSigOpen").textContent = on || !$("#lbSigBox").classList.contains("hidden") ? "Close signature" : "✍ Instructor signature";
+  rem.dispatchEvent(new Event("input", { bubbles: true }));
+});
+document.addEventListener("click", e => { if (e.target.id === "n_sigClear") addPad?.reset(); });
 // a simulator session: EASA FSTD columns (date, type, session time) and remarks
 function simFieldsHTML(pre, f = {}){
   if (pre === "n_" && !f.date) f = { ...f, date: logToday() };
@@ -4079,10 +4120,12 @@ function readFlightForm(pre, base = {}){
   f.flightNo = f.flightNo === data.profile.airline ? "" : withAirline(f.flightNo);
   f.from = aptStyle(f.from); f.to = aptStyle(f.to);
   f.acType = acTypeName(g("acType")); f.picName = g("picName"); f.remarks = g("remarks");
+  const crew = ($("#" + pre + "crew")?.value || "").split(";").map(x => x.trim()).filter(Boolean); if (crew.length) f.crew = crew; else delete f.crew;
   for (const k of LB_TIME) { f[k] = formTime(g(k)); if (g(k) && !f[k]) bad.push(k); }
   for (const k of LB_DUR) { f[k] = parseDur(g(k)); if (g(k) && !f[k] && !/^0*[:.]?0*$/.test(g(k))) bad.push(k); }
   for (const k of ["ldgDay","ldgNight"]) f[k] = Math.max(0, parseInt(g(k)) || 0);
   if (!f.total && f.out && f.in) f.total = tdiff(f.out, f.in);
+  if ($("#" + pre + "picus")?.checked && f.total && !f.pic) { f.pic = f.total; f.copilot = 0; }   // PICUS: the flight is PIC time
   const err = bad.length === 1 && bad[0] === "date" ? (g("date") ? "Check the date." : "Add the date.")
     : bad.length ? "Check: " + bad.map(k => FIELDS.find(x => x[0] === k)[1]).join(", ") + ". Times of day 00:00 to 23:59 (HH:MM), durations as H:MM."
     : f.date > logToday() ? FUTURE_MSG : notFlown(f) ? NOT_YET_MSG : !valid(f) ? "A flight needs a date and a route or total time." : (pre === "n_" && newMissing(f)) || clashNew(f, pre === "e_" ? base : null)[0]?.msg || "";
@@ -4176,7 +4219,7 @@ function lbShow(i, card){
     ["Date", fmtDate(f.date)], ["Flight", f.flightNo || "–"], ["Route", `${f.from || "?"} → ${f.to || "?"}`], ["Aircraft", [f.acType, f.reg].filter(Boolean).join(" · ") || "–"],
     ["Off-block / take-off", `${f.out || "–"} / ${f.off || "–"}`], ["Landing / on-block", `${f.on || "–"} / ${f.in || "–"}`], ["Name of PIC", f.picName || "–"], ["Total time", t(f.total)],
     ["PIC", t(f.pic)], ["Co-pilot", t(f.copilot)], ["Dual", t(f.dual)], ["Instructor", t(f.instructor)], ["Night", t(f.night)], ["IFR", t(f.ifr)],
-    ["Landings day / night", `${f.ldgDay || 0} / ${f.ldgNight || 0}`], ["Remarks", f.remarks || "–"]];
+    ["Landings day / night", `${f.ldgDay || 0} / ${f.ldgNight || 0}`], ["Crew", (f.crew || []).join(", ") || "–"], ["Remarks", f.remarks || "–"]];
   (card || $(`#lbTable .lbcard[data-edit="${i}"]`))?.classList.add("open");
   (card || $(`#lbTable .lbcard[data-edit="${i}"]`))?.insertAdjacentHTML("afterend", `<div class="lbdetail" data-i="${i}">
     <div class="ldhead"><b>${esc(flightLabel(f))}</b><button type="button" class="ldx" data-dclose aria-label="Close">×</button></div>
@@ -4452,12 +4495,15 @@ function cbWindows(r, iso, carryAway){
 }
 const cbIntersect = (a, b) => { const o = []; for (const x of a) for (const y of b) { const s = Math.max(x[0], y[0]), e = Math.min(x[1], y[1]); if (e > s) o.push([s, e]); } return o; };
 const cbPart = (s, e) => e - s >= 600 ? "most of the day" : (s + e)/2 < 720 ? "morning" : (s + e)/2 < 1020 ? "afternoon" : "evening";
-// one pilot's own row: green only for a day off at base; duty and days down route are red
+// one pilot's own row: a day off at base is green; a day with duty that still leaves free time at base (home in the early
+// morning, or reporting in the evening: 3 daytime hours or more) is dark green; standby amber; duty all day or a day down route red
 function cbState(f, day){
   if (!day) return "none";
   if (day.standby) return "sby";
-  if (!day.free) return "duty";
-  return f.away || !f.windows.length ? "duty" : "free";
+  if (f.away || !f.windows.length) return "duty";
+  if (day.free && f.windows.reduce((s, w) => s + w[1] - w[0], 0) >= CB_DAY - 1) return "free";
+  // part of the day: at least 3 free hours in the daytime (06:00–22:00), not just the night before an early report
+  return f.windows.reduce((s, w) => s + Math.max(0, Math.min(w[1], 1320) - Math.max(w[0], 360)), 0) >= 180 ? "part" : "duty";
 }
 function cbRosters(){
   const C = cb(), list = [];
