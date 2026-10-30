@@ -647,21 +647,24 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
     </div>
 
     <!-- logbook -->
-    <div data-p="logbook" class="hidden">
-      <h2>Logbook</h2>
-      <p class="lead">Your flights are kept only in this browser. Downloads, backup and starting over are on <a href="#" data-go="import" data-scroll="#outCard">Your data</a>.</p>
-      <div class="stats" id="lbStats"></div>
+    <div data-p="add" class="hidden">
+      <h2>Add a flight</h2>
+      <p class="lead">A flight or simulator session that isn't in any file. Your flights are on the <a href="#" data-go="logbook">Logbook</a> page.</p>
       <div class="card" id="addBlock">
-        <h3>Add a flight manually</h3>
-        <div class="row-actions" style="margin:0" id="addOpenRow"><span class="hint" style="margin:0;font-size:14px">For a flight or simulator session that isn't in any file.</span><button class="btn ghost small" id="btnAddOpen" type="button">Add a flight manually</button></div>
-      <form class="hidden" id="addForm" style="margin-top:4px">
+      <form id="addForm">
         <div class="seg" role="radiogroup" aria-label="What to add"><label><input type="radio" name="addKind" value="flight" checked> Flight</label><label><input type="radio" name="addKind" value="sim"> Simulator session</label></div>
         <p class="hint" style="margin:0 0 14px;font-size:14px">For a flight that isn't in any file. Times in UTC. Leave PIC/co-pilot, night and IFR empty to have them filled in from your <a href="#" data-go="profile">profile</a>. The preview shows the line exactly as it will appear in your EASA logbook.</p>
         <div class="lbgrid" id="addFields"></div>
         <div class="field" style="margin-top:4px"><label>Preview: your logbook line</label><div class="tablewrap"><div id="addPreview"></div></div></div>
-        <div class="row-actions" style="margin:0"><button class="btn" type="submit" id="addSubmit">Add flight to logbook</button><button class="btn ghost" type="button" id="addClear">Clear</button><button class="btn ghost" type="button" id="addClose">Close</button><span class="err" id="addErr" style="margin:0"></span><span class="ok-msg" id="addOk"></span></div>
+        <div class="row-actions" style="margin:0"><button class="btn" type="submit" id="addSubmit">Add flight to logbook</button><button class="btn ghost" type="button" id="addClear">Clear</button><span class="err" id="addErr" style="margin:0"></span><span class="ok-msg" id="addOk"></span></div>
       </form>
       </div>
+    </div>
+    <div data-p="logbook" class="hidden">
+      <h2>Logbook</h2>
+      <p class="lead">Your flights are kept only in this browser. Downloads, backup and starting over are on <a href="#" data-go="import" data-scroll="#outCard">Your data</a>.</p>
+      <div class="stats" id="lbStats"></div>
+      <div class="row-actions" style="margin:0 0 16px"><button class="btn" type="button" data-go="add">+ Add a flight</button><span class="hint" style="margin:0;font-size:14px">For a flight or simulator session that isn't in any file.</span></div>
       <div class="card">
         <form class="notice hidden" id="lbEdit" style="margin:0 0 14px;background:var(--bg);border-color:var(--line)">
           <h3 style="margin:0 0 12px" id="lbEditTitle">Edit flight</h3>
@@ -1046,17 +1049,12 @@ function tab(t){
   if (t !== "import") closeReview?.();
   $$("#tabs button").forEach(b => b.classList.toggle("on", b.dataset.t === t));
   $$("[data-p]").forEach(p => p.classList.toggle("hidden", p.dataset.p !== t));
-  ({ overview: renderOverview, profile: () => { renderProfile(); renderExpiries(); renderSignature(); }, logbook: renderLogbook, import: renderYourData, stats: renderStats, crewbase: renderCrewBase, admin: renderAdmin })[t]?.();
+  // the page is kept in the address, so a reload (an iPhone switching apps) opens it again
+  try { if (location.hash !== "#" + t) history.replaceState(null, "", "#" + t); } catch {}
+  ({ overview: renderOverview, profile: () => { renderProfile(); renderExpiries(); renderSignature(); }, logbook: renderLogbook, add: openAddForm, import: renderYourData, stats: renderStats, crewbase: renderCrewBase, admin: renderAdmin })[t]?.();
   window.scrollTo(0,0);
 }
-$("#tabs").addEventListener("click", e => { const t = e.target.dataset.t; if (t === "add") addFlightNow(); else if (t) tab(t); });
-// "+ Add flight" in the menu: the Logbook tab with the add form open, scrolled to it
-function addFlightNow(){
-  tab("logbook"); openAddForm();
-  $$("#tabs button").forEach(b => b.classList.toggle("on", b.dataset.t === "add"));
-  const card = $("#addForm").closest(".card") || $("#addForm");
-  requestAnimationFrame(() => window.scrollTo(0, card.getBoundingClientRect().top + scrollY - ($("#vApp .top")?.offsetHeight || 0) - 8));
-}
+$("#tabs").addEventListener("click", e => { if (e.target.dataset.t) tab(e.target.dataset.t); });
 
 /* ---------- activity: what each signed-in pilot did, for the site owner (Admin tab). Counts and formats only:
    never flights, file names or file contents. Rules in supabase/admin_activity.sql ---------- */
@@ -1187,7 +1185,9 @@ function usage(kind){
 const nLines = () => ({ flights: data.flights.filter(f => !isSim(f)).length, sims: data.flights.filter(isSim).length });
 function enterApp(){
   const moved = adoptLocal(), fresh = user.id !== "sample" && !store.get(key(), null);
-  load(); show("#vApp"); tab("overview");
+  // the page that was open before a reload, else the overview
+  const was = location.hash.slice(1), pages = $$("#tabs button").map(b => b.dataset.t).filter(t => t !== "admin" || isAdmin());
+  load(); show("#vApp"); tab(pages.includes(was) ? was : "overview");
   $("#whoEmail").textContent = isLocal() ? "On this device only" : user.email;
   $("#btnOut").textContent = isLocal() ? "Create account / Log in" : "Log out";
   if (moved) $('[data-p="overview"] h2').insertAdjacentHTML("afterend", '<div class="notice" style="margin:0 0 16px"><b>Your logbook is now with your account.</b> Everything you started without an account came along.</div>');
@@ -2606,11 +2606,26 @@ function renderYourData(){
 }
 // adding a flight by hand lives on the Logbook tab, behind a button: most airline pilots import everything
 function openAddForm(){
-  $("#addForm").classList.remove("hidden"); $("#addOpenRow").classList.add("hidden"); if (!$("#addFields").children.length) addFormReset();
+  if (!$("#addFields").children.length) { addFormReset(); restoreDraft(); }
   loadAirports().then(renderAddPreview);
 }
-$("#btnAddOpen").addEventListener("click", openAddForm);
-$("#addClose").addEventListener("click", () => { $("#addForm").classList.add("hidden"); $("#addOpenRow").classList.remove("hidden"); });
+/* a flight half entered is kept on this device, so it is still there when the phone reloads the page (switching apps on an iPhone) */
+const draftKey = () => "cbl_draft_" + (user?.id || "");
+function saveDraft(){
+  try { const v = {}; for (const el of $$("#addFields [id^=n_]")) if (el.value) v[el.id.slice(2)] = el.value;
+    const pf = pfOf("n_"); if (pf) v._pf = pf; v._kind = addSim() ? "sim" : "flight";
+    if (Object.keys(v).some(k => !k.startsWith("_") && !(k === "flightNo" && v[k] === data.profile.airline))) localStorage.setItem(draftKey(), JSON.stringify(v)); else localStorage.removeItem(draftKey()); } catch {}
+}
+const dropDraft = () => { try { localStorage.removeItem(draftKey()); } catch {} };
+function restoreDraft(){
+  let v; try { v = JSON.parse(localStorage.getItem(draftKey()) || "null"); } catch {} if (!v) return;
+  if (v._kind === "sim" && !addSim()) { $('[name="addKind"][value="sim"]').checked = true; addFormReset(); }
+  for (const [k, x] of Object.entries(v)) { const el = $("#n_" + k); if (el && !k.startsWith("_") && !k.startsWith("ldg")) el.value = x; }
+  if ($("#n_ldgDay")) setLdg("n_", v.ldgDay ?? "", v.ldgNight ?? "");
+  if (v._pf) { const r = document.querySelector(`[name="n_pf"][value="${v._pf}"]`); if (r) r.checked = true; }
+  renderAddPreview();
+}
+$("#addFields").addEventListener("input", saveDraft); $("#addFields").addEventListener("change", saveDraft);
 const dropAims = $("#dropAims");
 dropAims.addEventListener("click", () => $("#aimsFile").click());
 $("#aimsFile").addEventListener("change", e => { handleFiles(e.target.files); e.target.value = ""; });
@@ -2751,7 +2766,7 @@ function renderAddPreview(){
 }
 $("#addFields").addEventListener("input", () => { renderAddPreview(); $("#addErr").textContent = ""; $("#addOk").textContent = ""; });
 
-$("#addClear").addEventListener("click", addFormReset);
+$("#addClear").addEventListener("click", () => { addFormReset(); dropDraft(); });
 // the way back of the flight just added: route reversed, same date, aircraft, registration and PIC; the other pilot flies it
 let lastAdded = null;
 document.addEventListener("click", e => {
@@ -2769,7 +2784,7 @@ $("#addForm").addEventListener("submit", e => {
   if (data.flights.some(x => dupKey(x) === dupKey(f))) return $("#addErr").textContent = `That ${sim ? "session" : "flight"} is already in your logbook.`;
   data.flights.push(f); data.flights.sort((a,b) => (a.date+a.out).localeCompare(b.date+b.out));
   if (!save()) return;
-  addFormReset();
+  addFormReset(); dropDraft();
   const ns = data.flights.filter(isSim).length;
   logEvent(sim ? "add_sim" : "add_flight", {});
   $("#addOk").innerHTML = esc(`Added ${flightLabel(f)}. Your logbook has ${(data.flights.length - ns).toLocaleString()} flight${data.flights.length - ns === 1 ? "" : "s"}${ns ? ` and ${ns} simulator session${ns === 1 ? "" : "s"}` : ""}.`) +
