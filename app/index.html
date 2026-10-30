@@ -2965,7 +2965,7 @@ function renderYourData(){
 // adding a flight by hand lives on the Logbook tab, behind a button: most airline pilots import everything
 function openAddForm(){
   if (!$("#addFields").children.length) { addFormReset(); restoreDraft(); }
-  Promise.all([loadAirports(), loadAptNames()]).then(() => aptFlags("n_"));
+  Promise.all([loadAirports(), loadAptNames()]).then(() => aptFlags("n_")); roleByType("n_");
   loadAirports().then(renderAddPreview);
 }
 /* a flight half entered is kept on this device, so it is still there when the phone reloads the page (switching apps on an iPhone) */
@@ -3312,6 +3312,20 @@ function pfAuto(pre){
   setLdg(pre, night ? "" : 1, night ? 1 : ""); seg.dataset.auto = night ? "n" : "d";
 }
 function setPf(pre, v){ const r = document.querySelector(`[name="${pre}pf"][value="${v}"]`); if (r) r.checked = true; pfChanged(pre); }
+/* A single-pilot aircraft (a Cessna 172, a PA-28 ...: Profile → Aircraft types decides) has no pilot flying or monitoring:
+   the choice goes, and the pilot is flying, so the landing goes in by itself. A multi-pilot type brings it back */
+function roleByType(pre){
+  const fld = $("#" + pre + "roleField"); if (!fld) return;
+  const t = acTypeName($("#" + pre + "acType")?.value.trim() || ""), single = !!t && acClass(t) !== "MP";
+  fld.classList.toggle("hidden", single);
+  if (single && !pfOf(pre) && pre === "n_") { fld.dataset.autopf = "1"; setPf(pre, "pf"); }   // an edited flight keeps its landings as they are
+  else if (!single && fld.dataset.autopf) {
+    delete fld.dataset.autopf; const seg = $("#" + pre + "pfSeg"), auto = seg?.dataset.auto;
+    document.querySelectorAll(`[name="${pre}pf"]`).forEach(r => r.checked = false); if (auto) setLdg(pre, "", ""); roleShown(pre);
+  }
+}
+document.addEventListener("input", e => { const m = (e.target.id || "").match(/^(n_|e_)acType$/); if (m) roleByType(m[1]); });
+document.addEventListener("change", e => { const m = (e.target.name || "").match(/^(n_|e_)pf$/); if (m) delete $("#" + m[1] + "roleField")?.dataset.autopf; });
 function pfChanged(pre){
   const seg = $("#" + pre + "pfSeg"); if (!seg) return;
   const v = pfOf(pre), rem = $("#" + pre + "remarks"); roleShown(pre);
@@ -3502,13 +3516,24 @@ document.addEventListener("focusout", e => {
   if (t) { if (t !== el.value) { el.value = t; el.dataset.ok = t; el.dispatchEvent(new Event("input", { bubbles: true })); } return; }
   el.classList.add("bad"); timeMsg(m[1], `${TIME_NAMES[m[2]]}: “${esc(v)}” isn't a full time. Enter 00:00 to 23:59, e.g. 0210 or 02:10.`);
 });
+/* Durations (total, PIC ... IFR): digits and a colon only, the phone shows its number pad. 530 or 0530 means 5:30, 5 means 5:00;
+   the box shows H:MM once it is left */
+const DUR_BOX = /^(n_|e_)(total|pic|copilot|dual|instructor|night|ifr)$/;
+document.addEventListener("input", e => {
+  const el = e.target; if (!DUR_BOX.test(el.id || "")) return;
+  const v = el.value.replace(/[^\d:]/g, "").replace(/(:.*):/g, "$1"); if (v !== el.value) el.value = v;
+}, true);
+document.addEventListener("focusout", e => {
+  const el = e.target; if (!DUR_BOX.test(el.id || "") || !el.value.trim()) return;
+  const m = parseDur(el.value), t = m || /^0*:?0*$/.test(el.value.trim()) ? fmtMin(m) : el.value; if (t !== el.value) { el.value = t; el.dispatchEvent(new Event("input", { bubbles: true })); }
+});
 // a block or flight time typed in full (0210 or 02:10) goes on to the next box: off-block → take-off → landing → on-block → aircraft type
 document.addEventListener("input", e => {
   const m = (e.target.id || "").match(/^(n_|e_)(out|off|on|in)$/); if (!m || !(e.inputType || "").startsWith("insert")) return;
   const raw = e.target.value.trim(); if (!/^\d{4}$|^\d{1,2}:\d{2}$/.test(raw)) return;
   const t = parseTime(raw); if (!t) return;
   if (t !== raw) { e.target.value = t; e.target.dispatchEvent(new Event("input", { bubbles: true })); }
-  $("#" + m[1] + { out: "off", off: "on", on: "in", in: "acType" }[m[2]])?.focus();
+  $("#" + m[1] + { out: "off", off: "on", on: "in", in: "picName" }[m[2]])?.focus();
 });
 // "This looks like the return flight": same PIC, aircraft and registration, and the other pilot flies it
 function retCheck(){
@@ -3724,7 +3749,7 @@ function flightFieldsHTML(pre, f = {}){
       Array.from({ length: max + 1 }, (_, n) => `<option${v(k) !== "" && n === cur ? " selected" : ""}>${n}</option>`).join("") + `</select>` +
       (v(k) === "" ? `<button type="button" class="ldgcover" data-ldg="${pre}${k}" aria-label="1 landing"></button>` : "") + `</span>`; };
   const input = k => k.startsWith("ldg") ? ldg(k) : `<input id="${pre}${k}" data-k="${k}" value="${esc(String(v(k)))}"` +
-    (k === "date" ? ` type="date" required max="${logToday()}"` : LB_TIME.includes(k) ? ' class="mono" placeholder="HH:MM" inputmode="numeric"' : LB_DUR.includes(k) ? ' class="mono" placeholder="H:MM"' : k === "from" || k === "to" ? ' class="mono" maxlength="4" autocapitalize="characters" autocomplete="off" spellcheck="false" style="text-transform:uppercase"' : "") + ">";
+    (k === "date" ? ` type="date" required max="${logToday()}"` : LB_TIME.includes(k) ? ' class="mono" placeholder="HH:MM" inputmode="numeric" pattern="[0-9:]*" maxlength="5" autocomplete="off"' : LB_DUR.includes(k) ? ' class="mono" placeholder="H:MM" inputmode="numeric" pattern="[0-9:]*" maxlength="6" autocomplete="off"' : k === "from" || k === "to" ? ' class="mono" maxlength="4" autocapitalize="characters" autocomplete="off" spellcheck="false" style="text-transform:uppercase"' : "") + ">";
   // pilot flying puts the landing in by itself (day or night, from the sun at the arrival airport); a saved flight with landings was flown
   const pfOn = /\bRELIEF\b/i.test(f.remarks || "") ? "rel" : f.ldgDay || f.ldgNight ? "pf" : "";   // blank until the pilot (or a confirmed return flight) says
   const r = (v, l) => `<label><input type="radio" name="${pre}pf" value="${v}"${pfOn === v ? " checked" : ""}> ${l}</label>`;
@@ -3737,7 +3762,8 @@ function flightFieldsHTML(pre, f = {}){
   const times = `<div class="field wide"><div class="times">${LB_TIME.map(k => `<div><label for="${pre}${k}">${{ out: "Off-block", off: "Take-off", on: "Landing", in: "On-block" }[k]}</label>${input(k)}</div>`).join("")}</div><p class="err hidden" id="${pre}timeErr" role="alert" style="margin:6px 0 0"></p></div>` + pfSeg +
     `<div class="field wide hidden" id="${pre}retNote"></div><div class="field wide hidden" id="${pre}gsNote"></div>`;
   const box = k => k === "date" ? `<span class="datewrap">${input(k)}</span>` : k === "from" || k === "to" ? `<span class="aptwrap">${input(k)}<span class="aptflag" id="${pre}${k}Flag" aria-hidden="true"></span></span>` : LOG_KEYS.includes(k) ? `<span class="logwrap">${input(k)}<button type="button" class="logbtn hidden" data-logfill="${pre}${k}"></button></span>` : input(k);
-  return FIELDS.filter(([k]) => !LB_TIME.includes(k)).map(([k, label]) => `<div class="field${k === "remarks" ? " wide" : ""}"><label for="${pre}${k}">${label}</label>${box(k)}</div>` + (k === "to" ? times : "") +
+  const first = ["date", "flightNo", "acType", "reg", "from", "to"], order = [...first.map(k => FIELDS.find(x => x[0] === k)), ...FIELDS.filter(([k]) => !first.includes(k) && !LB_TIME.includes(k))];
+  return order.map(([k, label]) => `<div class="field${k === "remarks" ? " wide" : ""}"><label for="${pre}${k}">${label}</label>${box(k)}</div>` + (k === "to" ? times : "") +
     (k === "ldgNight" ? `<div class="field wide err hidden" id="${pre}clash" role="alert" style="margin:0"></div>` : "")).join("");
 }
 // a simulator session: EASA FSTD columns (date, type, session time) and remarks
@@ -3782,7 +3808,7 @@ $("#lbSigClear").addEventListener("click", () => lbPad.reset());
 function lbOpenEdit(i){
   const f = data.flights[i]; if (!f) return; lbEditing = f; lbSigDrop = false;
   $("#lbEditFields").innerHTML = isSim(f) ? simFieldsHTML("e_", f) : flightFieldsHTML("e_", f);
-  if (!isSim(f)) { loadAirports().then(() => logBtns("e_")); Promise.all([loadAirports(), loadAptNames()]).then(() => aptFlags("e_")); }
+  if (!isSim(f)) { roleByType("e_"); loadAirports().then(() => logBtns("e_")); Promise.all([loadAirports(), loadAptNames()]).then(() => aptFlags("e_")); }
   lbShowSig(); requestAnimationFrame(() => lbPad.reset()); loadAirports().then(() => gsCheck("e_"));
   $("#lbEditTitle").textContent = (isSim(f) ? "Edit simulator session: " : "Edit flight: ") + flightLabel(f); $("#lbEditErr").textContent = "";
   $("#lbEdit").classList.remove("hidden"); $("#lbEdit").scrollIntoView({ behavior: "smooth", block: "start" }); $("#e_date").focus({ preventScroll: true });
