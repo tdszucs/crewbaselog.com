@@ -58,6 +58,7 @@ input:focus,select:focus{outline:2px solid color-mix(in srgb,var(--brand) 40%,tr
 .sugbox button{display:flex;width:100%;justify-content:space-between;gap:14px;white-space:nowrap;align-items:baseline;background:none;border:0;border-bottom:1px solid var(--line);padding:11px 12px;font:inherit;font-size:15px;color:var(--ink);text-align:left;cursor:pointer}
 .sugbox button:last-child{border-bottom:0}.sugbox button:hover,.sugbox button.on{background:var(--bg)}
 .nowbtn{display:block;width:100%;margin-top:5px;padding:5px 0;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--brand);font-family:inherit;font-size:12px;font-weight:600;cursor:pointer}.nowbtn:hover{background:var(--bg)}
+input.manual{color:var(--bad);border-color:var(--bad)}
 .timesum{display:flex;flex-wrap:wrap;gap:4px 18px;margin:10px 0 0;padding:8px 12px;border-radius:10px;background:var(--bg);border:1px solid var(--line);font-size:14px;color:var(--muted)}.timesum b{font-family:"JetBrains Mono",monospace;color:var(--ink);font-size:15px;margin-left:4px}
 .rollers{display:flex;align-items:center;justify-content:center;gap:2px;margin-top:5px}.rollers select{width:auto;flex:1;min-width:0;padding:5px 2px;text-align:center;text-align-last:center;font:600 13px "JetBrains Mono",monospace;border-radius:8px;-webkit-appearance:none;appearance:none;background-image:none}.rollers b{font-size:13px}
 .aptwrap{position:relative;display:block}.aptflag{position:absolute;right:12px;top:50%;transform:translateY(-50%);font-size:18px;line-height:1;pointer-events:none}input.hasflag{padding-right:40px}
@@ -3392,6 +3393,9 @@ function nightFull(pre){
   f.total = tdiff(f.out, f.in); return f.total ? Math.min(nightMinutes(f), f.total) : null;
 }
 function logBtns(pre){
+  // a total typed by hand that differs from the block time (or the relief share of it) shows in red
+  const T = $("#" + pre + "total"), bm = Math.round(blockMin(pre) * shareOf(pre)), tv = parseDur(T?.value || "");
+  T?.classList.toggle("manual", !!bm && !!tv && tv !== bm); if (T) T.title = T.classList.contains("manual") ? `Changed by hand: the block time is ${fmtMin(bm)}` : "";
   const blk = blockMin(pre), tot = parseDur($("#" + pre + "total")?.value || "") || Math.round(blk * shareOf(pre)), nf = nightFull(pre);
   for (const b of $$(`[data-logfill^="${pre}"]`)) {
     const k = b.dataset.logfill.slice(2), m = k === "total" ? Math.round(blk * shareOf(pre)) : k === "night" ? (nf == null ? 0 : Math.round(nf * shareOf(pre))) : seatLeft(pre, k, tot);
