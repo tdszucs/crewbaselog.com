@@ -48,6 +48,12 @@ input[type=date]{-webkit-appearance:none;appearance:none;display:block;width:100
 input[type=date]::-webkit-date-and-time-value{text-align:left;margin:0}
 input:focus,select:focus{outline:2px solid color-mix(in srgb,var(--brand) 40%,transparent);border-color:var(--brand)}
 .field{margin-bottom:14px}
+/* suggestions under From / To / Aircraft type / Registration in the flight form */
+.sugwrap{position:relative}
+.sugbox{position:absolute;left:0;top:100%;min-width:100%;width:max-content;max-width:min(330px,calc(100vw - 32px));z-index:20;margin-top:4px;background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.18);max-height:300px;overflow:auto}
+.sugbox button{display:flex;width:100%;justify-content:space-between;gap:14px;white-space:nowrap;align-items:baseline;background:none;border:0;border-bottom:1px solid var(--line);padding:11px 12px;font:inherit;font-size:15px;color:var(--ink);text-align:left;cursor:pointer}
+.sugbox button:last-child{border-bottom:0}.sugbox button:hover,.sugbox button.on{background:var(--bg)}
+.sugbox b{font-family:"JetBrains Mono",monospace;font-weight:600}.sugbox span{color:var(--muted);font-size:13px;text-align:right}
 .hint{font-size:12.5px;color:var(--muted);margin-top:4px}
 .err{color:var(--bad);font-size:13.5px;margin:8px 0 0;min-height:1em}
 .demo-banner{background:var(--accent-soft);color:var(--ink);font-size:13px;text-align:center;padding:8px 16px;border-bottom:1px solid var(--line)}
@@ -2745,6 +2751,81 @@ $("#addForm").addEventListener("submit", e => {
   const ns = data.flights.filter(isSim).length;
   logEvent(sim ? "add_sim" : "add_flight", {});
   $("#addOk").textContent = `Added ${flightLabel(f)}. Your logbook has ${(data.flights.length - ns).toLocaleString()} flight${data.flights.length - ns === 1 ? "" : "s"}${ns ? ` and ${ns} simulator session${ns === 1 ? "" : "s"}` : ""}.`; renderPrint(); renderLogbook();
+});
+
+/* ---------- suggestions in the flight form: airports, aircraft types and registrations already in the logbook ----------
+   From: the Crew Base roster's departures that day, the home base, then the airports flown from most.
+   To: the roster's arrival after that departure, the places flown to from there, then the rest.
+   Typing either code finds the airport (AUH or OMAA); the pilot's ICAO / IATA style is filled in. */
+// the roster's legs on a date: [{ from, to, no }] from the day's label ("flight 101 · AUH-LHR-AUH")
+function rosterLegs(iso, st = aptStyle){
+  const d = data.crew?.me?.days?.[iso]; if (!d || d.free || !d.code) return [];
+  const nos = [...d.code.matchAll(/flight (\w+)/g)].map(m => m[1]), legs = [];
+  for (const m of d.code.matchAll(/\b[A-Z]{3,4}(?:-[A-Z]{3,4})+\b/g)) { const a = m[0].split("-"); for (let i = 1; i < a.length; i++) legs.push({ from: st(a[i - 1]), to: st(a[i]) }); }
+  legs.forEach((l, i) => l.no = nos[i] || ""); return legs;
+}
+const sameApt = (a, b) => !!a && !!b && (a === b || aptAlt()[a] === b);
+function flightSuggest(pre, k){
+  const val = $("#" + pre + k).value.trim().toUpperCase(), date = $("#" + pre + "date")?.value || logToday(), F = data.flights.filter(f => !isSim(f));
+  const out = new Map(), add = (v, note, extra) => { if (!v || out.has(v)) return; out.set(v, { v, note, ...extra }); };
+  const count = get => { const c = new Map(); F.forEach((f, i) => { const v = get(f); if (v) c.set(v, (c.get(v) || 0) + 1 + i / F.length); }); return [...c.entries()].sort((a, b) => b[1] - a[1]).map(([v, n]) => [v, Math.round(n)]); };
+  const n = x => `${x.toLocaleString()} flight${x === 1 ? "" : "s"}`;
+  if (k === "from" || k === "to") {
+    // the pilot's style, or the one most of the logbook uses
+    let i4 = 0, i3 = 0; if (!data.profile.apt) for (const f of F) { if (f.from?.length === 4) i4++; else if (f.from?.length === 3) i3++; }
+    const pref = data.profile.apt || (i4 > i3 ? "ICAO" : i3 ? "IATA" : ""), sty = c => aptStyle(c, pref);
+    const legs = rosterLegs(date, sty), base = sty((data.profile.base || data.crew?.me?.base || "").toUpperCase()), from = k === "to" ? $("#" + pre + "from").value.trim().toUpperCase() : "";
+    if (k === "from") { for (const l of legs) add(l.from, `roster${l.no ? " · flight " + l.no : ""}`, { leg: l }); add(base, "home base"); }
+    else {
+      for (const l of legs) if (!from || sameApt(l.from, from)) add(l.to, `roster${l.no ? " · flight " + l.no : ""}`);
+      for (const [v, c] of count(f => sameApt(f.from, from) ? sty(f.to) : "")) add(v, `${n(c)} from ${from}`);
+      add(base, "home base");
+    }
+    for (const [v, c] of count(f => sty(f[k]))) add(v, n(c));
+    if (k === "to") for (const [v, c] of count(f => sty(f.from))) add(v, n(c));
+    // typed text: matches the code or its other style (AUH / OMAA)
+    const alt = c => aptAlt()[c] || "";
+    let list = [...out.values()].filter(o => !val || o.v.startsWith(val) || alt(o.v).startsWith(val));
+    if (val.length >= 3 && AIRPORTS && !list.some(o => o.v === sty(val) || alt(o.v) === val)) { const c = AIRPORTS[val] ? sty(val) : ""; if (c) list.push({ v: c, note: "airport" }); }
+    return list.slice(0, 8).map(o => ({ ...o, label: o.v + (alt(o.v) ? ` · ${alt(o.v)}` : "") }));
+  }
+  if (k === "acType") return count(f => f.acType).filter(([v]) => !val || v.startsWith(val)).slice(0, 8).map(([v, c]) => ({ v, label: v, note: n(c) }));
+  if (k === "reg") {
+    const type = $("#" + pre + "acType").value.trim().toUpperCase(), last = new Map();
+    for (const f of F) if (f.reg && (!type || f.acType === type)) last.set(f.reg, { date: f.date, type: f.acType, c: (last.get(f.reg)?.c || 0) + 1 });
+    return [...last.entries()].sort((a, b) => b[1].date.localeCompare(a[1].date)).filter(([v]) => !val || v.replace("-", "").startsWith(val.replace("-", "")))
+      .slice(0, 8).map(([v, x]) => ({ v, label: v, note: `${x.type ? x.type + " · " : ""}${fmtDate(x.date)}` }));
+  }
+  return [];
+}
+const SUG_KEYS = /^(n_|e_)(from|to|acType|reg)$/;
+function showSuggest(inp){
+  const [, pre, k] = inp.id.match(SUG_KEYS), list = flightSuggest(pre, k);
+  let box = inp.parentNode.querySelector(".sugbox");
+  if (!list.length || (list.length === 1 && list[0].v === inp.value.trim().toUpperCase())) { box?.remove(); return; }
+  if (!inp.parentNode.classList.contains("sugwrap")) { const w = document.createElement("div"); w.className = "sugwrap"; inp.before(w); w.appendChild(inp); }
+  box ||= inp.parentNode.appendChild(Object.assign(document.createElement("div"), { className: "sugbox" }));
+  box.innerHTML = list.map((o, i) => `<button type="button" data-sug="${i}"><b>${esc(o.label)}</b><span>${esc(o.note || "")}</span></button>`).join("");
+  box._list = list; box._inp = inp;
+  // a field in the right-hand column: the list opens leftwards, so it stays on screen
+  const r = inp.getBoundingClientRect(); box.style.left = r.left > innerWidth / 2 ? "auto" : "0"; box.style.right = r.left > innerWidth / 2 ? "0" : "auto";
+}
+const hideSuggest = () => $$(".sugbox").forEach(b => b.remove());
+document.addEventListener("focusin", e => { if (SUG_KEYS.test(e.target.id || "")) loadAirports().then(() => document.activeElement === e.target && showSuggest(e.target)); else if (!e.target.closest?.(".sugbox")) hideSuggest(); });
+document.addEventListener("input", e => { if (SUG_KEYS.test(e.target.id || "")) showSuggest(e.target); });
+document.addEventListener("keydown", e => { if (e.key === "Escape") hideSuggest(); });
+// pointerdown (not click), so the field keeps its focus and the keyboard stays up while choosing
+document.addEventListener("pointerdown", e => {
+  const b = e.target.closest(".sugbox button");
+  if (!b) { if (!e.target.closest(".sugwrap")) hideSuggest(); return; }
+  e.preventDefault();
+  const box = b.closest(".sugbox"), o = box._list[+b.dataset.sug], inp = box._inp, pre = inp.id.slice(0, 2);
+  inp.value = o.v;
+  // a roster departure also brings its flight number, if none was typed
+  if (o.leg?.no && $("#" + pre + "flightNo") && !$("#" + pre + "flightNo").value) $("#" + pre + "flightNo").value = o.leg.no;
+  inp.dispatchEvent(new Event("input", { bubbles: true })); hideSuggest();
+  // next field: From → To, type → registration
+  const next = { from: "to", acType: "reg" }[inp.id.slice(2)]; if (next && !$("#" + pre + next).value) $("#" + pre + next).focus();
 });
 
 /* ---------- statistics (hours for job applications) ---------- */
