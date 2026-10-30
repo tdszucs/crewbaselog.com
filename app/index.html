@@ -60,7 +60,12 @@ input:focus,select:focus{outline:2px solid color-mix(in srgb,var(--brand) 40%,tr
 .nowbtn{display:block;width:100%;margin-top:5px;padding:5px 0;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--brand);font-family:inherit;font-size:12px;font-weight:600;cursor:pointer}.nowbtn:hover{background:var(--bg)}
 input.manual{color:var(--bad);border-color:var(--bad)}
 .timesum{display:flex;flex-wrap:wrap;gap:4px 18px;margin:10px 0 0;padding:8px 12px;border-radius:10px;background:var(--bg);border:1px solid var(--line);font-size:14px;color:var(--muted)}.timesum b{font-family:"JetBrains Mono",monospace;color:var(--ink);font-size:15px;margin-left:4px}
-.rollers{display:flex;align-items:center;justify-content:center;gap:2px;margin-top:5px}.rollers select{width:auto;flex:1;min-width:0;padding:5px 2px;text-align:center;text-align-last:center;font:600 13px "JetBrains Mono",monospace;border-radius:8px;-webkit-appearance:none;appearance:none;background-image:none}.rollers b{font-size:13px}
+.rollers{display:flex;align-items:center;justify-content:center;gap:1px;margin-top:5px;position:relative;border:1px solid var(--line);border-radius:10px;background:var(--surface);overflow:hidden}
+.rollers::before{content:"";position:absolute;left:3px;right:3px;top:24px;height:24px;border-radius:6px;background:var(--bg);border:1px solid var(--line);pointer-events:none}
+.wheel{position:relative;flex:1;min-width:0;height:72px;overflow-y:scroll;scroll-snap-type:y mandatory;scrollbar-width:none;padding:24px 0;box-sizing:border-box;overscroll-behavior:contain;touch-action:pan-y;
+  -webkit-mask-image:linear-gradient(transparent,#000 35%,#000 65%,transparent);mask-image:linear-gradient(transparent,#000 35%,#000 65%,transparent)}
+.wheel::-webkit-scrollbar{display:none}.wheel>div{height:24px;line-height:24px;text-align:center;scroll-snap-align:center;font:600 14px "JetBrains Mono",monospace;color:var(--ink);cursor:pointer}
+.rollers b{position:relative;font-size:13px}
 .aptwrap{position:relative;display:block}.aptflag{position:absolute;right:12px;top:50%;transform:translateY(-50%);font-size:18px;line-height:1;pointer-events:none}input.hasflag{padding-right:40px}
 .sugbox button.apt{flex-wrap:wrap;row-gap:2px}.sugbox button.apt small{flex-basis:100%;white-space:normal;color:var(--muted);font-size:13px;line-height:1.3}
 .sugbox b{font-family:"JetBrains Mono",monospace;font-weight:600}.sugbox span{color:var(--muted);font-size:13px;text-align:right}
@@ -3567,14 +3572,28 @@ function rollSync(i){
   const t = formTime(i.value), on = !!i.dataset.rolled && !!i.value.trim();
   if (!i.value.trim()) delete i.dataset.rolled;
   r.classList.toggle("hidden", !on); b?.classList.toggle("hidden", on);
-  if (on && t) { r.querySelector('[data-part="h"]').value = t.slice(0, 2); r.querySelector('[data-part="m"]').value = t.slice(3); }
+  if (on && t) { wheelTo(r.querySelector('[data-part="h"]'), +t.slice(0, 2)); wheelTo(r.querySelector('[data-part="m"]'), +t.slice(3)); }
 }
-document.addEventListener("input", e => { if (TIME_BOX.test(e.target.id || "")) rollSync(e.target); });
-document.addEventListener("change", e => {
-  const s = e.target.closest?.("[data-roll]"); if (!s) return;
-  const i = $("#" + s.dataset.roll), r = s.parentNode; i.value = `${r.querySelector('[data-part="h"]').value}:${r.querySelector('[data-part="m"]').value}`;
-  i.dataset.ok = i.value; i.classList.remove("bad"); i.dispatchEvent(new Event("input", { bubbles: true })); i.dispatchEvent(new Event("change", { bubbles: true }));
+// a wheel: one value per row, the middle row is the chosen one (rows snap to it)
+const wheelRow = w => w.firstElementChild?.offsetHeight || 24;
+const wheelAt = w => Math.max(0, Math.min(w.children.length - 1, Math.round(w.scrollTop / wheelRow(w))));
+function wheelTo(w, n){ if (wheelAt(w) === n && Math.abs(w.scrollTop - n * wheelRow(w)) < 2) return; w._quiet = true; w.scrollTop = n * wheelRow(w); setTimeout(() => w._quiet = false, 60); }
+function wheelPick(w){
+  const r = w.parentNode, i = $("#" + w.dataset.roll), h = wheelAt(r.querySelector('[data-part="h"]')), m = wheelAt(r.querySelector('[data-part="m"]'));
+  const v = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`; if (v === i.value) return;
+  i.value = v; i.dataset.ok = v; i.classList.remove("bad"); i.dispatchEvent(new Event("input", { bubbles: true })); i.dispatchEvent(new Event("change", { bubbles: true }));
+}
+// the time is written once the wheel comes to rest
+document.addEventListener("scroll", e => {
+  const w = e.target; if (!w.classList?.contains("wheel") || w._quiet) return;
+  clearTimeout(w._t); w._t = setTimeout(() => wheelPick(w), 140);
+}, true);
+// a tap on a row turns the wheel to it
+document.addEventListener("click", e => {
+  const row = e.target.closest?.(".wheel > div"); if (!row) return;
+  const w = row.parentNode; w.scrollTo({ top: [...w.children].indexOf(row) * wheelRow(w), behavior: "smooth" });
 });
+document.addEventListener("input", e => { if (TIME_BOX.test(e.target.id || "")) rollSync(e.target); });
 // a block or flight time typed in full (0210 or 02:10) goes on to the next box: off-block → take-off → landing → on-block → aircraft type
 document.addEventListener("input", e => {
   const m = (e.target.id || "").match(/^(n_|e_)(out|off|on|in)$/); if (!m || !(e.inputType || "").startsWith("insert")) return;
@@ -3806,9 +3825,9 @@ function flightFieldsHTML(pre, f = {}){
     `<div class="hint roleneed">Choose one: pilot flying logs the landing, pilot monitoring logs none.</div>` +
     `<div class="relshare${pfOn === "rel" ? "" : " hidden"}" id="${pre}relShare"><span style="width:100%">Log a share of the block time:</span>${[["1/2", "½"], ["1/3", "⅓"], ["2/3", "⅔"]].map(([v, l]) => `<button type="button" class="btn ghost small" data-share="${v}" aria-pressed="false">${l}</button>`).join("")}` +
     `<div class="hint" style="width:100%">Changes the total, function, night and IFR times together. Or type your actual seat time in Total time.</div></div></div>`;
-  // after Now: hour and minute rollers (the wheel on an iPhone) to set the time a few minutes either way
-  const two = n => Array.from({ length: n }, (_, i) => `<option>${String(i).padStart(2, "0")}</option>`).join("");
-  const rollers = id => `<span class="rollers hidden" id="${id}Roll"><select data-roll="${id}" data-part="h" aria-label="Hours">${two(24)}</select><b>:</b><select data-roll="${id}" data-part="m" aria-label="Minutes">${two(60)}</select></span>`;
+  // after Now: an hour wheel and a minute wheel right under the box, swiped up and down to set the time a few minutes either way
+  const two = n => Array.from({ length: n }, (_, i) => `<div>${String(i).padStart(2, "0")}</div>`).join("");
+  const rollers = id => `<span class="rollers hidden" id="${id}Roll"><div class="wheel" data-roll="${id}" data-part="h" role="listbox" aria-label="Hours">${two(24)}</div><b>:</b><div class="wheel" data-roll="${id}" data-part="m" role="listbox" aria-label="Minutes">${two(60)}</div></span>`;
   // off-block, take-off, landing, on-block always side by side in one row, on any screen; then the pilot flying / monitoring / relief switch
   const times = `<div class="field wide"><div class="times">${LB_TIME.map(k => `<div><label for="${pre}${k}">${{ out: "Off-block", off: "Take-off", on: "Landing", in: "On-block" }[k]}</label>${input(k)}<button type="button" class="nowbtn" data-now="${pre}${k}" title="The time now, in UTC">Now</button>${rollers(pre + k)}</div>`).join("")}</div><div class="timesum hidden" id="${pre}timeSum" aria-live="polite"></div><p class="err hidden" id="${pre}timeErr" role="alert" style="margin:6px 0 0"></p></div>` + pfSeg +
     `<div class="field wide hidden" id="${pre}retNote"></div><div class="field wide hidden" id="${pre}gsNote"></div>`;
