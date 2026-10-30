@@ -196,9 +196,13 @@ body.insetup .bbar{display:none}
 input[style*="uppercase"]::placeholder{text-transform:none}
 input.clash,select.clash{border-color:var(--bad);box-shadow:0 0 0 1px var(--bad)}
 .times input.bad{border-color:var(--bad);box-shadow:0 0 0 1px var(--bad)}
-.rolerow{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px}.rolerow .seg{margin:0}
-.rolefield .roleneed{display:none;margin-top:6px}.rolefield.need .roleneed{display:block;color:var(--warn)}.rolefield.need .seg{border-color:var(--warn);box-shadow:0 0 0 1px var(--warn)}
-.rolefield.flash .seg{animation:roleflash .5s 3}@keyframes roleflash{50%{box-shadow:0 0 0 4px var(--warn)}}
+/* pilot flying / monitoring / relief: one slider, the chosen part filled */
+.rolesl{position:relative;display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--line);border-radius:12px;background:var(--bg);padding:3px}
+.rolesl .thumb{position:absolute;top:3px;bottom:3px;left:3px;width:calc((100% - 6px) / 3);border-radius:9px;background:var(--brand);box-shadow:0 1px 3px rgba(0,0,0,.2);transition:transform .2s ease;opacity:0}
+.rolesl:has([value="pf"]:checked) .thumb{opacity:1;transform:translateX(0)}.rolesl:has([value="pm"]:checked) .thumb{opacity:1;transform:translateX(100%)}.rolesl:has([value="rel"]:checked) .thumb{opacity:1;transform:translateX(200%)}
+.rolesl label{position:relative;z-index:1;display:flex;align-items:center;justify-content:center;text-align:center;margin:0;padding:11px 4px;font-size:14px;font-weight:600;color:var(--muted);cursor:pointer;line-height:1.2}
+.rolesl input{position:absolute;opacity:0;width:1px;height:1px}.rolesl label:has(input:checked){color:var(--on-brand)}
+.rolefield.flash .rolesl{animation:roleflash .5s 3}@keyframes roleflash{50%{box-shadow:0 0 0 3px var(--bad)}}
 .relshare{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin-top:10px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);font-size:14px}
 .relshare .btn{min-width:48px;justify-content:center;font-size:16px}.relshare .btn[aria-pressed="true"]{background:var(--ink);color:var(--surface);border-color:var(--ink)}
 .logwrap{position:relative;display:block}.logwrap .logbtn{position:absolute;right:6px;top:50%;transform:translateY(-50%);margin:0;padding:6px 10px}
@@ -1548,7 +1552,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "30 Oct 2026 · 17";
+const APP_VERSION = "30 Oct 2026 · 18";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
@@ -3577,7 +3581,7 @@ document.addEventListener("click", e => {
   const pre = b.closest(".relshare").id.slice(0, 2); setShare(pre, b.dataset.share); applyShare(pre, shareOf(pre)); logBtns(pre);
 });
 function roleShown(pre){
-  const v = pfOf(pre), box = $("#" + pre + "relShare");
+  const v = pfOf(pre), box = $("#" + pre + "relShare"), sl = $(`#${pre}pfSeg .rolesl`); if (sl) sl.dataset.sel = v;
   $("#" + pre + "roleField")?.classList.toggle("need", !v && pre === "n_");
   if (!box) return; box.classList.toggle("hidden", v !== "rel");
   // out of relief: the whole flight again
@@ -3960,8 +3964,7 @@ function flightFieldsHTML(pre, f = {}){
   const pfOn = /\bRELIEF\b/i.test(f.remarks || "") ? "rel" : f.ldgDay || f.ldgNight ? "pf" : "";   // blank until the pilot (or a confirmed return flight) says
   const r = (v, l) => `<label><input type="radio" name="${pre}pf" value="${v}"${pfOn === v ? " checked" : ""}> ${l}</label>`;
   const pfSeg = `<div class="field wide rolefield${pfOn || pre !== "n_" ? "" : " need"}" id="${pre}roleField"><label>Your role on this flight</label><div class="rolerow" id="${pre}pfSeg" role="radiogroup" aria-label="Pilot flying, pilot monitoring or relief">` +
-    `<div class="seg">${r("pf", "Pilot flying")}${r("pm", "Pilot monitoring")}</div><span class="hint">or</span><div class="seg">${r("rel", "Relief crew")}</div></div>` +
-    `<div class="hint roleneed">Choose one: pilot flying logs the landing, pilot monitoring logs none.</div>` +
+    `<div class="rolesl" data-sel="${pfOn}"><span class="thumb" aria-hidden="true"></span>${r("pf", "Pilot flying")}${r("pm", "Pilot monitoring")}${r("rel", "Relief")}</div></div>` +
     `<div class="relshare${pfOn === "rel" ? "" : " hidden"}" id="${pre}relShare"><span style="width:100%">Log a share of the block time:</span>${[["1/2", "½"], ["1/3", "⅓"], ["2/3", "⅔"]].map(([v, l]) => `<button type="button" class="btn ghost small" data-share="${v}" aria-pressed="false">${l}</button>`).join("")}` +
     `<div class="hint" style="width:100%">Changes the total, function, night and IFR times together. Or type your actual seat time in Total time.</div></div></div>`;
   // a tap on a time already entered: an hour wheel and a minute wheel under the box, swiped up and down; ✓ closes them
