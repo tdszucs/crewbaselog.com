@@ -1311,6 +1311,7 @@ $("#profForm").addEventListener("submit", e => {
   for (const [id,k] of Object.entries(PF)) if (k !== "email") data.profile[k] = $("#"+id).value.trim();
   for (const k of PF_DROPPED) delete data.profile[k];
   data.profile.base = data.profile.base.toUpperCase(); data.profile.lic = data.profile.lic.toUpperCase(); data.profile.airline = (data.profile.airline || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const fn = $("#n_flightNo"); if (fn && !fn.value && data.profile.airline) fn.value = data.profile.airline;   // an open "add a flight" form gets the code too
   if (save()) { logEvent("profile_saved", { name: !!data.profile.name, licence: !!data.profile.lic }); $("#profSaved").textContent = "Saved on this device."; renderProfile(); $("#profSaved").textContent = "Saved on this device."; }
 });
 
@@ -2857,13 +2858,13 @@ function flightSuggest(pre, k){
 const FN_KEYS = ["total", "pic", "copilot", "dual", "instructor", "ifr"];
 // the airline's code in front of a bare flight number (101 → EY101), when the profile has one
 const withAirline = no => { const a = data.profile.airline || ""; return a && /^\d{1,4}[A-Z]?$/.test(no || "") ? a + no : no || ""; };
-// the empty Flight no. box starts with the airline's code, ready for the number
+// the Flight no. box starts with the airline's code (a new flight's form opens with it; an edit gets it on the first tap),
+// the cursor after it, ready for the number. On its own it counts as no flight number
 document.addEventListener("focusin", e => {
-  if (!/^(n_|e_)flightNo$/.test(e.target.id || "") || e.target.value || !data.profile.airline) return;
-  e.target.value = data.profile.airline; requestAnimationFrame(() => { try { e.target.setSelectionRange(99, 99); } catch {} });
+  if (!/^(n_|e_)flightNo$/.test(e.target.id || "") || !data.profile.airline) return;
+  if (!e.target.value) e.target.value = data.profile.airline;
+  if (e.target.value === data.profile.airline) requestAnimationFrame(() => { try { e.target.setSelectionRange(99, 99); } catch {} });
 });
-// a box left with only the airline's code in it is empty
-document.addEventListener("focusout", e => { if (/^(n_|e_)flightNo$/.test(e.target.id || "") && e.target.value.trim().toUpperCase() === data.profile.airline) { e.target.value = ""; e.target.dispatchEvent(new Event("input", { bubbles: true })); } });
 // the flight before the one being entered (its date or earlier), and whether the route entered is its way back (within 3 days)
 function lastFlight(pre){
   const date = $("#" + pre + "date")?.value || logToday();
@@ -3071,6 +3072,7 @@ let lbEditing = null; // the flight object being edited (indices shift when flig
 const flightLabel = f => (isSim(f) ? `${fmtDate(f.date)} simulator ${f.fstdType || ""} ${fmtMin(f.fstdTime)}` : `${fmtDate(f.date)} ${f.flightNo || ""} ${f.from || "?"}–${f.to || "?"}`).replace(/\s+/g, " ").trim();
 // the flight form (edit on the Logbook tab, add on Your data); ids are prefix + field key
 function flightFieldsHTML(pre, f = {}){
+  if (pre === "n_" && !f.flightNo && data.profile.airline) f = { ...f, flightNo: data.profile.airline };
   const v = k => LB_DUR.includes(k) ? (f[k] ? fmtMin(f[k]) : "") : k.startsWith("ldg") ? (f[k] || "") : f[k] ?? "";
   // landings: a picker (the wheel on an iPhone). While empty a cover sits on it: the first tap puts 1 in, the next opens the wheel
   const ldg = k => { const cur = +v(k) || 0, max = Math.max(50, cur);
@@ -3108,7 +3110,7 @@ function readFlightForm(pre, base = {}){
   const g = k => $("#" + pre + k).value.trim(), bad = [], f = { ...base };
   f.date = g("date"); if (!/^\d{4}-\d{2}-\d{2}$/.test(f.date)) bad.push("date");
   for (const k of ["flightNo","from","to","reg"]) f[k] = g(k).toUpperCase();
-  f.flightNo = withAirline(f.flightNo);
+  f.flightNo = f.flightNo === data.profile.airline ? "" : withAirline(f.flightNo);
   f.from = aptStyle(f.from); f.to = aptStyle(f.to);
   f.acType = acTypeName(g("acType")); f.picName = g("picName"); f.remarks = g("remarks");
   for (const k of LB_TIME) { f[k] = parseTime(g(k)); if (g(k) && !f[k]) bad.push(k); }
