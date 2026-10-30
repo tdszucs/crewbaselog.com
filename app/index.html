@@ -171,6 +171,7 @@ h2{font-size:24px;letter-spacing:-.02em;margin:0 0 6px}
 .sunav{display:flex;justify-content:space-between;align-items:center;margin:22px 0 0}.sualt{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0 0}
 .suinfo{margin:14px 0 0}.suinfo>summary{cursor:pointer;color:var(--brand);font-weight:600}
 body.insetup .bbar{display:none}
+.sulist{margin:0;padding-left:22px}.sulist>li{margin:2px 0}.sufile{all:unset;box-sizing:border-box;cursor:pointer;display:flex;flex-wrap:wrap;gap:2px 8px;align-items:baseline;width:100%;padding:7px 0;min-height:36px}.sufile:focus-visible{outline:2px solid var(--accent,#2563eb);outline-offset:2px}.sufile .hint{font-size:13px}.suguide ol{margin:2px 0 8px;padding-left:20px;font-size:14px;line-height:1.5}
 .rrow{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 0;border-top:1px solid var(--line);font-size:15px}.rrow:first-of-type{border-top:0}
 @media (max-width:700px){ .hgrid{grid-template-columns:1fr 1fr;gap:8px}.htile{padding:10px}.htile .v{font-size:19px} }
 .fixnote{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:12px 0 0}
@@ -1401,8 +1402,8 @@ function renderSetup(){
   if (suStep === 3) h = `<h2>Drop your logbook</h2><p class="lead">From another app, a PDF logbook, a spreadsheet, an eCrew report or a CrewBase Log backup. It stays on this device.</p>
     <div class="drop" id="suDrop"><b>Drop your file here</b><br><span class="hint">or tap to choose · several at once is fine</span><input type="file" id="suFile" accept=".csv,.txt,.tsv,.xlsx,.xls,.pdf,.json,.zip" multiple class="hidden"></div>
     <p class="err" id="suErr" style="margin:10px 0 0"></p>
-    <details class="suinfo"><summary>Which files work?</summary><div class="hint" style="font-size:14px;line-height:1.6;margin-top:8px">Read automatically: <b>LogTen Pro</b> (Export Flights, Tab), <b>CrewLounge PILOTLOG</b> CSV or PDF, <b>Safelog</b> CSV, <b>Wader</b> PDF, <b>Flylog</b> CSV or PDF, <b>eCrew / AIMS</b> Pilot LogBook report, EASA logbook PDFs and <b>CrewBase Log</b> backups. Any other CSV or Excel file: you match the columns once.</div>
-      <div class="field" style="margin:10px 0 0"><label for="suApp">How to export from your app</label><select id="suApp"><option value="">Choose your app…</option>${Object.entries(APP_GUIDES).filter(([k]) => !["crewbase", "sheet", "paper"].includes(k)).map(([k, g]) => `<option value="${k}">${g[0]}</option>`).join("")}</select></div><div id="suGuide"></div></details>
+    <details class="suinfo"><summary>Which files work?</summary><p class="hint" style="margin:8px 0 6px">Most used first. Tap one to see how to export it.</p>
+      <ol class="sulist">${SU_FILES.map(([k, name, what]) => `<li><button type="button" class="sufile" data-guide="${k}" aria-expanded="false"><b>${name}</b><span class="hint">${what}</span></button><div class="suguide hidden"></div></li>`).join("")}</ol></details>
     <div class="sualt"><button class="btn ghost" type="button" data-su="paper">Paper logbook: enter its totals</button><button class="btn ghost" type="button" data-su="fresh">Start fresh, no logbook</button></div>` + nav(true);
   if (suStep === 4) h = `<h2>Your logbook is in</h2><div class="sumlog" id="suResult">${$("#impDoneLog").innerHTML}</div>` + nav(false, '<button class="btn" type="button" data-su="done">Done</button>');
   $("#setupBody").innerHTML = dots + h;
@@ -1412,7 +1413,11 @@ function renderSetup(){
     ["dragenter", "dragover"].forEach(ev => d.addEventListener(ev, e => { e.preventDefault(); d.classList.add("over"); }));
     ["dragleave", "drop"].forEach(ev => d.addEventListener(ev, e => { e.preventDefault(); d.classList.remove("over"); }));
     d.addEventListener("drop", e => { $("#suErr").textContent = ""; handleFiles(e.dataTransfer.files); });
-    $("#suApp").addEventListener("change", e => { const g = APP_GUIDES[e.target.value]; $("#suGuide").innerHTML = g ? `<ol style="margin:8px 0 0;padding-left:20px;font-size:14px">${g[1].map(t => `<li>${t}</li>`).join("")}</ol>` : ""; });
+    $$(".sufile").forEach(b => b.addEventListener("click", () => {
+      const g = SU_STEPS[b.dataset.guide] || APP_GUIDES[b.dataset.guide]?.[1], box = b.nextElementSibling, open = box.classList.contains("hidden");
+      $$(".suguide").forEach(x => x.classList.add("hidden")); $$(".sufile").forEach(x => x.setAttribute("aria-expanded", "false"));
+      if (!open || !g) return; box.innerHTML = `<ol>${g.map(t => `<li>${t}</li>`).join("")}</ol>`; box.classList.remove("hidden"); b.setAttribute("aria-expanded", "true");
+    }));
   }
   $("#setupBody").querySelector("input")?.focus?.();
 }
@@ -2925,6 +2930,15 @@ const APP_GUIDES = {
     "Drop it here. A spreadsheet you match once, by column; next time it is recognised."]],
   paper: ["a paper logbook", ["Scanned pages can't be read. Enter the totals from its last page under <b>Previous experience</b> in step 1."]]
 };
+// the import page's guides name its steps; in the setup everything is dropped in one place
+const SU_STEPS = { ecrew: ["In eCrew open <b>Reports</b>, then <b>Pilot LogBook report</b>. Set the period (up to 2 years at a time), press Go, then <b>Export</b> as CSV, Excel or PDF.", "Drop it here. For more than 2 years, drop one file per 2 years, all at once."],
+  crewbase: ["Drop the full backup (<b>.json</b>) here to restore everything, or the <b>crewbaselog-….csv</b> you downloaded."],
+  paper: ["Scanned pages can't be read. Tap <b>Paper logbook: enter its totals</b> below and copy the totals from its last page."] };
+// the setup's "Which files work?", most used first: [guide, name, what it reads]
+const SU_FILES = [["ecrew", "eCrew / AIMS", "Pilot LogBook report: CSV, Excel or PDF"], ["logten", "LogTen Pro", "Export Flights (Tab), or the logbook PDF"],
+  ["crewlounge", "CrewLounge PILOTLOG", "CSV or logbook PDF"], ["safelog", "Safelog", "CSV"], ["flylog", "Flylog", "CSV, or EASA / JAR logbook PDF"],
+  ["wader", "Wader Pilot Logbook", "EASA logbook PDF"], ["sheet", "Any other app or spreadsheet", "CSV, Excel or EASA logbook PDF: you match the columns once"],
+  ["crewbase", "CrewBase Log", "backup (.json) or CSV"], ["paper", "Paper logbook", "can't be read: enter its totals instead"]];
 function showAppGuide(k){
   const g = APP_GUIDES[k], box = $("#appGuide"); box.classList.toggle("hidden", !g); if (!g) return;
   box.innerHTML = `<b>From ${g[0]}</b><ol style="margin:6px 0 4px;padding-left:20px">${g[1].map(t => `<li>${t}</li>`).join("")}</ol>` +
