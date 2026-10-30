@@ -62,6 +62,7 @@ input:focus,select:focus{outline:2px solid color-mix(in srgb,var(--brand) 40%,tr
 .rollok{border:0;border-radius:8px;background:var(--brand);color:var(--on-brand);font:600 15px inherit;font-family:inherit;padding:5px 0;cursor:pointer}
 .nowbtn{display:block;width:100%;margin-top:5px;padding:5px 0;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--brand);font-family:inherit;font-size:12px;font-weight:600;cursor:pointer}.nowbtn:hover{background:var(--bg)}
 input.manual{color:var(--bad);border-color:var(--bad)}
+#allCard,#prevCard,#mapCard{scroll-margin-top:84px}
 .found{margin:12px 0 0;display:flex;flex-direction:column;gap:8px}.fnd{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg)}.fnd .chip{flex:none;white-space:nowrap}.fnd b{word-break:break-all}.fnd .hint{margin-top:2px;font-size:13.5px}
 .whatdrop{margin:14px 0 0}.whatdrop>summary{cursor:pointer;font-weight:600;font-size:14.5px;color:var(--brand)}.wd{border:1px solid var(--line);border-radius:10px;margin:8px 0 0;background:var(--surface)}.wd>summary{cursor:pointer;padding:10px 12px;display:flex;flex-direction:column;gap:2px;list-style:none}.wd>summary::-webkit-details-marker{display:none}.wd>summary .hint{font-size:13px}.wd[open]>summary{border-bottom:1px solid var(--line)}.wdbody{padding:10px 12px}.wdbody ol{margin:0;padding-left:20px;line-height:1.6;font-size:14px}.wdbody p{margin:0;font-size:14px}
 .timesum{display:flex;flex-wrap:wrap;gap:4px 18px;margin:10px 0 0;padding:8px 12px;border-radius:10px;background:var(--bg);border:1px solid var(--line);font-size:14px;color:var(--muted)}.timesum b{font-family:"JetBrains Mono",monospace;color:var(--ink);font-size:15px;margin-left:4px}
@@ -591,6 +592,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
       <p class="lead">Add your hours, drop your files, download your logbook. Everything is read in your browser; nothing is uploaded.</p>
 
       <div class="card" id="allCard">
+        <div class="notice hidden" id="nextDrop" style="margin:0 0 12px"><b>✓ Your profile is set up.</b> Next, your logbook: drop your past logbook, your airline export or your roster here. Not sure which file? Open What can I drop here? below. No logbook yet? <a href="#" data-go="add">Add your first flight</a>.</div>
         <h3>Drop your files</h3>
         <div class="drop" id="dropAll"><b>Drop your files here</b><br><span class="hint">or tap to choose · several at once is fine. We work out what each one is.</span>
           <input type="file" id="allFile" accept=".csv,.txt,.tsv,.xlsx,.xls,.pdf,.json,.zip" multiple class="hidden"></div>
@@ -1405,16 +1407,15 @@ document.addEventListener("click", async e => {
   if (e.target.closest("[data-noinstall]")) { store.set("cbl_noinstall", 1); renderHome(); }
   if (e.target.closest("[data-install]") && installEvt) { installEvt.prompt(); await installEvt.userChoice.catch(() => {}); installEvt = null; renderHome(); }
 });
-/* First run: a full-screen assistant, one question per screen. 1 name, 2 base airport (airline code and captain or first
-   officer too), 3 drop the logbook (or start fresh, or paper totals), then the result and the totals check. Which files
-   work is there to open, not asked. Skip setup or any page change closes it */
+/* First run: a full-screen assistant about the pilot, one screen each, everything skippable: 1 name, 2 base / airline /
+   role / registrations, 3 licence and its dates, 4 signature. Then it is done, and Your data opens for the next step:
+   dropping the logbook. Skip setup or any page change closes it */
 let suStep = 1, suPad = null;
-// steps: 1 name, 2 base / airline / role / registrations, 3 licence and its dates, 4 signature, 5 the logbook file, 6 the result
-const SU_LAST = 6;
+const SU_LAST = 4;
 function openSetup(step = 1){ suStep = step; renderSetup(); $("#setup").classList.remove("hidden"); document.body.classList.add("insetup"); }
 function closeSetup(done = true){ if ($("#setup").classList.contains("hidden")) return; $("#setup").classList.add("hidden"); document.body.classList.remove("insetup"); if (done) { data.onboarded = true; save(); } }
 function renderSetup(){
-  const p = data.profile, dots = `<div class="sudots">${[1, 2, 3, 4, 5, 6].map(n => `<i class="${n <= suStep ? "on" : ""}"></i>`).join("")}</div>`;
+  const p = data.profile, dots = `<div class="sudots">${[1, 2, 3, 4].map(n => `<i class="${n <= suStep ? "on" : ""}"></i>`).join("")}</div>`;
   const nav = (back, next) => `<div class="sunav">${back ? '<button class="btn ghost" type="button" data-su="back">‹ Back</button>' : "<span></span>"}${next ? `<span class="sunext">${suStep <= 4 ? '<button class="btn ghost" type="button" data-su="skipstep">Skip</button>' : ""}${next}</span>` : ""}</div>`;
   let h = "";
   if (suStep === 1) h = `<h2>Welcome to CrewBase Log</h2><p class="lead">Your logbook in two minutes. Everything here can be skipped and added later: Home shows what's still missing.</p>
@@ -1438,36 +1439,17 @@ function renderSetup(){
     ${data.signature ? `<p class="hint" style="margin:0 0 8px">Now: <img src="${data.signature}" alt="Your signature" style="height:40px;vertical-align:middle;background:#fff;border:1px solid var(--line);border-radius:6px;padding:2px 6px"> · draw below to replace it.</p>` : ""}
     <canvas id="suSig" class="sigpad" style="width:100%;height:150px"></canvas>
     <div class="row-actions" style="margin:8px 0 0"><button class="btn ghost small" type="button" id="suSigClear">Clear</button></div>` +
-    nav(true, '<button class="btn" type="button" data-su="next">Next ›</button>');
-  if (suStep === 5) h = `<h2>Drop your logbook</h2><p class="lead">From another app, a PDF logbook, a spreadsheet, an eCrew report or a CrewBase Log backup. It stays on this device.</p>
-    <div class="drop" id="suDrop"><b>Drop your file here</b><br><span class="hint">or tap to choose · several at once is fine</span><input type="file" id="suFile" accept=".csv,.txt,.tsv,.xlsx,.xls,.pdf,.json,.zip" multiple class="hidden"></div>
-    <p class="err" id="suErr" style="margin:10px 0 0"></p>
-    <details class="suinfo"><summary>Which files work?</summary><p class="hint" style="margin:8px 0 6px">Most used first. Tap one to see how to export it.</p>
-      <ol class="sulist">${SU_FILES.map(([k, name, what]) => `<li><button type="button" class="sufile" data-guide="${k}" aria-expanded="false"><b>${name}</b><span class="hint">${what}</span></button><div class="suguide hidden"></div></li>`).join("")}</ol></details>
-    <div class="sualt"><button class="btn ghost" type="button" data-su="paper">Paper logbook: enter its totals</button><button class="btn ghost" type="button" data-su="fresh">Start fresh, no logbook</button></div>` + nav(true, data.flights.length ? '<button class="btn" type="button" data-su="done">Done</button>' : "");
-  if (suStep === 6) h = `<h2>Your logbook is in</h2><div class="sumlog" id="suResult">${$("#impDoneLog").innerHTML}</div>` + nav(false, '<button class="btn" type="button" data-su="done">Done</button>');
+    nav(true, '<button class="btn" type="button" data-su="next">Finish setup ›</button>');
   $("#setupBody").innerHTML = dots + h;
   if (suStep === 2) loadAirports();   // to check the base airport
   if (suStep === 4) { suPad = makePad($("#suSig")); requestAnimationFrame(() => suPad.reset()); $("#suSigClear").addEventListener("click", () => suPad.reset()); }
-  if (suStep === 5) {
-    const d = $("#suDrop");
-    d.addEventListener("click", () => $("#suFile").click()); $("#suFile").addEventListener("change", e => { $("#suErr").textContent = ""; handleFiles(e.target.files); e.target.value = ""; });
-    ["dragenter", "dragover"].forEach(ev => d.addEventListener(ev, e => { e.preventDefault(); d.classList.add("over"); }));
-    ["dragleave", "drop"].forEach(ev => d.addEventListener(ev, e => { e.preventDefault(); d.classList.remove("over"); }));
-    d.addEventListener("drop", e => { $("#suErr").textContent = ""; handleFiles(e.dataTransfer.files); });
-    $$(".sufile").forEach(b => b.addEventListener("click", () => {
-      const g = SU_STEPS[b.dataset.guide] || APP_GUIDES[b.dataset.guide]?.[1], box = b.nextElementSibling, open = box.classList.contains("hidden");
-      $$(".suguide").forEach(x => x.classList.add("hidden")); $$(".sufile").forEach(x => x.setAttribute("aria-expanded", "false"));
-      if (!open || !g) return; box.innerHTML = `<ol>${g.map(t => `<li>${t}</li>`).join("")}</ol>`; box.classList.remove("hidden"); b.setAttribute("aria-expanded", "true");
-    }));
-  }
   $("#setupBody").querySelector("input")?.focus?.();
 }
 document.addEventListener("click", e => {
   const b = e.target.closest("[data-su]"); if (!b) return; const a = b.dataset.su, p = data.profile;
   if (a === "skip") { closeSetup(); return renderOverview(); }
   if (a === "back") { suStep = Math.max(1, suStep - 1); return renderSetup(); }
-  if (a === "skipstep") { suStep++; return renderSetup(); }
+  if (a === "skipstep") { if (suStep >= SU_LAST) return suDone(); suStep++; return renderSetup(); }
   if (a === "next" && suStep === 1) p.name = $("#suName").value.trim() || p.name || "";
   if (a === "next" && suStep === 2) {
     const base = $("#suBase").value.trim().toUpperCase(), airline = $("#suAirline").value.trim().toUpperCase(), why = codeProblem(base, airline);
@@ -1480,14 +1462,14 @@ document.addEventListener("click", e => {
       if (!it && v) data.expiries.unshift(it = { id, name, date: "", note: "" }); if (it) it.date = v; }
   }
   if (a === "next" && suStep === 4 && suPad?.inked()) data.signature = trimmedPNG($("#suSig"));
-  if (a === "next") { suStep++; save(); return renderSetup(); }
-  if (a === "fresh") { closeSetup(); return tab("add"); }
-  if (a === "paper") { closeSetup(); tab("import"); $("#prevBox").open = true; return requestAnimationFrame(() => $("#prevCard").scrollIntoView({ behavior: "smooth", block: "start" })); }
-  if (a === "done") { closeSetup(); tab("overview"); }
+  if (a === "next") { save(); if (suStep >= SU_LAST) return suDone(); suStep++; return renderSetup(); }
 });
+// set-up done: the next step is the logbook itself (Your data); with one already in, back Home
+function suDone(){
+  closeSetup(); if (data.flights.length || data.prev?.total) return tab("overview");
+  tab("import"); $("#nextDrop").classList.remove("hidden"); requestAnimationFrame(() => $("#allCard").scrollIntoView({ behavior: "smooth", block: "start" }));
+}
 // the import's outcome, while the assistant is open
-addEventListener("cbl:imported", () => { if ($("#setup").classList.contains("hidden")) return; suStep = 6; renderSetup(); });
-addEventListener("cbl:importerr", () => { if ($("#setup").classList.contains("hidden") || suStep !== 5) return; $("#suErr").innerHTML = $("#impErr").innerHTML; });
 // a backup brings its own profile: the toast says what came back, the home screen shows it
 addEventListener("cbl:restored", () => { if ($("#setup").classList.contains("hidden")) return; closeSetup(); tab("overview"); });
 // a file whose columns have to be matched: Your data takes over
@@ -1520,7 +1502,7 @@ function expBadge(){
 function setupItems(){
   const p = data.profile, med = data.expiries.find(e => e.id === "med");
   return [["Name", !!p.name, 1], ["Home base", !!p.base, 2], ["Registrations you fly", !!p.regs, 2], ["Licence type and number", !!(p.type && p.lic), 3],
-    ["Medical expiry date", !!med?.date, 3], ["Signature", !!data.signature, 4], ["Your logbook", !!(data.flights.length || data.prev?.total), 5]]
+    ["Medical expiry date", !!med?.date, 3], ["Signature", !!data.signature, 4]]
     .map(([label, done, step]) => ({ label, done, step }));
 }
 // top of Home: the set-up bar while something is missing, and the expiry dates that are due (60 days or less, or expired)
@@ -1556,7 +1538,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "30 Oct 2026 · 8";
+const APP_VERSION = "30 Oct 2026 · 9";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
@@ -2500,7 +2482,7 @@ function found(name, kind, html){
 }
 async function handleFiles(list){
   let files = [...(list || [])]; if (!files.length) return;
-  $("#dropFound").innerHTML = ""; $("#dropFound").classList.add("hidden");
+  $("#dropFound").innerHTML = ""; $("#dropFound").classList.add("hidden"); $("#nextDrop")?.classList.add("hidden");
   // a CrewBase Log full backup dropped here: restore it instead of importing
   for (const f of files.filter(f => /\.json$/i.test(f.name) && f.size < 50e6)) {
     const t = await f.text().catch(() => "");
@@ -3077,16 +3059,6 @@ const APP_GUIDES = {
     "Drop it here. A spreadsheet you match once, by column; next time it is recognised."]],
   paper: ["a paper logbook", ["Scanned pages can't be read. Enter the totals from its last page under <b>Previous experience</b> on Your data."]]
 };
-// the import page's guides name its steps; in the setup everything is dropped in one place
-const SU_STEPS = { roster: ["In eCrew: More → Personal Crew Schedule → Create → choose the dates → Go. Or on the eCrew website: Crew Schedule → My Schedule → Print.", "Drop the PDF here: it goes to Crew Base, and the flights you fly from it show on the home screen, ready to log."],
-  ecrew: ["In eCrew open <b>Reports</b>, then <b>Pilot LogBook report</b>. Set the period (up to 2 years at a time), press Go, then <b>Export</b> as CSV, Excel or PDF.", "Drop it here. For more than 2 years, drop one file per 2 years, all at once."],
-  crewbase: ["Drop the full backup (<b>.json</b>) here to restore everything, or the <b>crewbaselog-….csv</b> you downloaded."],
-  paper: ["Scanned pages can't be read. Tap <b>Paper logbook: enter its totals</b> below and copy the totals from its last page."] };
-// the setup's "Which files work?", most used first: [guide, name, what it reads]
-const SU_FILES = [["ecrew", "eCrew / AIMS", "Pilot LogBook report: CSV, Excel or PDF"], ["logten", "LogTen Pro", "Export Flights (Tab), or the logbook PDF"],
-  ["crewlounge", "CrewLounge PILOTLOG", "CSV or logbook PDF"], ["safelog", "Safelog", "CSV"], ["flylog", "Flylog", "CSV, or EASA / JAR logbook PDF"],
-  ["wader", "Wader Pilot Logbook", "EASA logbook PDF"], ["sheet", "Any other app or spreadsheet", "CSV, Excel or EASA logbook PDF: you match the columns once"],
-  ["crewbase", "CrewBase Log", "backup (.json) or CSV"], ["roster", "AIMS roster", "Personal Crew Schedule PDF: goes to Crew Base"], ["paper", "Paper logbook", "can't be read: enter its totals instead"]];
 function showAppGuide(k){
   const g = APP_GUIDES[k], box = $("#appGuide"); box.classList.toggle("hidden", !g); if (!g) return;
   box.innerHTML = `<b>From ${g[0]}</b><ol style="margin:6px 0 4px;padding-left:20px">${g[1].map(t => `<li>${t}</li>`).join("")}</ol>` +
