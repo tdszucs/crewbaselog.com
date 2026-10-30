@@ -568,13 +568,6 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
         <div class="tablewrap"><table><thead><tr><th>Type</th><th class="r">Flights</th><th>Flown as</th></tr></thead><tbody id="acRows"></tbody></table></div>
         <div class="field" style="max-width:360px;margin:14px 0 0"><label for="acDefault">Types not on the list</label><select id="acDefault"></select><div class="hint">Used for new types until you set them here.</div></div>
       </div>
-      <!-- the site owner's account only: back to a brand-new account, for testing -->
-      <div class="card danger-zone hidden" id="wipeCard">
-        <h3 class="dz-title">Debug: wipe everything</h3>
-        <p class="hint step-sub">Only on your account. Deletes every flight, your profile, signature, expiries, previous experience, import checks, the half-entered flight and your Crew Base roster and friends (on this device and on the server), then starts again with the setup, like a new pilot.</p>
-        <button class="btn danger small" type="button" id="wipeBtn">Wipe everything</button>
-        <p class="err" id="wipeMsg"></p>
-      </div>
     </div>
 
     <!-- your data: import + export -->
@@ -876,6 +869,13 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
         <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 10px"><h3 style="margin:0">Activity</h3>
           <div style="display:flex;gap:8px;flex-wrap:wrap"><select id="adWho" style="width:auto;max-width:240px"><option value="">Everyone</option></select><select id="adWhat" style="width:auto"><option value="">All actions</option></select></div></div>
         <div class="tablewrap" id="adLog"></div><p class="hint" id="adMore"></p>
+      </div>
+      <!-- the site owner's account only: back to a brand-new account, for testing -->
+      <div class="card danger-zone hidden" id="wipeCard">
+        <h3 class="dz-title">Debug: wipe everything</h3>
+        <p class="hint step-sub">Only on your account, for testing. Deletes every flight, your profile, signature, expiries, previous experience, import checks, the half-entered flight and your Crew Base roster and friends (on this device and on the server), then starts again with the setup, like a new pilot.</p>
+        <button class="btn danger small" type="button" id="wipeBtn">Wipe everything</button>
+        <p class="err" id="wipeMsg"></p>
       </div>
     </div>
     </div>
@@ -1196,6 +1196,7 @@ const AD_EV = {
 let adData = null;
 async function renderAdmin(force){
   if (!isAdmin()) return;
+  $("#wipeCard").classList.remove("hidden");
   const db = Auth.db(), err = $("#adErr"); err.textContent = "";
   if (!adData || force) {
     $("#adTiles").innerHTML = '<p class="hint">Loading…</p>';
@@ -1563,7 +1564,6 @@ $("#wipeBtn").addEventListener("click", async () => {
   location.hash = ""; location.reload();
 });
 function renderProfile(){
-  $("#wipeCard").classList.toggle("hidden", !isAdmin());
   renderAcTypes();
   for (const [id,k] of Object.entries(PF)) $("#"+id).value = data.profile[k] || ""; $("#profSaved").textContent = "";
   $("#pRole").value = data.profile.role || "PIC"; $("#pIfr").checked = data.profile.autoIfr !== false; $("#pUsage").checked = data.profile.usage !== false; $("#pApt").value = data.profile.apt || ""; $("#pAptMsg").textContent = ""; $("#pNight").checked = data.profile.autoNight !== false; $("#pApplyMsg").textContent = "";
