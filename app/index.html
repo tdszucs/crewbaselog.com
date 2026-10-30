@@ -57,6 +57,7 @@ input:focus,select:focus{outline:2px solid color-mix(in srgb,var(--brand) 40%,tr
 .sugbox{position:absolute;left:0;top:100%;min-width:100%;width:max-content;max-width:min(330px,calc(100vw - 32px));z-index:20;margin-top:4px;background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.18);max-height:300px;overflow:auto}
 .sugbox button{display:flex;width:100%;justify-content:space-between;gap:14px;white-space:nowrap;align-items:baseline;background:none;border:0;border-bottom:1px solid var(--line);padding:11px 12px;font:inherit;font-size:15px;color:var(--ink);text-align:left;cursor:pointer}
 .sugbox button:last-child{border-bottom:0}.sugbox button:hover,.sugbox button.on{background:var(--bg)}
+.nowbtn{display:block;width:100%;margin-top:5px;padding:5px 0;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--brand);font-family:inherit;font-size:12px;font-weight:600;cursor:pointer}.nowbtn:hover{background:var(--bg)}
 .aptwrap{position:relative;display:block}.aptflag{position:absolute;right:12px;top:50%;transform:translateY(-50%);font-size:18px;line-height:1;pointer-events:none}input.hasflag{padding-right:40px}
 .sugbox button.apt{flex-wrap:wrap;row-gap:2px}.sugbox button.apt small{flex-basis:100%;white-space:normal;color:var(--muted);font-size:13px;line-height:1.3}
 .sugbox b{font-family:"JetBrains Mono",monospace;font-weight:600}.sugbox span{color:var(--muted);font-size:13px;text-align:right}
@@ -3527,6 +3528,14 @@ document.addEventListener("focusout", e => {
   const el = e.target; if (!DUR_BOX.test(el.id || "") || !el.value.trim()) return;
   const m = parseDur(el.value), t = m || /^0*:?0*$/.test(el.value.trim()) ? fmtMin(m) : el.value; if (t !== el.value) { el.value = t; el.dispatchEvent(new Event("input", { bubbles: true })); }
 });
+// "Now" under a time box: the time this minute in UTC (and today's UTC date, while the date is empty)
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-now]"); if (!b) return;
+  const i = $("#" + b.dataset.now), pre = b.dataset.now.slice(0, 2), now = new Date().toISOString();
+  const d = $("#" + pre + "date"); if (d && !d.value) { d.value = now.slice(0, 10); d.dispatchEvent(new Event("input", { bubbles: true })); }
+  i.value = now.slice(11, 16); i.dataset.ok = i.value; i.classList.remove("bad");
+  i.dispatchEvent(new Event("input", { bubbles: true })); i.dispatchEvent(new Event("change", { bubbles: true }));
+});
 // a block or flight time typed in full (0210 or 02:10) goes on to the next box: off-block → take-off → landing → on-block → aircraft type
 document.addEventListener("input", e => {
   const m = (e.target.id || "").match(/^(n_|e_)(out|off|on|in)$/); if (!m || !(e.inputType || "").startsWith("insert")) return;
@@ -3759,7 +3768,7 @@ function flightFieldsHTML(pre, f = {}){
     `<div class="relshare${pfOn === "rel" ? "" : " hidden"}" id="${pre}relShare"><span style="width:100%">Log a share of the block time:</span>${[["1/2", "½"], ["1/3", "⅓"], ["2/3", "⅔"]].map(([v, l]) => `<button type="button" class="btn ghost small" data-share="${v}" aria-pressed="false">${l}</button>`).join("")}` +
     `<div class="hint" style="width:100%">Changes the total, function, night and IFR times together. Or type your actual seat time in Total time.</div></div></div>`;
   // off-block, take-off, landing, on-block always side by side in one row, on any screen; then the pilot flying / monitoring / relief switch
-  const times = `<div class="field wide"><div class="times">${LB_TIME.map(k => `<div><label for="${pre}${k}">${{ out: "Off-block", off: "Take-off", on: "Landing", in: "On-block" }[k]}</label>${input(k)}</div>`).join("")}</div><p class="err hidden" id="${pre}timeErr" role="alert" style="margin:6px 0 0"></p></div>` + pfSeg +
+  const times = `<div class="field wide"><div class="times">${LB_TIME.map(k => `<div><label for="${pre}${k}">${{ out: "Off-block", off: "Take-off", on: "Landing", in: "On-block" }[k]}</label>${input(k)}<button type="button" class="nowbtn" data-now="${pre}${k}" title="The time now, in UTC">Now</button></div>`).join("")}</div><p class="err hidden" id="${pre}timeErr" role="alert" style="margin:6px 0 0"></p></div>` + pfSeg +
     `<div class="field wide hidden" id="${pre}retNote"></div><div class="field wide hidden" id="${pre}gsNote"></div>`;
   const box = k => k === "date" ? `<span class="datewrap">${input(k)}</span>` : k === "from" || k === "to" ? `<span class="aptwrap">${input(k)}<span class="aptflag" id="${pre}${k}Flag" aria-hidden="true"></span></span>` : LOG_KEYS.includes(k) ? `<span class="logwrap">${input(k)}<button type="button" class="logbtn hidden" data-logfill="${pre}${k}"></button></span>` : input(k);
   const first = ["date", "flightNo", "acType", "reg", "from", "to"], order = [...first.map(k => FIELDS.find(x => x[0] === k)), ...FIELDS.filter(([k]) => !first.includes(k) && !LB_TIME.includes(k))];
