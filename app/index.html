@@ -57,6 +57,7 @@ input:focus,select:focus{outline:2px solid color-mix(in srgb,var(--brand) 40%,tr
 .sugbox{position:absolute;left:0;top:100%;min-width:100%;width:max-content;max-width:min(330px,calc(100vw - 32px));z-index:20;margin-top:4px;background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.18);max-height:300px;overflow:auto}
 .sugbox button{display:flex;width:100%;justify-content:space-between;gap:14px;white-space:nowrap;align-items:baseline;background:none;border:0;border-bottom:1px solid var(--line);padding:11px 12px;font:inherit;font-size:15px;color:var(--ink);text-align:left;cursor:pointer}
 .sugbox button:last-child{border-bottom:0}.sugbox button:hover,.sugbox button.on{background:var(--bg)}
+.aptwrap{position:relative;display:block}.aptflag{position:absolute;right:12px;top:50%;transform:translateY(-50%);font-size:18px;line-height:1;pointer-events:none}input.hasflag{padding-right:40px}
 .sugbox button.apt{flex-wrap:wrap;row-gap:2px}.sugbox button.apt small{flex-basis:100%;white-space:normal;color:var(--muted);font-size:13px;line-height:1.3}
 .sugbox b{font-family:"JetBrains Mono",monospace;font-weight:600}.sugbox span{color:var(--muted);font-size:13px;text-align:right}
 .hint{font-size:12.5px;color:var(--muted);margin-top:4px}
@@ -2028,6 +2029,28 @@ function loadAptNames(){
     APT_LIST = L; APT_NAME = {}; for (const r of L) { if (r[0]) APT_NAME[r[0]] ||= r; APT_NAME[r[1]] ||= r; }
     if (!L.length) aptNamesP = null; return L; });
 }
+// a country's flag from its two-letter code (emoji: regional indicator letters)
+const flagOf = cc => /^[A-Z]{2}$/.test(cc || "") ? String.fromCodePoint(...[...cc].map(ch => 0x1F1A5 + ch.charCodeAt(0))) : "";
+// the country: from the airport list, else (a small airfield) from its ICAO prefix (LH → Hungary, K → United States)
+let ICAO_CC = null;
+function icaoCountry(c){
+  if (!/^[A-Z]{4}$/.test(c) || !APT_LIST) return "";
+  if (!ICAO_CC) { const n = {}; for (const r of APT_LIST) if (r[0] && r[4]) for (const p of [r[0].slice(0, 2), r[0][0]]) { const m = n[p] ||= {}; m[r[4]] = (m[r[4]] || 0) + 1; }
+    ICAO_CC = {}; for (const [p, m] of Object.entries(n)) { const [[cc, k]] = Object.entries(m).sort((a, b) => b[1] - a[1]), all = Object.values(m).reduce((s, x) => s + x, 0); if (k / all > 0.9) ICAO_CC[p] = cc; } }
+  return ICAO_CC[c.slice(0, 2)] || ICAO_CC[c[0]] || "";
+}
+const aptCountry = c => APT_NAME?.[c]?.[4] || APT_NAME?.[aptAlt()[c]]?.[4] || (AIRPORTS?.[c] ? icaoCountry(c) : "");
+// the flag beside an airport once its code is complete
+function aptFlags(pre){
+  for (const k of ["from", "to"]) {
+    const i = $("#" + pre + k), f = $("#" + pre + k + "Flag"); if (!i || !f) continue;
+    // 3 letters while still typing may be the start of an ICAO code (OMA… for OMAA): its flag waits until the box is left
+    const c = i.value.trim().toUpperCase(), cc = c.length === 4 || (c.length === 3 && document.activeElement !== i) ? aptCountry(c) : "";
+    f.textContent = flagOf(cc); f.title = cc ? aptName(c) || aptName(aptAlt()[c]) : ""; i.classList.toggle("hasflag", !!cc);
+  }
+}
+document.addEventListener("focusout", e => { const m = (e.target.id || "").match(/^(n_|e_)(from|to)$/); if (m) setTimeout(() => aptFlags(m[1])); });
+document.addEventListener("input", e => { const m = (e.target.id || "").match(/^(n_|e_)(from|to)$/); if (m) Promise.all([loadAirports(), loadAptNames()]).then(() => aptFlags(m[1])); });
 const aptName = c => { const r = APT_NAME?.[c]; return r ? r[2] + (r[3] ? `, ${r[3]}` : "") + (r[4] ? ` · ${r[4]}` : "") : ""; };
 async function loadAirports(){
   if (AIRPORTS) return AIRPORTS;
@@ -2942,6 +2965,7 @@ function renderYourData(){
 // adding a flight by hand lives on the Logbook tab, behind a button: most airline pilots import everything
 function openAddForm(){
   if (!$("#addFields").children.length) { addFormReset(); restoreDraft(); }
+  Promise.all([loadAirports(), loadAptNames()]).then(() => aptFlags("n_"));
   loadAirports().then(renderAddPreview);
 }
 /* a flight half entered is kept on this device, so it is still there when the phone reloads the page (switching apps on an iPhone) */
@@ -3189,7 +3213,7 @@ function flightSuggest(pre, k){
       for (const r of [...byCode, ...byName]) { const v = show(r); if (!v || seen.has(r[0]) || seen.has(r[1])) continue; seen.add(r[0]); seen.add(r[1]); list.push({ v, note: "" }); if (list.length >= 40) break; }
     }
     if (val.length >= 3 && AIRPORTS && !list.some(o => o.v === sty(val) || alt(o.v) === val)) { const c = AIRPORTS[val] ? sty(val) : ""; if (c) list.push({ v: c, note: "airfield" }); }
-    return list.slice(0, 40).map(o => ({ ...o, label: o.v + (alt(o.v) ? ` · ${alt(o.v)}` : ""), name: aptName(o.v) || aptName(alt(o.v)) }));
+    return list.slice(0, 40).map(o => ({ ...o, label: o.v + (alt(o.v) ? ` · ${alt(o.v)}` : ""), name: (f => f ? f + " " : "")(flagOf(aptCountry(o.v) || aptCountry(alt(o.v)))) + (aptName(o.v) || aptName(alt(o.v))) }));
   }
   // total and function times: the block time worked out from off-block and on-block (and the total, once entered)
   if (FN_KEYS.includes(k)) {
@@ -3712,7 +3736,7 @@ function flightFieldsHTML(pre, f = {}){
   // off-block, take-off, landing, on-block always side by side in one row, on any screen; then the pilot flying / monitoring / relief switch
   const times = `<div class="field wide"><div class="times">${LB_TIME.map(k => `<div><label for="${pre}${k}">${{ out: "Off-block", off: "Take-off", on: "Landing", in: "On-block" }[k]}</label>${input(k)}</div>`).join("")}</div><p class="err hidden" id="${pre}timeErr" role="alert" style="margin:6px 0 0"></p></div>` + pfSeg +
     `<div class="field wide hidden" id="${pre}retNote"></div><div class="field wide hidden" id="${pre}gsNote"></div>`;
-  const box = k => k === "date" ? `<span class="datewrap">${input(k)}</span>` : LOG_KEYS.includes(k) ? `<span class="logwrap">${input(k)}<button type="button" class="logbtn hidden" data-logfill="${pre}${k}"></button></span>` : input(k);
+  const box = k => k === "date" ? `<span class="datewrap">${input(k)}</span>` : k === "from" || k === "to" ? `<span class="aptwrap">${input(k)}<span class="aptflag" id="${pre}${k}Flag" aria-hidden="true"></span></span>` : LOG_KEYS.includes(k) ? `<span class="logwrap">${input(k)}<button type="button" class="logbtn hidden" data-logfill="${pre}${k}"></button></span>` : input(k);
   return FIELDS.filter(([k]) => !LB_TIME.includes(k)).map(([k, label]) => `<div class="field${k === "remarks" ? " wide" : ""}"><label for="${pre}${k}">${label}</label>${box(k)}</div>` + (k === "to" ? times : "") +
     (k === "ldgNight" ? `<div class="field wide err hidden" id="${pre}clash" role="alert" style="margin:0"></div>` : "")).join("");
 }
@@ -3758,7 +3782,7 @@ $("#lbSigClear").addEventListener("click", () => lbPad.reset());
 function lbOpenEdit(i){
   const f = data.flights[i]; if (!f) return; lbEditing = f; lbSigDrop = false;
   $("#lbEditFields").innerHTML = isSim(f) ? simFieldsHTML("e_", f) : flightFieldsHTML("e_", f);
-  if (!isSim(f)) loadAirports().then(() => logBtns("e_"));
+  if (!isSim(f)) { loadAirports().then(() => logBtns("e_")); Promise.all([loadAirports(), loadAptNames()]).then(() => aptFlags("e_")); }
   lbShowSig(); requestAnimationFrame(() => lbPad.reset()); loadAirports().then(() => gsCheck("e_"));
   $("#lbEditTitle").textContent = (isSim(f) ? "Edit simulator session: " : "Edit flight: ") + flightLabel(f); $("#lbEditErr").textContent = "";
   $("#lbEdit").classList.remove("hidden"); $("#lbEdit").scrollIntoView({ behavior: "smooth", block: "start" }); $("#e_date").focus({ preventScroll: true });
