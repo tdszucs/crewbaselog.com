@@ -732,7 +732,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
       <h2>Add a flight</h2>
       <p class="lead">A flight or simulator session that isn't in any file. Your flights are on the <a href="#" data-go="logbook">Logbook</a> page.</p>
       <div class="card" id="addBlock">
-      <form id="addForm">
+      <form id="addForm" novalidate>
         <div class="seg" role="radiogroup" aria-label="What to add"><label><input type="radio" name="addKind" value="flight" checked> Flight</label><label><input type="radio" name="addKind" value="sim"> Simulator session</label></div>
         <p class="hint" style="margin:0 0 14px;font-size:14px">For a flight that isn't in any file. Times in UTC. Leave PIC/co-pilot, night and IFR empty to have them filled in from your <a href="#" data-go="profile">profile</a>. The preview shows the line exactly as it will appear in your EASA logbook.</p>
         <div class="lbgrid" id="addFields"></div>
@@ -747,7 +747,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
       <div class="stats" id="lbStats"></div>
       <div class="row-actions" style="margin:0 0 16px"><button class="btn" type="button" data-go="add">+ Add a flight</button><span class="hint lbhint" style="margin:0;font-size:14px">For a flight or simulator session that isn't in any file.</span></div>
       <div class="card">
-        <form class="notice hidden" id="lbEdit" style="margin:0 0 14px;background:var(--bg);border-color:var(--line)">
+        <form class="notice hidden" id="lbEdit" style="margin:0 0 14px;background:var(--bg);border-color:var(--line)" novalidate>
           <h3 style="margin:0 0 12px" id="lbEditTitle">Edit flight</h3>
           <div class="lbgrid" id="lbEditFields"></div>
           <p class="hint" style="margin:0 0 10px">Change the date, airports or block times and night time is worked out again (total, PIC/co-pilot and IFR follow the block time too). A value you change yourself is kept.</p>
@@ -1533,7 +1533,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "30 Oct 2026 · 11";
+const APP_VERSION = "30 Oct 2026 · 13";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
@@ -3021,7 +3021,7 @@ const draftKey = () => "cbl_draft_" + (user?.id || "");
 function saveDraft(){
   try { const v = {}; for (const el of $$("#addFields [id^=n_]")) if (el.type === "checkbox" ? el.checked : el.value) v[el.id.slice(2)] = el.type === "checkbox" ? true : el.value;
     const pf = pfOf("n_"); if (pf) v._pf = pf; const rs = $("#n_relShare")?.dataset; if (rs?.share) Object.assign(v, { _share: rs.share, _keys: rs.keys || "", _full: rs.full || "" }); if ($("#n_total")?.dataset.auto) v._auto = 1; v._kind = addSim() ? "sim" : "flight";
-    if (Object.keys(v).some(k => !k.startsWith("_") && !(k === "flightNo" && v[k] === data.profile.airline))) localStorage.setItem(draftKey(), JSON.stringify(v)); else localStorage.removeItem(draftKey()); } catch {}
+    if (Object.keys(v).some(k => !k.startsWith("_") && !(k === "flightNo" && v[k] === data.profile.airline) && !(k === "date" && v[k] === logToday()))) localStorage.setItem(draftKey(), JSON.stringify(v)); else localStorage.removeItem(draftKey()); } catch {}
 }
 const dropDraft = () => { try { localStorage.removeItem(draftKey()); } catch {} };
 function restoreDraft(){
@@ -3340,6 +3340,10 @@ document.addEventListener("focusin", e => {
   if (!/^(n_|e_)flightNo$/.test(e.target.id || "") || !data.profile.airline) return;
   if (!e.target.value) e.target.value = data.profile.airline;
   if (e.target.value === data.profile.airline) requestAnimationFrame(() => { try { e.target.setSelectionRange(99, 99); } catch {} });
+});
+document.addEventListener("focusout", e => {
+  const el = e.target; if (!/^(n_|e_)reg$/.test(el.id || "")) return;
+  const d = regDash(el.value.trim()); if (d && d !== el.value) { el.value = d; el.dispatchEvent(new Event("input", { bubbles: true })); }
 });
 // a new flight's Registration box starts with the pilot's registration start, when there is just one (A7-, G-, D-AI)
 document.addEventListener("focusin", e => {
@@ -3726,18 +3730,26 @@ document.addEventListener("click", e => {
   const sel = $("#" + b.dataset.ldg); sel.value = "1"; b.remove(); sel.dispatchEvent(new Event("input", { bubbles: true })); sel.dispatchEvent(new Event("change", { bubbles: true }));   // change: pilot flying
 });
 document.addEventListener("keydown", e => { if (e.key === "Escape") hideSuggest(); });
-// pointerdown (not click), so the field keeps its focus and the keyboard stays up while choosing
+// pointerdown is held back, so the field keeps its focus and the keyboard stays up while choosing; the choice is made on
+// the click, the last event of a tap (made earlier, the next field's list would open under the finger and take the tap)
 document.addEventListener("pointerdown", e => {
   const b = e.target.closest(".sugbox button");
   if (!b) { if (!e.target.closest(".sugwrap")) hideSuggest(); return; }
   e.preventDefault();
-  const box = b.closest(".sugbox"), o = box._list[+b.dataset.sug], inp = box._inp, pre = inp.id.slice(0, 2);
+});
+document.addEventListener("mousedown", e => { if (e.target.closest(".sugbox button")) e.preventDefault(); });
+document.addEventListener("click", e => {
+  const b = e.target.closest(".sugbox button"); if (!b) return;
+  e.preventDefault();
+  const box = b.closest(".sugbox");
+  const o = box._list[+b.dataset.sug], inp = box._inp, pre = inp.id.slice(0, 2);
   inp.value = o.v;
   // a roster departure also brings its flight number, if none was typed
   const fn = $("#" + pre + "flightNo"); if (o.leg?.no && fn && (!fn.value || fn.value.toUpperCase() === data.profile.airline)) fn.value = withAirline(o.leg.no);
-  inp.dispatchEvent(new Event("input", { bubbles: true })); hideSuggest();
-  // next field: From → To, type → registration
-  const next = { from: "to", acType: "reg" }[inp.id.slice(2)]; if (next && !$("#" + pre + next).value) $("#" + pre + next).focus();
+  inp.dispatchEvent(new Event("input", { bubbles: true }));
+  box.remove();
+  // next field: type → registration → From → To → off-block
+  const next = { acType: "reg", reg: "from", from: "to", to: "out" }[inp.id.slice(2)]; if (next && !$("#" + pre + next).value) $("#" + pre + next).focus();
 });
 
 /* ---------- statistics (hours for job applications) ---------- */
@@ -3885,6 +3897,7 @@ const flightLabel = f => (isSim(f) ? `${fmtDate(f.date)} simulator ${f.fstdType 
 // the flight form (edit on the Logbook tab, add on Your data); ids are prefix + field key
 function flightFieldsHTML(pre, f = {}){
   if (pre === "n_" && !f.flightNo && data.profile.airline) f = { ...f, flightNo: data.profile.airline };
+  if (pre === "n_" && !f.date) f = { ...f, date: logToday() };   // today; one tap on the date changes it
   const v = k => LB_DUR.includes(k) ? (f[k] ? fmtMin(f[k]) : "") : k.startsWith("ldg") ? (f[k] || "") : f[k] ?? "";
   // landings: a picker (the wheel on an iPhone). While empty a cover sits on it: the first tap puts 1 in, the next opens the wheel
   const ldg = k => { const cur = +v(k) || 0, max = Math.max(50, cur);
@@ -3914,6 +3927,7 @@ function flightFieldsHTML(pre, f = {}){
 }
 // a simulator session: EASA FSTD columns (date, type, session time) and remarks
 function simFieldsHTML(pre, f = {}){
+  if (pre === "n_" && !f.date) f = { ...f, date: logToday() };
   return `<div class="field"><label for="${pre}date">Date</label><span class="datewrap"><input id="${pre}date" type="date" required max="${logToday()}" value="${esc(f.date || "")}"></span></div>
     <div class="field"><label for="${pre}fstdType">FSTD type</label><input id="${pre}fstdType" placeholder="e.g. B787 FFS" value="${esc(f.fstdType || "")}"></div>
     <div class="field"><label for="${pre}fstdTime">Session time</label><input id="${pre}fstdTime" class="mono" placeholder="H:MM" value="${f.fstdTime ? fmtMin(f.fstdTime) : ""}"></div>
@@ -3926,6 +3940,11 @@ function readSimForm(pre, base = {}){
     fstdType: g("fstdType").toUpperCase(), fstdTime: parseDur(g("fstdTime")), remarks: g("remarks") };
   const err = !/^\d{4}-\d{2}-\d{2}$/.test(f.date) ? "Check: Date." : f.date > logToday() ? FUTURE_MSG : notFlown(f) ? NOT_YET_MSG : !f.fstdTime ? "Enter the session time as H:MM, e.g. 4:00." : "";
   return { f, err };
+}
+// a new flight needs its route and its time: From, To, and off-block and on-block (or a total time)
+function newMissing(f){
+  const m = [!f.from && "From", !f.to && "To", !f.total && !f.out && "off-block", !f.total && !f.in && "on-block"].filter(Boolean);
+  return m.length ? `Add ${m.join(", ").replace(/, ([^,]*)$/, " and $1")}.` : "";
 }
 // -> { f, err } ; f is base plus the form's values
 function readFlightForm(pre, base = {}){
@@ -3940,8 +3959,9 @@ function readFlightForm(pre, base = {}){
   for (const k of LB_DUR) { f[k] = parseDur(g(k)); if (g(k) && !f[k] && !/^0*[:.]?0*$/.test(g(k))) bad.push(k); }
   for (const k of ["ldgDay","ldgNight"]) f[k] = Math.max(0, parseInt(g(k)) || 0);
   if (!f.total && f.out && f.in) f.total = tdiff(f.out, f.in);
-  const err = bad.length ? "Check: " + bad.map(k => FIELDS.find(x => x[0] === k)[1]).join(", ") + ". Times of day 00:00 to 23:59 (HH:MM), durations as H:MM."
-    : f.date > logToday() ? FUTURE_MSG : notFlown(f) ? NOT_YET_MSG : !valid(f) ? "A flight needs a date and a route or total time." : clashNew(f, pre === "e_" ? base : null)[0]?.msg || "";
+  const err = bad.length === 1 && bad[0] === "date" ? (g("date") ? "Check the date." : "Add the date.")
+    : bad.length ? "Check: " + bad.map(k => FIELDS.find(x => x[0] === k)[1]).join(", ") + ". Times of day 00:00 to 23:59 (HH:MM), durations as H:MM."
+    : f.date > logToday() ? FUTURE_MSG : notFlown(f) ? NOT_YET_MSG : !valid(f) ? "A flight needs a date and a route or total time." : (pre === "n_" && newMissing(f)) || clashNew(f, pre === "e_" ? base : null)[0]?.msg || "";
   return { f, err };
 }
 const lbPad = makePad($("#lbSigPad")); let lbSigDrop = false;
