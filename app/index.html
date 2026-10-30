@@ -110,6 +110,10 @@ h2{font-size:24px;letter-spacing:-.02em;margin:0 0 6px}
 .fixline .rowbtn.sug{border-color:var(--accent);color:var(--accent)}
 .fixline .rowbtn.del{color:var(--bad)}
 .fixline .rowbtn:hover{text-decoration:none;background:var(--bg)}
+.sumlog{font-size:15px;line-height:1.5}.sumlog > div{margin:0 0 8px}.sumlog .hint{font-size:13.5px;margin:2px 0 0}
+.mmtab{width:100%;min-width:0;border-collapse:collapse;font:inherit;font-size:14px;margin:0}
+.mmtab th,.mmtab td{padding:5px 4px;font:inherit;text-transform:none;letter-spacing:0;white-space:nowrap;border:0;border-bottom:1px solid var(--line);background:none}
+.mmtab th{font-size:12.5px;color:var(--muted);font-weight:600}.mmtab td:first-child{white-space:normal}
 .fixnote{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:12px 0 0}
 .pvgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0 14px}
 @media (max-width:640px){ .pvgrid{grid-template-columns:repeat(2,minmax(0,1fr))} }
@@ -569,7 +573,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
       </div>
       <div class="card hidden" id="impDone">
         <h3>Your logbook is up to date</h3>
-        <div id="impDoneLog" class="hint" style="font-size:14px;margin:0"></div>
+        <div id="impDoneLog" class="sumlog"></div>
       </div>
 
 
@@ -1782,7 +1786,7 @@ const dupKey = f => [f.date, aptKey(f.from), aptKey(f.to), f.out || f.flightNo, 
    times may be printed as "3 21", "58" (minutes) or "3:21". -> { flights, prev, check } or null */
 const EASA_PREV = ["se","me","mp","total","ldgDay","ldgNight","night","ifr","pic","copilot","dual","instructor","fstd"];
 /* EASA / JAR logbook printed with the whole line on one page (Flylog): the bottom heading line
-   (PLACE TIME PLACE TIME TYPE REG SE ME [take-offs] landings NIGHT IFR PIC COP DUAL INSTR TYPE TIME) and the
+   (PLACE TIME PLACE TIME TYPE REG SE ME [take-offs] landings NIGHT IFR PIC [PICUS] COP DUAL INSTR TYPE TIME) and the
    DATE, MULTI PILOT, TOTAL, PIC NAME and REMARKS headings above it place the columns; names may wrap onto a
    second line, so every word goes to the nearest dated line. Pages: [{ W: words { s, x, w, c, y top-down } }] */
 function parseOnePageLogbook(pages){
@@ -1798,7 +1802,7 @@ function parseOnePageLogbook(pages){
     for (const w of line) {
       const k = w.s === "PLACE" ? (places++ ? "to" : "from") : w.s === "TIME" ? ["out", "in", "fstdTime"][times++] : w.s === "TYPE" ? (types++ ? "fstdType" : "acType") :
         w.s === "REG" ? "reg" : w.s === "SE" ? "se" : w.s === "ME" ? "me" : /^(DAY|NIGHT|NGT)$/.test(w.s) && dn < (takeoffs ? 4 : 2) ? ["d", "n", "d", "n"][dn++] :
-        w.s === "NIGHT" ? "night" : w.s === "IFR" ? "ifr" : w.s === "PIC" ? "pic" : w.s === "COP" ? "copilot" : w.s === "DUAL" ? "dual" : w.s === "INSTR" ? "instructor" : "";
+        w.s === "NIGHT" ? "night" : w.s === "IFR" ? "ifr" : w.s === "PIC" ? "pic" : w.s === "PICUS" ? "picus" : w.s === "COP" ? "copilot" : w.s === "DUAL" ? "dual" : w.s === "INSTR" ? "instructor" : "";
       if (k === "d" || k === "n") { if (!takeoffs || dn > 2) C.push({ k: k === "d" ? "ldgDay" : "ldgNight", c: w.c }); else C.push({ k: "", c: w.c }); }
       else if (k) C.push({ k, c: w.c });
     }
@@ -1827,8 +1831,10 @@ function parseOnePageLogbook(pages){
         night: 0, ifr: 0, ldgDay: 0, ldgNight: 0, fstdTime: fst, fstdType: txt(r.c.fstdType).toUpperCase(), remarks: txt(r.c.remarks) }); continue; }
       const clock = k => (r.c[k] || []).map(w => w.s).find(s => /^\d{1,2}:\d{2}$/.test(s)) || "";
       const f = { date: day, flightNo: "", from: txt(r.c.from).toUpperCase(), to: txt(r.c.to).toUpperCase(), out: clock("out").padStart(5, "0"), off: "", on: "", in: clock("in").padStart(5, "0"),
-        acType: acTypeName(txt(r.c.acType)), reg: txt(r.c.reg).toUpperCase(), picName: txt(r.c.picName), total: tot2, pic: t(r, "pic"), copilot: t(r, "copilot"), dual: t(r, "dual"),
-        instructor: t(r, "instructor"), night: t(r, "night"), ifr: t(r, "ifr"), ldgDay: cnt(r, "ldgDay"), ldgNight: cnt(r, "ldgNight"), remarks: txt(r.c.remarks) };
+        acType: acTypeName(txt(r.c.acType)), reg: txt(r.c.reg).toUpperCase(), picName: txt(r.c.picName), total: tot2, pic: t(r, "pic") + t(r, "picus"), copilot: t(r, "copilot"), dual: t(r, "dual"),
+        instructor: t(r, "instructor"), night: t(r, "night"), ifr: t(r, "ifr"), ldgDay: cnt(r, "ldgDay"), ldgNight: cnt(r, "ldgNight"),
+        // PIC under supervision (its own column in some Flylog PDFs) is logged as PIC time, marked in the remarks
+        remarks: [t(r, "picus") ? "PIC(US)" : "", txt(r.c.remarks)].filter(Boolean).join(" ") };
       if (f.out === "00000") f.out = ""; if (f.in === "00000") f.in = "";
       if (/^self$/i.test(f.picName)) f.picName = "SELF";
       const cls = t(r, "mp") ? "MP" : r.c.me ? "SPME" : r.c.se ? "SPSE" : "";
@@ -1839,7 +1845,7 @@ function parseOnePageLogbook(pages){
     const totals = label => { const lab = W.find(w => w.s === label && w.y > hy && W.some(v => v.s === "TOTAL" && Math.abs(v.y - w.y) < 2)); if (!lab) return null;
       const g = {}; for (const w of W.filter(w => Math.abs(w.y - lab.y) < 3 && num(w.s) && w.x > lab.x)) (g[col(w)] ||= []).push(w.s);
       const T = k => dur((g[k] || [])[0]), N = k => (g[k] || []).reduce((s, v) => s + (+v.replace(/,/g, "") || 0), 0);
-      return { se: T("se"), me: T("me"), mp: T("mp"), total: T("total"), ldgDay: N("ldgDay"), ldgNight: N("ldgNight"), night: T("night"), ifr: T("ifr"), pic: T("pic"), copilot: T("copilot"), dual: T("dual"), instructor: T("instructor"), fstd: T("fstdTime") }; };
+      return { se: T("se"), me: T("me"), mp: T("mp"), total: T("total"), ldgDay: N("ldgDay"), ldgNight: N("ldgNight"), night: T("night"), ifr: T("ifr"), pic: T("pic") + T("picus"), copilot: T("copilot"), dual: T("dual"), instructor: T("instructor"), fstd: T("fstdTime") }; };
     if (n === 0) out.prev = totals("PREVIOUS");
     const last = W.find(w => w.s === "TIME" && W.some(v => v.s === "TOTAL" && Math.abs(v.y - w.y) < 2 && w.x - v.x < 40 && w.x > v.x) && w.y > hy);
     if (last) out.check = totals("TIME") || out.check;
@@ -1986,7 +1992,7 @@ async function parseEasaLogbookPDF(buf){
 // does a logbook PDF add up? flights read plus brought forward, against the PDF's own last TOTAL TIME row
 const PREV_LABEL = { total: "Total time", se: "SE (single-pilot)", me: "ME (single-pilot)", mp: "Multi-pilot", pic: "PIC", copilot: "Co-pilot", dual: "Dual", instructor: "Instructor",
   night: "Night", ifr: "IFR", ldgDay: "Landings day", ldgNight: "Landings night", fstd: "FSTD (simulator)" };
-function easaCheck(r){
+function easaCheck(r, file){
   if (!r.check) return "";
   const sum = Object.fromEntries(EASA_PREV.map(k => [k, r.prev?.[k] || 0]));
   for (const f of r.flights) {
@@ -1994,11 +2000,18 @@ function easaCheck(r){
     for (const k of ["total","pic","copilot","dual","instructor","night","ifr","ldgDay","ldgNight"]) sum[k] += f[k] || 0;
     const c = r.classes[f.acType] || acClass(f.acType); sum[{ SPSE: "se", SPME: "me", MP: "mp" }[c]] += f.total || 0;
   }
-  const v = (k, m) => k.startsWith("ldg") ? m.toLocaleString() : fmtMin(m);
+  const v = (k, m) => k.startsWith("ldg") ? m.toLocaleString() : fmtHrs(m);
   const off = EASA_PREV.filter(k => sum[k] !== r.check[k]);
-  const simNote = r.simIfr || r.simLdg ? ` The PDF also counts ${[r.simIfr ? fmtMin(r.simIfr) + " of simulator IFR time" : "", r.simLdg ? r.simLdg + " simulator landing" + (r.simLdg === 1 ? "" : "s") : ""].filter(Boolean).join(" and ")} in its totals; your logbook keeps those with the simulator sessions, not as flight time.` : "";
-  return !off.length ? `Checked against the PDF's own totals: every column matches (total time ${v("total", r.check.total)}).${simNote}`
-    : `<span style="color:var(--bad)">Doesn't match the PDF's own totals in ${off.map(k => `${PREV_LABEL[k]} (read ${v(k, sum[k])}, PDF says ${v(k, r.check[k])})`).join(", ")}.</span> Check those flights on the Logbook tab.`;
+  const simNote = r.simIfr || r.simLdg ? `<div class="hint">The PDF also counts ${[r.simIfr ? fmtMin(r.simIfr) + " of simulator IFR time" : "", r.simLdg ? r.simLdg + " simulator landing" + (r.simLdg === 1 ? "" : "s") : ""].filter(Boolean).join(" and ")} in its totals; your logbook keeps those with the simulator sessions, not as flight time.</div>` : "";
+  if (!off.length) return `<div><span style="color:var(--ok)">✓ <b>Matches your PDF's own totals</b></span> · ${fmtHrs(r.check.total)} total time${simNote}</div>`;
+  // what doesn't add up, as a small table, and a way to send us the file
+  const k = file && "f" + failedFiles.size; if (file) failedFiles.set(k, { file, error: "Totals don't match the PDF: " + off.map(c => `${PREV_LABEL[c]} read ${v(c, sum[c])}, PDF ${v(c, r.check[c])}`).join("; ") });
+  return `<div class="notice" style="margin:10px 0;border-color:var(--bad)"><b style="color:var(--bad)">⚠ Doesn't add up to your PDF</b>` +
+    `<div style="margin:4px 0 8px">${off.length === 1 ? "One total" : off.length + " totals"} from your PDF's last page ${off.length === 1 ? "is" : "are"} different from what we read:</div>` +
+    `<table class="mmtab"><thead><tr><th></th><th class="r">Your PDF</th><th class="r">We read</th></tr></thead><tbody>` +
+    off.map(c => `<tr><td>${PREV_LABEL[c]}</td><td class="r"><b>${v(c, r.check[c])}</b></td><td class="r" style="color:var(--bad)">${v(c, sum[c])}</td></tr>`).join("") + `</tbody></table>` +
+    `<div style="margin:8px 0 0">Most likely we read a column wrongly. ${file ? "Send us the file and we'll fix it for you:" : "Check those flights on the Logbook tab."}</div>` +
+    (file ? `<div class="fl-btns"><button class="btn small" type="button" data-report="${k}">Send us this file</button></div>` : "") + `</div>`;
 }
 /* A flight list printed as a table in a PDF (eCrew "Pilot LogBook report" PDF): the column headings line
    (Date, Airport, Time ...) gives each column's position; every dated line below it becomes a row of cells,
@@ -2044,7 +2057,7 @@ async function readLogbookPDF(f){
   try { r = await parseEasaLogbookPDF(await f.arrayBuffer()); } catch (x) { console.warn(x); return "Couldn't read that PDF."; }
   if (!r) return "This PDF isn't a logbook we can read yet. We read PDF logbooks in the EASA layout (DATE, DEPARTURE, ARRIVAL ... on the left page, NIGHT, IFR, PILOT FUNCTION TIME ... on the right). Export it as CSV or Excel, or email it to us so we can add it.";
   if (!r.flights.length) return "No flights found in this PDF. Is it a scan? Scanned pages have no text to read: enter their totals under previous experience instead.";
-  imp = { name: f.name, flights: r.flights, auto: true, pdf: r };
+  imp = { name: f.name, flights: r.flights, auto: true, pdf: r, file: f };
 }
 
 /* several files in one go (e.g. last time's CrewBase Log CSV + a new eCrew export):
@@ -2077,7 +2090,9 @@ async function nextFile(){
   if (!impLog.length) return;
   if (impErrs === impLog.length) return $("#impErr").innerHTML = impLog.join("<br>");
   const ns = data.flights.filter(isSim).length, nf = data.flights.length - ns;
-  $("#impDoneLog").innerHTML = impLog.join("<br>") + (nf + ns === 0 ? `<br>Your logbook has no flights yet: nothing in ${impLog.length === 1 ? "this file" : "these files"} has been flown. Planned flights belong in <a href="#" data-go="crewbase">Crew Base</a>.` : `<br>Your logbook now has <b>${nf.toLocaleString()} flight${nf === 1 ? "" : "s"}</b>` + (ns ? ` and <b>${ns} simulator session${ns === 1 ? "" : "s"}</b>` : "") + `` + (restoredView() ? "." : `. <a href="#" data-go="import" data-scroll="#chkBox">Check the totals against your old logbook's last page</a>.`));
+  // a PDF that matched its own totals needs no check by hand
+  const checked = impLog.some(l => l.includes("Matches your PDF's own totals"));
+  $("#impDoneLog").innerHTML = impLog.map(l => l.startsWith("<div") ? l : `<div>${l}</div>`).join("") + (nf + ns === 0 ? `<div>Your logbook has no flights yet: nothing in ${impLog.length === 1 ? "this file" : "these files"} has been flown. Planned flights belong in <a href="#" data-go="crewbase">Crew Base</a>.</div>` : `<div><b>Your logbook now:</b> ${nf.toLocaleString()} flight${nf === 1 ? "" : "s"}` + (ns ? ` · ${ns.toLocaleString()} simulator session${ns === 1 ? "" : "s"}` : "") + (restoredView() || checked ? "" : `<div class="hint"><a href="#" data-go="import" data-scroll="#chkBox">Check the totals against your old logbook's last page</a></div>`) + `</div>`);
   $("#impDone").classList.remove("hidden"); $("#impDone").scrollIntoView({ behavior: "smooth", block: "start" });
   $("#chkUpto").value = ""; renderCheck();
   if (impBatch?.added && repGuest() && guestItems().length) for (const n of impBatch.names.filter(n => data.repSent.some(x => x.file_name === n)))
@@ -2090,7 +2105,7 @@ async function nextFile(){
       Auth.db().from("file_reports").select("id").eq("user_id", user.id).eq("file_name", n).then(x => { data.repSeen = [...(data.repSeen || []), ...(x.data || []).map(r => r.id)]; save(); renderMyReports(); }); } }, () => {});
   if (impBatch) logEvent("import", { files: impBatch.names.length, types: [...new Set(impBatch.names.map(n => (n.match(/\.(\w+)$/)?.[1] || "?").toLowerCase()))].join(","),
     added: impBatch.added, updated: impBatch.updated, problems: impErrs, ...nLines() });
-  const gaps = importGaps(); if (gaps.length) $("#impDoneLog").insertAdjacentHTML("beforeend", `<br>${gapMsg(gaps)}`);
+  const gaps = importGaps(); if (gaps.length) $("#impDoneLog").insertAdjacentHTML("beforeend", `<div>${gapMsg(gaps)}</div>`);
   $("#impDoneLog").insertAdjacentHTML("beforeend", aptAskHTML());
   renderFix().then(n => { if (n) $("#impDoneLog").insertAdjacentHTML("beforeend", `<div class="notice fixnote"><span><b style="color:var(--warn)">⚠ We found ${n.toLocaleString()} line${n === 1 ? "" : "s"} to check</b> in your logbook: possible mistakes from the import.</span><button class="btn small" type="button" data-review>Review them</button></div>`); });
 }
@@ -2100,7 +2115,7 @@ function importGaps(){
   const B = impBatch && data.flights.filter(f => f._b === impBatch.id); if (!B?.length) return [];
   return logGaps(B.reduce((m, f) => f.date < m ? f.date : m, B[0].date), B.reduce((m, f) => f.date > m ? f.date : m, B[0].date));
 }
-const gapMsg = gaps => `<b style="color:var(--warn)">No flights ${gaps.map(([a, b, n]) => `from ${fmtDate(a)} to ${fmtDate(b)} (${n} days)`).join(", ")}.</b> If you flew then, that period is missing: import it too.`;
+const gapMsg = gaps => `<b style="color:var(--warn)">⚠ No flights ${gaps.map(([a, b, n]) => `${fmtDate(a)}–${fmtDate(b)} (${n} days)`).join(", ")}.</b> If you flew then, import those flights too.`;
 // stretches of more than 60 days without a flight between lo and hi (and from the last flight before lo)
 function logGaps(lo, hi){
   const before = data.flights.filter(f => f.date < lo).map(f => f.date).sort().pop();
@@ -2221,14 +2236,14 @@ function doImport(){
   if (!imp.own && !imp.flights && (added || dup)) data.templates[imp.sig] = Object.fromEntries(Object.entries(imp.map).filter(([,v]) => v !== undefined));
   if (impBatch && (added || updated || bf || imp.pdf?.prev || imp.appPrev)) { impBatch.names.push(imp.name); impBatch.added += added; impBatch.updated += updated; data.lastImport = impBatch; }
   if (!save()) return false;
-  impLog.push(`<b>${esc(imp.name)}</b>: ${added.toLocaleString()} new entr${added===1?"y":"ies"}${bf}` + (updated ? `, ${updated} updated with new times` : "") + (dup ? `, ${dup.toLocaleString()} already in your logbook` : "") +
+  impLog.push(`<b>${added.toLocaleString()} new line${added === 1 ? "" : "s"}</b> from ${esc(imp.name)}${bf}` + (updated ? ` · ${updated.toLocaleString()} updated with new times` : "") + (dup ? ` · ${dup.toLocaleString()} already in your logbook` : "") +
     (future ? `, ${future} flight${future === 1 ? "" : "s"} not flown yet left out (the logbook only holds flights already flown)` : "") + (badRows.length ? `, ${badRows.length} line${badRows.length === 1 ? "" : "s"} with no route, flight time or sim time left out (${badRows.slice(0, 5).join(", ")}${badRows.length > 5 ? " …" : ""})` : ""));
   if (mpFixed.length) impLog.push(`<span style="color:var(--warn)">${mpFixed.map(esc).join(", ")} ${mpFixed.length === 1 ? "was" : "were"} logged as single-pilot in the file. ${mpFixed.length === 1 ? "It is an airliner, so it counts" : "They are airliners, so they count"} as multi-pilot here (change it in <a href="#" data-go="profile" data-scroll="#acSection">Profile</a> if that's wrong).</span>`);
   if (imp.appPrev) impLog.push(`Previous experience from the file: <b>${fmtMin(imp.appPrev.total)}</b> total time. Saved as your <a href="#" data-go="import" data-scroll="#prevBox">previous experience</a>.`);
   if (imp.note) impLog.push(`<span style="color:var(--warn)">${esc(imp.note)}</span>`);
   if (imp.pdf) {
-    if (imp.pdf.prev) impLog.push(`Brought forward on its first page, from an earlier logbook: <b>${fmtMin(imp.pdf.prev.total)}</b> total time. Saved as your <a href="#" data-go="import" data-scroll="#prevBox">previous experience</a>.`);
-    impLog.push(easaCheck(imp.pdf));
+    if (imp.pdf.prev) impLog.push(`<b>Previous experience:</b> ${fmtHrs(imp.pdf.prev.total)}, brought forward on its first page (<a href="#" data-go="import" data-scroll="#prevBox">see it</a>)`);
+    impLog.push(easaCheck(imp.pdf, imp.file));
   }
   renderPrev();
   return true;
