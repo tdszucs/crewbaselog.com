@@ -1122,6 +1122,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
     <h3 id="repTitle" style="margin:0 0 6px">Help us read your file</h3>
     <p class="hint" style="margin:0 0 12px;font-size:14px">Every logbook app and airline system writes its files a little differently. Send us this one and we'll teach CrewBase Log to read it. It's free, and every pilot using the same app or airline benefits.</p>
     <div class="repfile" id="repName"></div>
+    <p class="hint" style="margin:0 0 12px;font-size:13.5px"><b>What happens next:</b> we check the file within 48 hours. Either it imports correctly and you are told to drop it again, or it needs further analysis and we tell you here. Check back on this page within 48 hours.</p>
     <div class="field"><label for="repKind">What is it?</label><select id="repKind"><option value="logbook">A logbook from another app or a spreadsheet</option><option value="ecrew">An eCrew / AIMS or other airline report</option><option value="roster">A roster for Crew Base</option><option value="other">Something else</option></select></div>
     <div class="field"><label for="repNote">Anything we should know? <span class="hint" style="font-weight:400">(optional)</span></label><textarea id="repNote" rows="3" maxlength="1500" placeholder="Which app or airline it's from, and what went wrong"></textarea></div>
     <div class="field hidden" id="repGuest"><label for="repEmail">Your email</label><input type="email" id="repEmail" autocomplete="email" maxlength="200" placeholder="you@example.com"><p class="hint" style="margin:4px 0 0;font-size:13px">So we can tell you when it works. No account needed. Have one? <a href="#" id="repLogin">Log in</a> first, then send the file again.</p></div>
@@ -2224,7 +2225,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "31 Oct 2026 · 56";
+const APP_VERSION = "31 Oct 2026 · 57";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
@@ -3967,16 +3968,19 @@ async function sendGuest(){
     body: JSON.stringify({ _subject: "CrewBase Log: a file to read", _template: "table", from: email + " (no account)", file: file.name, kind, size_kb: Math.round(file.size / 1024), error: error || "(sent from Doesn't look right?)", note: note || "", open: "Admin tab on crewbaselog.com/app" }) }).catch(() => {});
   $("#repDlg").close(); renderMyReports(true);
 }
+/* What the pilot is told about a file they sent: it either works now (drop it again) or it needs further analysis, with the 48 hours */
+const REP_CHECK = "Your file needs further analysis to make sure it is imported correctly. Please check back within 48 hours: this page then says whether it works, and you can drop it again on Your data to see your imported logbook.";
+const REP_PILOT = { new: ["Needs further analysis", "var(--warn)"], working: ["Needs further analysis", "var(--warn)"], done: ["Imported correctly: drop it again", "var(--ok)"], cannot: ["Can't be read", "var(--bad)"] };
 const REP_STATUS = { new: ["Received", "var(--muted)"], working: ["We're working on it", "var(--warn)"], done: ["Works now", "var(--ok)"], cannot: ["Can't be read", "var(--bad)"] };
 // the pilot's own sent files, with their status; news when one now works
 async function renderMyReports(justSent){
   const box = $("#repMine"), guest = repGuest() && guestItems().length; if (!repOnline() && !guest) { box.innerHTML = ""; return; }
   const r = guest ? await guestCall("status", JSON.stringify(guestItems())).then(d => ({ data: d.sort((a, b) => b.id - a.id).map(x => ({ ...x, created_at: data.repSent.find(s => s.id === x.id)?.at || todayISO() })) }), e => ({ error: e }))
     : await Auth.db().from("file_reports").select("id,file_name,status,admin_note,created_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(20);
-  if (r.error || !r.data?.length) { box.innerHTML = justSent ? '<p class="ok-msg" style="margin:12px 0 0">Thank you, your file was sent.</p>' : ""; return; }
-  box.innerHTML = (justSent ? '<p class="ok-msg" style="margin:12px 0 0">Thank you, your file was sent. When you log in next, this page shows whether it works.</p>' : "") +
-    `<div class="tablewrap"><table><thead><tr><th>Sent</th><th>File</th><th>Status</th></tr></thead><tbody>` + r.data.map(x => { const [t, c] = REP_STATUS[x.status] || [x.status, ""];
-      return `<tr><td style="white-space:nowrap">${fmtDate(x.created_at.slice(0, 10))}</td><td>${esc(x.file_name)}</td><td><b style="color:${c}">${t}</b>${x.admin_note ? `<div class="hint" style="margin:2px 0 0;font-size:13px">${esc(x.admin_note)}</div>` : ""}</td></tr>`; }).join("") + "</tbody></table></div>";
+  if (r.error || !r.data?.length) { box.innerHTML = justSent ? `<div class="notice" style="margin:12px 0 0"><b>Thank you, your file was sent.</b> ${REP_CHECK}</div>` : ""; return; }
+  box.innerHTML = (justSent ? `<div class="notice" style="margin:12px 0 0"><b>Thank you, your file was sent.</b> ${REP_CHECK}</div>` : "") +
+    `<div class="tablewrap"><table><thead><tr><th>Sent</th><th>File</th><th>Status</th></tr></thead><tbody>` + r.data.map(x => { const [t, c] = REP_PILOT[x.status] || [x.status, ""];
+      return `<tr><td style="white-space:nowrap">${fmtDate(x.created_at.slice(0, 10))}</td><td>${esc(x.file_name)}</td><td><b style="color:${c}">${t}</b>${x.status === "new" || x.status === "working" ? '<div class="hint" style="margin:2px 0 0;font-size:13px">Check back within 48 hours.</div>' : ""}${x.admin_note ? `<div class="hint" style="margin:2px 0 0;font-size:13px">${esc(x.admin_note)}</div>` : ""}</td></tr>`; }).join("") + "</tbody></table></div>";
   // a file that works now (or can't be read): said at the top of Help, with a dot on Help in the menu, until OK
   const seen = new Set(data.repSeen || []), news = r.data.filter(x => (x.status === "done" || x.status === "cannot") && !seen.has(x.id));
   $("#repNews")?.remove(); $$('[data-t="help"]').forEach(b => b.classList.toggle("due", !!news.length));
