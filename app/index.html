@@ -3018,10 +3018,11 @@ async function handleFile(f){
   if (/\.(png|jpe?g|heic|heif|gif|webp|bmp|tiff?)$/i.test(f.name) || /^image\//.test(f.type))
     return "This is a picture. Photos and scans of logbook pages can't be read: enter the totals from the last page under Previous experience, or export your logbook as CSV, Excel or PDF from the app you use.";
   if (/\.(docx?|pages|odt|rtf)$/i.test(f.name)) return "This is a text document, not a logbook export. Export your logbook as CSV, Excel or PDF from the app you use.";
+  if (/\.html?$/i.test(f.name)) return "This is a web page, not a logbook export: a logbook web page keeps its flights in the browser, not in the file. Open it, use its export (CSV) and drop that file here.";
   let rows;
   const head = new Uint8Array(await f.slice(0, 4).arrayBuffer());
   if (/\.(zip|mdb|accdb|db|sqlite)$/i.test(f.name) || (head[0] === 0x50 && head[1] === 0x4B && /\.zip$/i.test(f.name)))
-    return "This is an app's database backup (for example an mccPILOTLOG .mdb backup), which can't be read here. In the logbook app, export your flights as CSV (or print the logbook as PDF) and drop that file.";
+    return (/mccPILOTLOG/i.test(f.name) ? "This is an mccPILOTLOG database backup: it is password-protected, so no other app can open it." : "This is an app's database backup (for example an mccPILOTLOG .mdb backup), which can't be read here.") + " In the logbook app, export your flights as CSV (or print the logbook as PDF) and drop that file.";
   if (/\.json$/i.test(f.name)) {
     const t = decodeText(await f.arrayBuffer());
     if (/"table"\s*:\s*"Flight"|\\"table\\"\s*:\s*\\"Flight/.test(t)) return "This is a CrewLounge / mccPILOTLOG database file: it stores airports as internal numbers, so the routes can't be read. In CrewLounge PILOTLOG, export your flights as CSV (or print the logbook as PDF) and drop that file instead.";
