@@ -1767,6 +1767,7 @@ function enterApp(){
   // once a month per device: "active" (the month is remembered in this logbook only)
   if (fresh) usage("start");
   const month = todayISO().slice(0, 7); if (user.id !== "sample" && data.usageMonth !== month) { data.usageMonth = month; save(); usage("active"); }
+  if (data.calSync?.on && Auth.live && !isLocal()) setTimeout(() => calSync(), 3500);   // the roster follows the calendar (a Google prompt may need a tap)
   setTimeout(() => loadJobs().then(J => J && jobsDot(J)), 2500);   // a dot on Jobs for a new vacancy
   if (data.jobOpen?.on && data.jobOpen.pushed !== todayISO()) setTimeout(() => joSave(true), 4000);   // what is shared follows the logbook, once a day
   logEvent("open", { ...nLines(), phone: matchMedia("(max-width:640px)").matches, prev: !!hasPrev() });
@@ -2018,9 +2019,77 @@ document.addEventListener("click", e => {
   cbSync()?.then?.(() => renderHome());
 });
 document.addEventListener("keydown", e => { if (e.key === "Enter" && e.target.id === "hfEmail") { e.preventDefault(); $("[data-hfadd]")?.click(); } });
+/* Roster from Google Calendar: the AIMS eCrew app shares the roster to Google Calendar as events ("Created by the AIMS eCrew app"):
+   a duty is an event from report to debrief with the flights in its description ("81 - AUH (2300) - MXP (0600⁺¹)"), a day off an
+   all-day event ("Day off - OFF"). The pilot allows read access once (Google sign-in, read-only); only events marked as AIMS eCrew
+   are read and kept (as roster days in UTC), nothing else from the calendar. The access token is used once and not stored */
+const CAL_SCOPE = "https://www.googleapis.com/auth/calendar.readonly", CAL_FREE = /^(OFF|XX|DO|RD|LV|AL|SL|HOL|>OFF)$/i, CAL_SBY = /^(SBY|STBY|AVLB|SB\d*|SBY\w*)$|STAND ?BY|AVAIL/i;
+let calClient = null, calWait = null;
+function calToken(){
+  return new Promise(async (ok, no) => {
+    try { if (!window.google?.accounts?.oauth2) await loadScript("https://accounts.google.com/gsi/client");
+      calWait = { ok, no };
+      calClient ||= google.accounts.oauth2.initTokenClient({ client_id: CONFIG.GOOGLE_CLIENT_ID, scope: CAL_SCOPE,
+        callback: r => r.access_token ? calWait.ok(r.access_token) : calWait.no(new Error(r.error || "no token")), error_callback: e => calWait.no(new Error(e.type || "popup")) });
+      calClient.requestAccessToken({ prompt: "" });
+    } catch (e) { no(e); }
+  });
+}
+// calendar events (AIMS eCrew ones) -> roster days { date: { date, code, free, duties, sby, lands, standby } }, in UTC
+function calRoster(evs){
+  const days = {}, day = iso => days[iso] ||= { date: iso, code: "", free: false, duties: [], sby: [], lands: null }, labels = {};
+  const isoOf = ms => new Date(ms).toISOString().slice(0, 10), mins = ms => { const d = new Date(ms); return d.getUTCHours() * 60 + d.getUTCMinutes(); };
+  const label = (iso, t) => { (labels[iso] ||= []).push(t); };
+  for (const e of evs) {
+    const desc = e.description || "", first = (desc.split("\n")[0] || "").trim();
+    if (e.start?.date) {   // all-day: a day off, a rest day, a standby day ...
+      const code = ((first.match(/-\s*([A-Z>][A-Z0-9]{1,5})\s*$/) || first.match(/^([A-Z>][A-Z0-9]{1,5})\b/) || [])[1] || (e.summary || "").trim().split(/\s+/)[0] || "").toUpperCase();
+      const end = e.end?.date ? Date.parse(e.end.date) : Date.parse(e.start.date) + 864e5;
+      for (let t = Date.parse(e.start.date); t < end; t += 864e5) { const iso = isoOf(t), d = day(iso);
+        if (CAL_SBY.test(code)) { d.sby.push([0, 1440]); d.standby = true; } else if (CAL_FREE.test(code)) d.free = true; else d.duties.push([0, 1440]);
+        label(iso, code || "duty"); }
+      continue;
+    }
+    const s0 = Date.parse(e.start?.dateTime), t1 = Date.parse(e.end?.dateTime); if (!(s0 > 0) || !(t1 > s0)) continue;
+    const flights = [];
+    for (const ln of desc.split("\n")) { const ap = [...ln.matchAll(/\b([A-Z]{3,4})\s+\(\d{4}/g)].map(m => m[1]), no = ln.match(/^\s*([A-Z0-9]{1,7})\s+-\s+[A-Z]{3,4}\s+\(/); if (ap.length > 1) flights.push({ no: no ? no[1] : "", ap }); }
+    if (!flights.length) { const m = (e.summary || "").match(/^\s*([A-Z0-9]{1,7})\s+([A-Z]{3,4}(?:-[A-Z]{3,4})+)/); if (m) flights.push({ no: m[1], ap: m[2].split("-") }); }
+    const sby = !flights.length && CAL_SBY.test(`${e.summary || ""} ${first}`), dest = flights.length ? flights[flights.length - 1].ap.slice(-1)[0] : null;
+    const a = isoOf(s0), z = isoOf(t1);
+    for (let t = Date.parse(a); t <= Date.parse(z); t += 864e5) { const iso = isoOf(t), d = day(iso), w = [iso === a ? mins(s0) : 0, iso === z ? mins(t1) : 1440];
+      if (w[1] <= w[0] && iso === z) continue;   // ends at midnight sharp
+      (sby ? d.sby : d.duties).push(w); if (sby) d.standby = true;
+      if (iso === a) label(iso, flights.length ? flights.map(f => `flight ${f.no} · ${f.ap.join("-")}`).join(" · ") : sby ? `${(e.summary || "SBY").trim()} ${cbClock(w[0])}–${cbClock(w[1])}` : (e.summary || "duty").trim());
+      else if (flights.length) label(iso, `arrives ${dest}`);
+      if (iso === z && dest) d.lands = dest; }
+  }
+  for (const [iso, d] of Object.entries(days)) { d.code = [...new Set(labels[iso] || [])].join(" · ") || "duty"; if (!d.duties.length && !d.sby.length) d.free = true; else if (d.duties.length) d.standby = false;
+    d.duties.sort((x, y) => x[0] - y[0]); }
+  return days;
+}
+async function calSync(){
+  const msg = t => $$("[data-calmsg]").forEach(m => m.textContent = t); msg("Connecting to Google Calendar…");
+  try {
+    const tok = await calToken(), H = { Authorization: "Bearer " + tok }, api = async u => { const r = await fetch("https://www.googleapis.com/calendar/v3/" + u, { headers: H }); if (!r.ok) throw Object.assign(new Error("calendar " + r.status), { status: r.status, body: await r.text().catch(() => "") }); return r.json(); };
+    const L = (await api("users/me/calendarList?minAccessRole=reader&maxResults=50")).items || [], from = new Date(Date.now() - 14 * 864e5).toISOString(), to = new Date(Date.now() + 120 * 864e5).toISOString(), evs = [];
+    msg("Reading your AIMS roster…");
+    for (const c of L) { let pageToken = ""; do { const j = await api(`calendars/${encodeURIComponent(c.id)}/events?singleEvents=true&orderBy=startTime&maxResults=250&timeMin=${encodeURIComponent(from)}&timeMax=${encodeURIComponent(to)}&q=${encodeURIComponent("AIMS eCrew")}${pageToken ? "&pageToken=" + pageToken : ""}`).catch(() => ({ items: [] }));
+      evs.push(...(j.items || []).filter(e => /AIMS eCrew/i.test(e.description || ""))); pageToken = j.nextPageToken || ""; } while (pageToken); }
+    if (!evs.length) { msg("No AIMS roster found in your calendars. In the AIMS eCrew app, share the roster to Google Calendar first."); return; }
+    const D = calRoster(evs), C = cb(); Object.assign(C.me.days, D); C.me.name = data.profile.name || C.me.name; if (!C.me.base) C.me.base = data.profile.base || "";
+    data.calSync = { on: true, last: new Date().toISOString(), days: Object.keys(D).length }; save(); cbPush(); logEvent("roster_saved", { days: Object.keys(D).length, from: "calendar" });
+    hrMonth = null; renderHome(); msg(`✓ ${Object.keys(D).length} days from your calendar.`);
+  } catch (e) {
+    const why = `${e?.message || e} ${e?.body || ""}`;
+    msg(/popup|access_denied|closed/i.test(why) ? "Google Calendar wasn't allowed. Tap to try again." : /accessNotConfigured|has not been used|403/i.test(why) ? "Google Calendar access isn't switched on for CrewBase Log yet." : "Couldn't read your calendar. Tap to try again.");
+  }
+}
+document.addEventListener("click", e => { if (e.target.closest("[data-calsync]")) { e.preventDefault(); calSync(); } });
 function homeRosterHTML(){
   const days = cb().me.days || {}, dates = Object.keys(days).sort(); if (user?.id === "sample") return "";
-  if (!dates.length) return `<div class="card hcard" id="homeCrewStart"><h3>My roster</h3><p class="hint" style="margin:0 0 4px">Drop your roster (the Personal Crew Schedule PDF from AIMS) on <a href="#" data-go="import">Your data</a>: it shows here as a calendar, next to your friends' rosters.</p>${homeCrewHTML()}</div>`;
+  if (!dates.length) return `<div class="card hcard" id="homeCrewStart"><h3>My roster</h3><p class="hint" style="margin:0 0 10px">Share your AIMS roster to Google Calendar and it shows here as a calendar, next to your friends' rosters, and stays up to date. Or drop the Personal Crew Schedule PDF on <a href="#" data-go="import">Your data</a>.</p>
+    <div class="row-actions" style="margin:0 0 6px"><button class="btn small" type="button" data-calsync>Connect Google Calendar</button><span class="hint" data-calmsg style="margin:0"></span></div>
+    <div class="hint" style="margin:6px 0 0;font-size:12.5px">Read-only. Only events from the AIMS eCrew app are read; nothing else in your calendar is looked at or kept.</div>${homeCrewHTML()}</div>`;
   const months = [...new Set(dates.map(d => d.slice(0, 7)))], now = todayISO().slice(0, 7);
   if (!hrMonth || !months.includes(hrMonth)) hrMonth = months.includes(now) ? now : months.find(m => m > now) || months[months.length - 1];
   const [Y, M] = hrMonth.split("-").map(Number), nd = new Date(Y, M, 0).getDate(), lead = (new Date(Y, M - 1, 1).getDay() + 6) % 7;
@@ -2033,7 +2102,7 @@ function homeRosterHTML(){
   return `<div class="card hcard" id="homeRoster"><div class="hrhead"><h3>My roster</h3><div class="hrnav"><button class="btn ghost small" type="button" data-hrmon="-1"${mi > 0 ? "" : " disabled"} aria-label="Previous month">‹</button><b>${new Date(Y, M - 1, 1).toLocaleDateString("en-GB", { month: "long", year: "numeric" })}</b><button class="btn ghost small" type="button" data-hrmon="1"${mi < months.length - 1 ? "" : " disabled"} aria-label="Next month">›</button></div></div>` +
     `<div class="hrcal">${g}</div>${sel}` +
     `<div class="legend" style="margin-top:10px"><span><i class="sw free"></i>off</span><span><i class="sw part"></i>free part of the day</span><span><i class="sw duty"></i>duty / away</span><span><i class="sw sby"></i>standby</span></div>` +
-    homeCrewHTML() + `</div>`;
+    `<div class="hint" style="margin:8px 0 0"><a href="#" data-calsync>↻ Sync from Google Calendar</a>${data.calSync?.last ? ` · last ${new Date(data.calSync.last).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}` : ""} <span data-calmsg></span></div>` + homeCrewHTML() + `</div>`;
 }
 document.addEventListener("click", e => {
   const m = e.target.closest("[data-hrmon]"), d = e.target.closest("[data-hrday]"); if (!m && !d) return;
@@ -2139,7 +2208,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "31 Oct 2026 · 53";
+const APP_VERSION = "31 Oct 2026 · 54";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
