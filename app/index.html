@@ -1991,10 +1991,10 @@ function homeCrewHTML(){
       const sts = p ? R.map((r, ri) => cbState(p.row[ri], r.days[i0])) : [];
       // "part" needs 3 free hours in the daytime (06:00–22:00), like the single rows: a free night around a duty day is not a free day
       const dayFree = p ? p.common.reduce((s, w) => s + Math.max(0, Math.min(w[1], 1320) - Math.max(w[0], 360)), 0) : 0;
-      const st = !p ? "none" : p.common.length && !sts.includes("sby") && (dayFree >= 180 || p.common.reduce((s, w) => s + w[1] - w[0], 0) >= CB_DAY - 1) ? (p.common.reduce((s, w) => s + w[1] - w[0], 0) >= CB_DAY - 1 ? "free" : "part")
-        : sts.includes("sby") && sts.every(x => x === "sby" || x === "free" || x === "part") ? "sby" : p.row.some(f => f.windows.length) ? "some" : "duty";
+      const st = !p ? "none" : p.common.length && sts.every(x => x === "free" || x === "part") && (dayFree >= 180 || p.common.reduce((s, w) => s + w[1] - w[0], 0) >= CB_DAY - 1) ? (p.common.reduce((s, w) => s + w[1] - w[0], 0) >= CB_DAY - 1 ? "free" : "part")
+        : sts.includes("sby") && sts.every(x => x === "sby" || x === "free" || x === "part") ? "sby" : sts.some(x => x === "free" || x === "part") ? "some" : "duty";   // some free, some not: striped; nobody free: duty
       const who = R.map((r, ri) => `${ri ? r.name : "Me"}: ${r.days[i0]?.code || "no roster"}`).join("\n");
-      return `<i class="d ${st}" title="${esc(`${d}${p?.common.length && !sts.includes("sby") ? " · all free " + p.common.map(w => cbClock(w[0]) + "–" + cbClock(w[1])).join(", ") + " UTC" : ""}\n${who}`)}"></i>`; }).join("")}</div>`;
+      return `<i class="d ${st}" title="${esc(`${d}${st === "free" || st === "part" ? " · all free " + p.common.map(w => cbClock(w[0]) + "–" + cbClock(w[1])).join(", ") + " UTC" : ""}\n${who}`)}"></i>`; }).join("")}</div>`;
     const free = days.filter(d => per[iso(d)]?.common.length && iso(d) >= todayISO()).length;
     rows = `<div class="hrfhead"><b>With friends</b><span class="hint" style="margin:0">${free ? `${free} day${free === 1 ? "" : "s"} you are all free this month` : "No day you are all free this month"}</span></div>` +
       `<div class="hcwrap"><div class="hcgrid" style="--days:${nd}">${h}</div></div>`;
@@ -2139,7 +2139,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "31 Oct 2026 · 51";
+const APP_VERSION = "31 Oct 2026 · 53";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
