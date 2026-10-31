@@ -432,6 +432,8 @@ td.r,th.r{text-align:right}
 .routemap{height:440px;border-radius:12px;overflow:hidden;border:1px solid var(--line);background:#aad3df;position:relative;z-index:0}
 @media (max-width:700px){.routemap{height:320px}.rmstats{grid-template-columns:1fr 1fr}.rmstats>div:first-child{grid-column:1 / -1}.rmic{width:32px;height:32px}.rmstats .v{font-size:16px}}
 @media (prefers-color-scheme: dark){.routemap{background:#1b2b36}.routemap .leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness(.9) contrast(.9)}}
+.hlimhead{display:flex;justify-content:space-between;align-items:baseline;margin:0 0 6px}.linkbtn{background:none;border:0;color:var(--brand);font:600 13.5px Inter,sans-serif;cursor:pointer;padding:4px 0}
+.limrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 0;border-bottom:1px solid var(--line)}.limrow select{width:auto;flex:1 1 170px}.limrow input{width:84px}
 .repcard{border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:0 0 12px;background:var(--bg)}
 .rephd{display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap;word-break:break-all}
 .repctl{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;margin-top:8px}
@@ -1887,6 +1889,36 @@ document.addEventListener("click", e => {
   else hrSel = hrSel === d.dataset.hrday ? null : d.dataset.hrday;
   const box = $("#homeRoster"); if (box) box.outerHTML = homeRosterHTML();
 });
+/* Flight time limits on Home: three periods the pilot chooses (last N days, this calendar month or year) with a limit each,
+   and the total time. Default: 100 h in 28 days, 900 h in the calendar year, 1,000 h in 12 months (EASA ORO.FTL.210) */
+const LIM_DEFAULT = [{ kind: "days", n: 28, lim: 100 }, { kind: "year", lim: 900 }, { kind: "days", n: 365, lim: 1000 }];
+const limits = () => (data.profile.limits || LIM_DEFAULT).map(x => ({ ...x }));
+const limLabel = L => L.kind === "year" ? "This year" : L.kind === "month" ? "This month" : L.n === 365 ? "Last 12 months" : `Last ${L.n} days`;
+const limFrom = L => L.kind === "year" ? todayISO().slice(0, 4) + "-01-01" : L.kind === "month" ? todayISO().slice(0, 7) + "-01" : isoDaysAgo(Math.max(1, L.n) - 1);
+let limEditing = false;
+function limitsHTML(){
+  const F = data.flights, tile = (k, v, lim, note) => { const pc = lim ? v / (lim * 60) : 0, c = !lim ? "" : pc > 1 ? " bad" : pc >= 0.8 ? " warn" : "";
+    return `<div class="htile${c}"><div class="k">${k}</div><div class="v">${fmtHrs(v)}</div><div class="lim">${lim ? `limit ${(+lim).toLocaleString()} h` : note || "no limit set"}</div>${lim ? `<div class="bar"><i style="width:${Math.min(100, Math.round(pc * 100))}%"></i></div>` : ""}</div>`; };
+  const L = limits();
+  const grid = `<div class="hgrid">${L.map(x => tile(limLabel(x), ftlSum(limFrom(x)), x.lim)).join("")}${tile("Total time", F.reduce((s, f) => s + (f.total || 0), 0) + (data.prev?.total || 0), 0, "all time")}</div>`;
+  const edit = !limEditing ? "" : `<div class="card hcard limedit"><h3>Your limits</h3><p class="hint" style="margin:0 0 10px">Each box counts the flight time in its period. Leave the limit empty for none.</p>` +
+    L.map((x, i) => `<div class="limrow" data-li="${i}"><select data-lk aria-label="Period ${i + 1}"><option value="days"${x.kind === "days" ? " selected" : ""}>Last … days</option><option value="month"${x.kind === "month" ? " selected" : ""}>This calendar month</option><option value="year"${x.kind === "year" ? " selected" : ""}>This calendar year</option></select>` +
+      `<input data-ln type="number" inputmode="numeric" min="1" max="3650" value="${x.n || 28}" aria-label="Days"${x.kind === "days" ? "" : " hidden"}><span class="hint" style="margin:0"${x.kind === "days" ? "" : " hidden"}>days</span>` +
+      `<span class="hint" style="margin:0 0 0 auto">limit</span><input data-ll type="number" inputmode="numeric" min="0" max="20000" value="${x.lim || ""}" placeholder="none" aria-label="Limit in hours"><span class="hint" style="margin:0">h</span></div>`).join("") +
+    `<div class="row-actions" style="margin:12px 0 0"><button class="btn small" type="button" data-limsave>Save</button><button class="btn ghost small" type="button" data-limreset>Back to the EASA limits</button><button class="btn ghost small" type="button" data-limcancel>Cancel</button></div></div>`;
+  return `<div class="hlimhead"><span class="hint" style="margin:0">Flight time</span><button class="linkbtn" type="button" data-limedit>${limEditing ? "" : "Edit limits"}</button></div>` + grid + edit;
+}
+document.addEventListener("change", e => { const k = e.target.closest("[data-lk]"); if (!k) return; const row = k.closest(".limrow"), d = k.value === "days";
+  row.querySelector("[data-ln]").hidden = !d; row.querySelector("[data-ln] + span").hidden = !d; });
+document.addEventListener("click", e => {
+  if (e.target.closest("[data-limedit]")) { limEditing = true; return renderHome(); }
+  if (e.target.closest("[data-limcancel]")) { limEditing = false; return renderHome(); }
+  if (e.target.closest("[data-limreset]")) { delete data.profile.limits; save(); limEditing = false; return renderHome(); }
+  if (!e.target.closest("[data-limsave]")) return;
+  data.profile.limits = $$(".limrow").map(r => { const kind = r.querySelector("[data-lk]").value, n = Math.min(3650, Math.max(1, parseInt(r.querySelector("[data-ln]").value) || 28)), lim = Math.max(0, parseFloat(r.querySelector("[data-ll]").value) || 0);
+    return kind === "days" ? { kind, n, lim } : { kind, lim }; });
+  save(); limEditing = false; renderHome();
+});
 function renderHome(){
   const box = $("#homeDash"); if (!box || !data?.flights) return; const F = data.flights;
   // roster legs and logbook lines compare by airport (FCO and LIRF are the same): the airport list first
@@ -1894,14 +1926,8 @@ function renderHome(){
   $('[data-p="overview"] .lead')?.classList.toggle("hidden", !!F.length);
   if (!F.length) { box.innerHTML = homeRosterHTML() + installHTML(); return; }
   const yr = todayISO().slice(0, 4);
-  const tile = (k, v, lim, note) => { const pc = lim ? v / (lim * 60) : 0, c = !lim ? "" : pc > 1 ? " bad" : pc >= 0.8 ? " warn" : "";
-    return `<div class="htile${c}"><div class="k">${k}</div><div class="v">${fmtHrs(v)}</div><div class="lim">${lim ? `limit ${lim.toLocaleString()} h` : note || ""}</div>${lim ? `<div class="bar"><i style="width:${Math.min(100, Math.round(pc * 100))}%"></i></div>` : ""}</div>`; };
-  const last = [...F].filter(f => !isSim(f)).sort((a, b) => (b.date + b.out).localeCompare(a.date + a.out))[0], li = last ? F.indexOf(last) : -1;
   const rec = typeRecency(), hasLdg = F.some(f => f.ldgDay || f.ldgNight);
-  const lastHTML = last ? `<div class="card hcard"><h3>Last flight</h3>${lbCards([{ f: last, i: li }], [{ f: last, i: li }]).replace('<div class="lbcards">', '<div class="lbcards hlast">').replace(/<div class="lbmonth">.*?<\/div>/, "")}` +
-      `<div class="row-actions" style="margin:10px 0 0"><button class="btn" type="button" data-go="add">+ Add flight</button><button class="btn ghost" type="button" data-pdfnow>PDF logbook</button><button class="btn ghost" type="button" data-go="logbook">All flights</button></div></div>` : "";
-  box.innerHTML = rosterAddHTML() + homeRosterHTML() + lastHTML +
-    `<div class="hgrid">${tile("Last 28 days", ftlSum(isoDaysAgo(27)), 100)}${tile("This year", ftlSum(yr + "-01-01"), 900)}${tile("Last 12 months", ftlSum(isoDaysAgo(364)), 1000)}${tile("Total time", F.reduce((s, f) => s + (f.total || 0), 0) + (data.prev?.total || 0), 0, "all time")}</div>` +
+  box.innerHTML = rosterAddHTML() + homeRosterHTML() + limitsHTML() +
     (hasLdg && rec.length ? `<div class="card hcard"><h3>Landings: 3 in 90 days</h3><div class="hrow">${rec.map(r => `<span class="chip ${r.ok ? "ok" : "bad"}">${esc(r.type)} · ${r.in90} in 90 days · ${r.ok ? "until " + fmtDate(r.until) : "not current"}</span>`).join("")}</div></div>` : "") +
     installHTML();
 }
@@ -1955,7 +1981,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "31 Oct 2026 · 21";
+const APP_VERSION = "31 Oct 2026 · 22";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
