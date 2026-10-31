@@ -199,6 +199,16 @@ h2{font-size:24px;letter-spacing:-.02em;margin:0 0 6px}
 .hrow{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 0}
 .hcard{margin:0 0 14px}.setupbar .sbtop{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}.setupbar .bar{height:8px;border-radius:99px;background:var(--bg);border:1px solid var(--line);overflow:hidden}.setupbar .bar i{display:block;height:100%;background:var(--ok);border-radius:99px}
 a.chip{text-decoration:none}.hcard h3{margin:0 0 8px}
+.hrhead{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}.hrhead h3{margin:0}
+.hrnav{display:flex;align-items:center;gap:6px}.hrnav b{min-width:112px;text-align:center;font-size:14.5px}.hrnav .btn{padding:4px 10px;min-width:0}
+.hrcal{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+.hrcal .hrw{font:500 10.5px "JetBrains Mono",monospace;color:var(--muted);text-align:center;padding-bottom:2px}
+.hrcal .hd{min-height:46px;border-radius:6px;border:0;padding:3px 2px;display:flex;flex-direction:column;align-items:center;gap:1px;background:var(--none);color:var(--ink);cursor:pointer;font:inherit;min-width:0;overflow:hidden}
+.hrcal .hd .n{font:600 12px "JetBrains Mono",monospace}.hrcal .hd .c{font-size:9.5px;line-height:1.1;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hrcal .hd.free,.hrcal .hd.duty,.hrcal .hd.away{color:#fff}.hrcal .hd.part{color:var(--ink)}.hrcal .hd.sby{color:#1b1b1b}
+.hrcal .hd.free{background:var(--free)}.hrcal .hd.part{background:var(--part)}.hrcal .hd.duty{background:var(--duty)}.hrcal .hd.sby{background:var(--sby)}
+.hrcal .hd.today{outline:2px solid var(--accent);outline-offset:1px}.hrcal .hd.sel{outline:2px solid var(--ink);outline-offset:1px}.hrcal .blank{min-height:46px}
+.hrday{margin-top:10px;font-size:13.5px}.hrday span{color:var(--muted)}
 .setup{position:fixed;inset:0;z-index:50;background:var(--bg);overflow:auto;padding:max(16px,env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom))}
 .setupin{max-width:520px;margin:0 auto}.suhead{display:flex;justify-content:space-between;align-items:center;margin:0 0 18px}.logo-sm{font-weight:700}
 .sudots{display:flex;gap:6px;margin:0 0 18px}.sudots i{flex:1;height:4px;border-radius:2px;background:var(--line)}.sudots i.on{background:var(--brand)}
@@ -1627,12 +1637,52 @@ function suDone(){
 addEventListener("cbl:restored", () => { if ($("#setup").classList.contains("hidden")) return; closeSetup(); tab("overview"); });
 // a file whose columns have to be matched: Your data takes over
 addEventListener("cbl:mapping", () => { if ($("#setup").classList.contains("hidden")) return; closeSetup(); tab("import"); requestAnimationFrame(() => $("#mapCard").scrollIntoView({ behavior: "smooth", block: "start" })); });
+/* Home: my Crew Base roster as a one-month calendar (Monday first), when one has been dropped */
+let hrMonth = null, hrSel = null;
+function hrStates(){
+  const me = cb().me, r = { base: me.base || data.profile.base, days: me.days }, out = {}; let away = false;
+  for (const iso of Object.keys(me.days).sort()) { const f = cbWindows(r, iso, away); away = f.away; out[iso] = cbState(f, me.days[iso]); }
+  return out;
+}
+// what fits in a day box: OFF / SBY, or where the duty goes ("LHR"), else the duty's first word
+function hrShort(d){
+  if (!d) return "";
+  const base = (cb().me.base || data.profile.base || "").toUpperCase(), first = (d.code || "").split(" · ")[0];
+  if (d.free) return first.split(" ")[0] || "OFF";
+  const apts = [...(d.code || "").matchAll(/\b[A-Z]{3,4}(?:-[A-Z]{3,4})+\b/g)].flatMap(m => m[0].split("-"));
+  const away = [...new Set(apts.filter(a => !sameApt(a, base) && a !== base))];
+  if (away.length) return away.slice(0, 2).join(" ");
+  if (d.standby) return first.split(" ")[0] || "SBY";
+  return first.replace(/^flight /, "").split(" ")[0] || "duty";
+}
+function homeRosterHTML(){
+  const days = cb().me.days || {}, dates = Object.keys(days).sort(); if (!dates.length || user?.id === "sample") return "";
+  const months = [...new Set(dates.map(d => d.slice(0, 7)))], now = todayISO().slice(0, 7);
+  if (!hrMonth || !months.includes(hrMonth)) hrMonth = months.includes(now) ? now : months.find(m => m > now) || months[months.length - 1];
+  const [Y, M] = hrMonth.split("-").map(Number), nd = new Date(Y, M, 0).getDate(), lead = (new Date(Y, M - 1, 1).getDay() + 6) % 7;
+  const st = hrStates(), today = todayISO(), mi = months.indexOf(hrMonth);
+  const iso = d => `${hrMonth}-${String(d).padStart(2, "0")}`;
+  let g = "MTWTFSS".split("").map(c => `<div class="hrw">${c}</div>`).join("") + '<div class="blank"></div>'.repeat(lead);
+  for (let d = 1; d <= nd; d++) { const i = iso(d), day = days[i];
+    g += `<button type="button" class="hd ${day ? st[i] : ""}${i === today ? " today" : ""}${i === hrSel ? " sel" : ""}" data-hrday="${i}" title="${esc(day ? day.code : "no roster")}"><span class="n">${d}</span><span class="c">${esc(hrShort(day))}</span></button>`; }
+  const sel = hrSel && hrSel.startsWith(hrMonth) ? `<div class="hrday"><b>${cbNice(hrSel)}</b> · ${esc(days[hrSel]?.code || "no roster for this day")}${days[hrSel] && !days[hrSel].free ? " <span>(times in UTC)</span>" : ""}</div>` : "";
+  return `<div class="card hcard" id="homeRoster"><div class="hrhead"><h3>My roster</h3><div class="hrnav"><button class="btn ghost small" type="button" data-hrmon="-1"${mi > 0 ? "" : " disabled"} aria-label="Previous month">‹</button><b>${new Date(Y, M - 1, 1).toLocaleDateString("en-GB", { month: "long", year: "numeric" })}</b><button class="btn ghost small" type="button" data-hrmon="1"${mi < months.length - 1 ? "" : " disabled"} aria-label="Next month">›</button></div></div>` +
+    `<div class="hrcal">${g}</div>${sel}` +
+    `<div class="legend" style="margin-top:10px"><span><i class="sw free"></i>off</span><span><i class="sw part"></i>free part of the day</span><span><i class="sw duty"></i>duty / away</span><span><i class="sw sby"></i>standby</span></div>` +
+    `<div class="row-actions" style="margin:10px 0 0"><button class="btn ghost small" type="button" data-go="crewbase">Crew Base: compare with friends</button></div></div>`;
+}
+document.addEventListener("click", e => {
+  const m = e.target.closest("[data-hrmon]"), d = e.target.closest("[data-hrday]"); if (!m && !d) return;
+  if (m) { const ms = [...new Set(Object.keys(cb().me.days).sort().map(x => x.slice(0, 7)))]; hrMonth = ms[ms.indexOf(hrMonth) + +m.dataset.hrmon] || hrMonth; }
+  else hrSel = hrSel === d.dataset.hrday ? null : d.dataset.hrday;
+  const box = $("#homeRoster"); if (box) box.outerHTML = homeRosterHTML();
+});
 function renderHome(){
   const box = $("#homeDash"); if (!box || !data?.flights) return; const F = data.flights;
   // roster legs and logbook lines compare by airport (FCO and LIRF are the same): the airport list first
   if (!AIRPORTS && data.crew?.me?.days && Object.keys(data.crew.me.days).length) { loadAirports().then(() => AIRPORTS && renderHome()); }
   $('[data-p="overview"] .lead')?.classList.toggle("hidden", !!F.length);
-  if (!F.length) { box.innerHTML = installHTML(); return; }
+  if (!F.length) { box.innerHTML = homeRosterHTML() + installHTML(); return; }
   const yr = todayISO().slice(0, 4);
   const tile = (k, v, lim, note) => { const pc = lim ? v / (lim * 60) : 0, c = !lim ? "" : pc > 1 ? " bad" : pc >= 0.8 ? " warn" : "";
     return `<div class="htile${c}"><div class="k">${k}</div><div class="v">${fmtHrs(v)}</div><div class="lim">${lim ? `limit ${lim.toLocaleString()} h` : note || ""}</div>${lim ? `<div class="bar"><i style="width:${Math.min(100, Math.round(pc * 100))}%"></i></div>` : ""}</div>`; };
@@ -1640,7 +1690,7 @@ function renderHome(){
   const rec = typeRecency(), hasLdg = F.some(f => f.ldgDay || f.ldgNight);
   const lastHTML = last ? `<div class="card hcard"><h3>Last flight</h3>${lbCards([{ f: last, i: li }], [{ f: last, i: li }]).replace('<div class="lbcards">', '<div class="lbcards hlast">').replace(/<div class="lbmonth">.*?<\/div>/, "")}` +
       `<div class="row-actions" style="margin:10px 0 0"><button class="btn" type="button" data-go="add">+ Add flight</button><button class="btn ghost" type="button" data-pdfnow>PDF logbook</button><button class="btn ghost" type="button" data-go="logbook">All flights</button></div></div>` : "";
-  box.innerHTML = rosterAddHTML() + lastHTML +
+  box.innerHTML = rosterAddHTML() + homeRosterHTML() + lastHTML +
     `<div class="hgrid">${tile("Last 28 days", ftlSum(isoDaysAgo(27)), 100)}${tile("This year", ftlSum(yr + "-01-01"), 900)}${tile("Last 12 months", ftlSum(isoDaysAgo(364)), 1000)}${tile("Total time", F.reduce((s, f) => s + (f.total || 0), 0) + (data.prev?.total || 0), 0, "all time")}</div>` +
     (hasLdg && rec.length ? `<div class="card hcard"><h3>Landings: 3 in 90 days</h3><div class="hrow">${rec.map(r => `<span class="chip ${r.ok ? "ok" : "bad"}">${esc(r.type)} · ${r.in90} in 90 days · ${r.ok ? "until " + fmtDate(r.until) : "not current"}</span>`).join("")}</div></div>` : "") +
     installHTML();
@@ -1694,7 +1744,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "31 Oct 2026 · 2";
+const APP_VERSION = "31 Oct 2026 · 3";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
