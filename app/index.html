@@ -1987,7 +1987,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "31 Oct 2026 · 33";
+const APP_VERSION = "31 Oct 2026 · 34";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
@@ -4415,7 +4415,7 @@ function withPrev(o){
 }
 function renderStats(){
   const F = data.flights, T0 = acTypesFlown();
-  $("#stTypesNote").innerHTML = Object.keys(T0).length ? "Multi-crew and multi-engine time follow each aircraft type: " + Object.keys(T0).map(t => `${esc(t)} ${AC_CLASS[acClass(t)].toLowerCase()}`).join(", ") + '. <a href="#" data-go="profile" data-scroll="#acSection">Change</a>' : "";
+  $("#stTypesNote").innerHTML = "";
   const any = F.length || hasPrev();
   $("#stEmpty").classList.toggle("hidden", !!any); $("#stBody").classList.toggle("hidden", !any);
   if (!any) return;
