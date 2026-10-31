@@ -100,7 +100,15 @@ input.manual{color:var(--bad);border-color:var(--bad)}
 .who{display:flex;align-items:center;gap:10px;font-size:13.5px;color:var(--muted);min-width:0}
 .who span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tabs{max-width:1120px;margin:0 auto;padding:0 16px;display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
-.tabs button{flex:none;background:none;border:0;border-bottom:2px solid transparent;padding:10px 12px;font:500 14px Inter,sans-serif;color:var(--muted);cursor:pointer}
+.tabs button{flex:none;display:inline-flex;align-items:center;gap:7px;background:none;border:0;border-bottom:2px solid transparent;padding:10px 14px;font:500 14px Inter,sans-serif;color:var(--muted);cursor:pointer}
+.tabs button.tmore{display:none}.tabs .tabmore{margin-left:auto;position:relative}.tabs .tabmore.due{color:var(--muted)}.tabs .tabmore.due.on{color:var(--ink)}
+.tabs button.tabadd svg{background:var(--brand);color:#fff;border-radius:50%;padding:3px;width:22px;height:22px}
+.tabs [data-more].due::after{content:"";position:absolute;top:8px;left:24px;width:8px;height:8px;border-radius:50%;background:var(--warn)}
+@media (min-width:701px){
+  .moremenu:not(.hidden){display:block;position:fixed;z-index:31;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.2);min-width:210px;overflow:hidden}
+  .moremenu button{display:block;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--line);padding:12px 16px;font:500 15px Inter,sans-serif;color:var(--ink);cursor:pointer}
+  .moremenu button:last-child{border-bottom:0}.moremenu button.on{color:var(--brand)}.moremenu button:hover{background:var(--bg)}
+}
 .tabs button.on{color:var(--ink);border-bottom-color:var(--accent)}
 .tabs button.tabadd{color:var(--brand);font-weight:700}
 .tabs button.due,.moremenu button.due{color:var(--warn)}
@@ -476,17 +484,19 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
       <a class="logo" href="/"><svg viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#0b3d5c"/><path d="M12 38l40-14-10 22-8-6-6 8v-10z" fill="#f2b544"/></svg><span class="logotx">CrewBase Log</span></a>
       <div class="who"><span class="whostack"><span id="whoEmail"></span><span id="syncState" class="syncst" role="status"></span></span><button class="btn ghost small" id="btnOut">Log out</button></div>
     </div>
-    <nav class="tabs" id="tabs">
-      <button data-t="overview" class="on">Overview</button>
-      <button data-t="profile">Profile</button>
-      <button data-t="import">Your data</button>
-      <button data-t="logbook">Logbook</button>
-      <button data-t="add" class="tabadd">+ Add flight</button>
-      <button data-t="stats">Statistics</button>
-      <button data-t="crewbase">Crew Base</button>
-      <button data-t="jobs">Jobs</button>
-      <button data-t="help">Help</button>
-      <button data-t="admin" id="tabAdmin" class="hidden">Admin</button>
+    <nav class="tabs" id="tabs" aria-label="Main">
+      <button data-t="overview" class="on"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg><span>Home</span></button>
+      <button data-t="logbook"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h12a4 4 0 0 1 4 4v12H8a4 4 0 0 1-4-4z"/><path d="M8 9h8M8 13h8"/></svg><span>Logbook</span></button>
+      <button data-t="add" class="tabadd"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Add flight</span></button>
+      <button data-t="stats"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span>Stats</span></button>
+      <!-- the rest sit under More, as on a phone (kept here for the page list) -->
+      <button data-t="profile" class="tmore">Profile</button>
+      <button data-t="import" class="tmore">Your data</button>
+      <button data-t="crewbase" class="tmore">Crew Base</button>
+      <button data-t="jobs" class="tmore">Jobs</button>
+      <button data-t="help" class="tmore">Help</button>
+      <button data-t="admin" id="tabAdmin" class="tmore hidden">Admin</button>
+      <button type="button" class="tabmore" data-more aria-haspopup="menu"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg><span>More</span></button>
     </nav>
   </div>
   <!-- phones: the main pages in a bar at the bottom, the others under More -->
@@ -1333,21 +1343,27 @@ function tab(t){
   if (t !== "overview" && !$("#setup")?.classList.contains("hidden")) closeSetup?.(false);
   if (t !== "import") closeReview?.();
   $$("#tabs button, #bbar [data-t], #moreMenu [data-t]").forEach(b => b.classList.toggle("on", b.dataset.t === t));
-  $("#bbar [data-more]").classList.toggle("on", !!$(`#moreMenu [data-t="${t}"]`)); $("#moreMenu").classList.add("hidden");
+  $$("[data-more]").forEach(x => x.classList.toggle("on", !!$(`#moreMenu [data-t="${t}"]`))); $("#moreMenu").classList.add("hidden");
   $$("[data-p]").forEach(p => p.classList.toggle("hidden", p.dataset.p !== t));
   // the page is kept in the address, so a reload (an iPhone switching apps) opens it again
   try { if (location.hash !== "#" + t) history.replaceState(null, "", "#" + t); } catch {}
   ({ overview: renderOverview, profile: () => { renderProfile(); renderSignature(); renderExpiries(); }, logbook: renderLogbook, add: openAddForm, import: renderYourData, stats: renderStats, crewbase: renderCrewBase, admin: renderAdmin, help: renderHelp })[t]?.();
   window.scrollTo(0,0);
 }
-$("#tabs").addEventListener("click", e => { if (e.target.dataset.t) tab(e.target.dataset.t); });
+$("#tabs").addEventListener("click", e => { const b = e.target.closest("button[data-t]"); if (b) tab(b.dataset.t); });
 // the bar at the bottom (phones): More opens the other pages; a tap elsewhere closes it
 document.addEventListener("click", e => {
-  const b = e.target.closest("#bbar button, #moreMenu button");
-  if (b?.dataset.more !== undefined) { e.stopPropagation(); $("#moreMenu").classList.toggle("hidden"); return; }
+  const b = e.target.closest("#bbar button, #moreMenu button, #tabs [data-more]");
+  if (b?.dataset.more !== undefined) { e.stopPropagation(); const m = $("#moreMenu"), open = m.classList.toggle("hidden") === false;
+    // on a computer the menu drops down under More; on a phone it sits above the bar (its own CSS)
+    if (open && b.closest("#tabs")) { const r = b.getBoundingClientRect(); Object.assign(m.style, { top: r.bottom + 4 + "px", left: Math.max(8, Math.min(r.right - 210, innerWidth - 218)) + "px" }); }
+    else if (open) Object.assign(m.style, { top: "", left: "" });
+    return; }
   if (b?.dataset.t) { tab(b.dataset.t); return; }
   if (!e.target.closest("#moreMenu")) $("#moreMenu").classList.add("hidden");
 });
+// the computer's drop-down closes when the page scrolls or the window changes size (it would no longer sit under More)
+["scroll", "resize"].forEach(ev => addEventListener(ev, () => { if (innerWidth > 700) $("#moreMenu").classList.add("hidden"); }, { passive: true }));
 // while typing the bar steps aside, so it never sits on the keyboard
 document.addEventListener("focusin", e => { if (e.target.matches?.("input:not([type=checkbox]):not([type=radio]), textarea, select")) document.body.classList.add("typing"); });
 document.addEventListener("focusout", () => setTimeout(() => { if (!document.activeElement?.matches?.("input, textarea, select")) document.body.classList.remove("typing"); }, 50));
@@ -1785,7 +1801,7 @@ function renderHome(){
 function expBadge(){
   const n = data.expiries.filter(e => e.date && expStatus(e.date).c !== "ok").length;
   $$('[data-t="profile"]').forEach(b => b.classList.toggle("due", !!n));
-  $("#bbar [data-more]")?.classList.toggle("due", !!n || !!$('#moreMenu [data-t="help"].due'));
+  $$("[data-more]").forEach(x => x.classList.toggle("due", !!n || !!$('#moreMenu [data-t="help"].due')));
 }
 /* how complete the pilot's set-up is: each item and the setup page that asks for it */
 function setupItems(){
@@ -1831,7 +1847,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "31 Oct 2026 · 11";
+const APP_VERSION = "31 Oct 2026 · 12";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
@@ -3466,7 +3482,7 @@ async function renderMyReports(justSent){
   // a file that works now (or can't be read): said at the top of Help, with a dot on Help in the menu, until OK
   const seen = new Set(data.repSeen || []), news = r.data.filter(x => (x.status === "done" || x.status === "cannot") && !seen.has(x.id));
   $("#repNews")?.remove(); $$('[data-t="help"]').forEach(b => b.classList.toggle("due", !!news.length));
-  $("#bbar [data-more]")?.classList.toggle("due", !!news.length || data.expiries.some(e => e.date && expStatus(e.date).c !== "ok"));
+  $$("[data-more]").forEach(x => x.classList.toggle("due", !!news.length || data.expiries.some(e => e.date && expStatus(e.date).c !== "ok")));
   if (news.length) {
     $('[data-p="help"] h2').insertAdjacentHTML("afterend", `<div class="notice" id="repNews" style="margin:0 0 16px">${news.map(n => n.status === "done"
       ? `<div><b style="color:var(--ok)">✓ ${esc(n.file_name)} works now.</b> <a href="#" data-go="import">Drop it again on Your data</a>.</div>`
