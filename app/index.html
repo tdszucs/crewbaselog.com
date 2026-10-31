@@ -447,8 +447,8 @@ td.r,th.r{text-align:right}
 .hqhow{margin:4px 0 14px}.hqhow summary{cursor:pointer;color:var(--brand);font-weight:600;font-size:14px}.hqhow p{margin:8px 0}
 .hrfriends{margin-top:14px;padding-top:12px;border-top:1px solid var(--line);font-size:14px}.hrfriends a{font-weight:600}
 .hrfhead{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:baseline;margin:0 0 8px}
-.hcwrap{overflow-x:auto}.hcgrid{display:grid;gap:3px;min-width:max-content}
-.hcrow{display:grid;grid-template-columns:76px repeat(var(--days),16px);gap:2px;align-items:center}.hcrow .d{height:18px;border-radius:3px;cursor:default;display:block}
+.hcwrap{overflow-x:auto}.hcgrid{display:grid;gap:3px;width:100%;min-width:calc(96px + var(--days) * 18px)}
+.hcrow{display:grid;grid-template-columns:96px repeat(var(--days),minmax(0,1fr));gap:3px;align-items:center}.hcrow .d{height:18px;border-radius:3px;cursor:default;display:block}
 .hcn{font:500 9px "JetBrains Mono",monospace;color:var(--muted);text-align:center}.hcnm{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:6px}
 .hctog{margin-top:4px}.hctog .d{height:22px}
 .hfadd{margin-top:14px}.hflist{display:grid;gap:2px;margin:6px 0 0}.hfrow{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line);font-size:14px}
@@ -2131,7 +2131,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "31 Oct 2026 · 48";
+const APP_VERSION = "31 Oct 2026 · 49";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
