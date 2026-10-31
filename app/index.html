@@ -422,6 +422,14 @@ td.r,th.r{text-align:right}
 @keyframes spin{to{transform:rotate(360deg)}}
 @media (max-width:700px){.busy{bottom:calc(84px + env(safe-area-inset-bottom))}}
 .drop.reading{pointer-events:none;opacity:.75}.drop .rd{display:none;align-items:center;justify-content:center;gap:10px;font-weight:600}.drop.reading .rd{display:flex}.drop.reading .rdhide{display:none}
+.rmhead{display:flex;justify-content:space-between;gap:10px 16px;flex-wrap:wrap;align-items:center;margin:0 0 12px}.rmctl{display:flex;gap:10px 16px;flex-wrap:wrap;align-items:center}
+.rmseg{display:flex;gap:4px;flex-wrap:wrap}.rmseg button,.rmseg select{border:1px solid var(--line);background:var(--surface);color:var(--muted);border-radius:99px;padding:6px 12px;font:500 13px Inter,sans-serif;cursor:pointer;width:auto}
+.rmseg .on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.rmstats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin:0 0 12px}.rmstats div{background:var(--bg);border-radius:10px;padding:10px 12px}
+.rmstats .k{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}.rmstats .v{font:500 18px "JetBrains Mono",monospace;margin-top:2px}
+.routemap{height:440px;border-radius:12px;overflow:hidden;border:1px solid var(--line);background:#aad3df;position:relative;z-index:0}
+@media (max-width:700px){.routemap{height:320px}.rmstats{grid-template-columns:1fr 1fr}.rmstats div:first-child{grid-column:1 / -1}}
+@media (prefers-color-scheme: dark){.routemap{background:#1b2b36}.routemap .leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness(.9) contrast(.9)}}
 .repcard{border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:0 0 12px;background:var(--bg)}
 .rephd{display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap;word-break:break-all}
 .repctl{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;margin-top:8px}
@@ -795,12 +803,20 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
     <div data-p="stats" class="hidden">
       <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-end;flex-wrap:wrap">
         <div><h2>Statistics</h2><p class="lead" style="margin-bottom:0">The hours airlines ask for in a job application, from your logbook. <span id="stInfo"></span></p></div>
-        <div class="row-actions" style="margin:0"><button class="btn small" type="button" data-pdfnow>PDF logbook</button><button class="btn ghost small" type="button" id="stShare">Share summary</button><button class="btn ghost small" type="button" id="stCopy">Copy summary</button></div>
+        <div class="row-actions" style="margin:0"><button class="btn small" type="button" id="stPdf">PDF summary</button><button class="btn ghost small" type="button" id="stShare">Share summary</button><button class="btn ghost small" type="button" id="stCopy">Copy summary</button></div>
       </div>
       <p class="hint" id="stTypesNote" style="margin:16px 0 0;font-size:14px"></p>
       <div class="card hidden" id="stEmpty"><p class="hint" style="margin:0">No flights yet. <a href="#" data-go="import">Import or add your flights</a>.</p></div>
       <div id="stBody">
         <div class="stats" id="stTiles"></div>
+        <div class="card" id="rmCard">
+          <div class="rmhead"><h3 style="margin:0">Routes flown</h3>
+            <div class="rmctl"><div class="rmseg" role="group" aria-label="Period"><button type="button" data-rm="30" class="on">Last 30 days</button><button type="button" data-rm="ytd">This year</button><select id="rmYear" aria-label="Year"></select><button type="button" data-rm="all">All flights</button></div>
+              <label class="tick" style="margin:0"><input type="checkbox" id="rmLines" checked> <span>Connect with lines</span></label></div></div>
+          <div class="rmstats" id="rmStats"></div>
+          <div id="routeMap" class="routemap"><p class="hint" style="padding:16px;margin:0">Loading the map…</p></div>
+          <p class="hint" id="rmNote" style="margin:8px 0 0;font-size:12.5px"></p>
+        </div>
         <div class="card"><h3>Recent experience</h3><div class="tablewrap" id="stPeriods"></div></div>
         <div class="card"><h3>By aircraft type</h3><div class="tablewrap" id="stTypes"></div></div>
         <p class="hint">Simulator (FSTD) time is shown on its own and not included in total time.</p>
@@ -1440,7 +1456,7 @@ const AD_EV = {
   import: d => `Imported ${d.files} file${d.files === 1 ? "" : "s"} (${d.types}) · ${d.added} added${d.updated ? `, ${d.updated} updated` : ""}${d.problems ? ` · ${d.problems} not readable` : ""} · now ${d.flights} flights`,
   restore_backup: d => `Restored a backup · ${d.lines} lines${d.ok ? "" : " · did not fully match"}${d.gaps ? ` · ${d.gaps} gap(s)` : ""}`,
   download_pdf: d => `Downloaded PDF logbook · ${d.format}, ${{ all: "full logbook", last10: "last 10 pages", dates: "between dates" }[d.range] || d.range} · ${d.kb} KB`,
-  download_csv: d => `Downloaded CSV · ${d.flights} flights`, download_backup: d => `Downloaded full backup · ${d.flights} flights`,
+  download_csv: d => `Downloaded CSV · ${d.flights} flights`, download_summary: () => "Downloaded the PDF hours summary", download_backup: d => `Downloaded full backup · ${d.flights} flights`,
   add_flight: () => "Added a flight by hand", add_sim: () => "Added a simulator session by hand", edit_flight: d => `Edited a flight (${d.where})`,
   fix: d => `Troubleshooting · ${FIX_CHECKS.find(c => c.id === d.check)?.title || d.check} · ${{ mod: "fixed", del: "deleted", move: "moved to previous experience", ok: "marked correct" }[d.action] || d.action}`,
   start_over: () => "Cleared the logbook (start over)", roster_saved: d => `Saved Crew Base roster · ${d.days} days`, friend_added: d => `Added a Crew Base friend · ${d.friends} in total`,
@@ -1935,7 +1951,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "31 Oct 2026 · 16";
+const APP_VERSION = "31 Oct 2026 · 17";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
@@ -3052,7 +3068,7 @@ $("#btnCancelImp").addEventListener("click", () => { impLog.push(`<b>${esc(imp.n
 function doImport(){
   const fmt = imp.fmt || (imp.own ? "YMD" : $("#mDateFmt").value), existing = new Map(), inFile = new Map();
   for (const f of data.flights) { const k = dupKey(f); existing.set(k, [...(existing.get(k) || []), f]); }
-  let added = 0, dup = 0, bf = "", future = 0, updated = 0; const badRows = [];
+  let added = 0, dup = 0, bf = "", future = 0, updated = 0, picusN = 0; const badRows = [];
   // flights not flown yet (planned flights in an export that runs into the future) never go in the logbook
   const today = logToday(), stored = new Set(data.flights), renewed = new Set();
   for (const r of imp.flights || imp.rows) {
@@ -3062,6 +3078,8 @@ function doImport(){
     if (!valid(f)) { if (f.date || (f.from && f.to)) badRows.push(f.date ? fmtDate(f.date) : `${f.from}–${f.to}`); continue; }
     if (!isSim(f)) { f.from = aptStyle(f.from); f.to = aptStyle(f.to); }
     if (!imp.own && !imp.flights) autoFill(f);   // a PDF logbook's own columns are what was logged
+    // PICUS written in the remarks: that time is PICUS (logged as PIC, "PIC(US)" in the remarks), not co-pilot or dual time
+    if (!isSim(f) && f.total && f.pic < f.total && PICUS_RE.test(f.remarks || "")) { setRole(f, "picus"); picusN++; }
     // already there: only pick up an instructor signature the stored copy lacks. A file may hold the same line twice
     // (two identical sim sessions on one day): only as many copies as the logbook already has count as duplicates
     const k = dupKey(f), n = inFile.get(k) || 0, had = existing.get(k)?.[n]; inFile.set(k, n + 1);
@@ -3090,6 +3108,7 @@ function doImport(){
   found(imp.name, imp.kind === "airline" || imp.ecrew ? "airline" : "logbook", `${added.toLocaleString()} new line${added === 1 ? "" : "s"}${updated ? `, ${updated.toLocaleString()} updated` : ""}${dup ? `, ${dup.toLocaleString()} already in your logbook` : ""}${bf ? " · " + bf.replace(/^[\s(]+|\)$/g, "") : ""}`);
   impLog.push(`<b>${added.toLocaleString()} new line${added === 1 ? "" : "s"}</b> from ${esc(imp.name)}${bf}` + (updated ? ` · ${updated.toLocaleString()} updated with new times` : "") + (dup ? ` · ${dup.toLocaleString()} already in your logbook` : "") +
     (future ? `, ${future} flight${future === 1 ? "" : "s"} not flown yet left out (the logbook only holds flights already flown)` : "") + (badRows.length ? `, ${badRows.length} line${badRows.length === 1 ? "" : "s"} with no route, flight time or sim time left out (${badRows.slice(0, 5).join(", ")}${badRows.length > 5 ? " …" : ""})` : ""));
+  if (picusN) impLog.push(`${picusN.toLocaleString()} line${picusN === 1 ? "" : "s"} with PICUS in the remarks logged as PICUS (PIC time).`);
   if (mpFixed.length) impLog.push(`<span style="color:var(--warn)">${mpFixed.map(esc).join(", ")} ${mpFixed.length === 1 ? "was" : "were"} logged as single-pilot in the file. ${mpFixed.length === 1 ? "It is an airliner, so it counts" : "They are airliners, so they count"} as multi-pilot here (change it in <a href="#" data-go="profile" data-scroll="#acSection">Profile</a> if that's wrong).</span>`);
   if (imp.appPrev) impLog.push(`Previous experience from the file: <b>${fmtMin(imp.appPrev.total)}</b> total time. Saved as your <a href="#" data-go="import" data-scroll="#prevBox">previous experience</a>.`);
   if (imp.note) impLog.push(`<span style="color:var(--warn)">${esc(imp.note)}</span>`);
@@ -3244,9 +3263,10 @@ function isOwner(pn){
   return "";
 }
 // what the line itself says about the pilot's function: the PIC's name, PICUS or training in the remarks -> [role, reason]
+const PICUS_RE = /\bPIC\s*\(?\s*US\s*\)?|\bPICUS\b|\bP1\s*u\/?s\b/i;
 function suggestRole(f){
   const pn = String(f.picName || "").trim(), rem = f.remarks || "", own = isOwner(pn);
-  if (/\bPIC\s*\(?\s*US\s*\)?|\bPICUS\b|\bP1\s*u\/?s\b/i.test(rem)) return ["picus", "PICUS in the remarks"];
+  if (PICUS_RE.test(rem)) return ["picus", "PICUS in the remarks"];
   if (own && /\b(instruct\w*|TRI|TRE|LTC|line train(ing|er)\b.*\b(given|as trainer)|trainer)\b/i.test(rem)) return ["instructor", own + ", on a training flight"];
   if (own) return ["pic", own];
   if (pn && /\b(dual|student|lesson|solo check|flight school|ab.?initio|T\d{3})\b/i.test(rem)) return ["dual", `${pn} was PIC on a training flight`];
@@ -4067,7 +4087,8 @@ function gsCheck(pre){
   const box = $("#" + pre + "gsNote"); if (!box) return;
   const g = x => ($("#" + pre + x)?.value || "").trim(), t = x => parseTime(g(x));
   const f = { from: g("from").toUpperCase(), to: g("to").toUpperCase(), out: t("out"), off: t("off"), on: t("on"), in: t("in"), total: parseDur(g("total")) };
-  const sp = flightSpeed(f); box.classList.toggle("hidden", !speedOff(sp)); if (!speedOff(sp)) return;
+  // only too fast (a wrong time or airport): a slow one (holding, a diversion, a time still being typed) is no reason to stop the pilot
+  const sp = flightSpeed(f), fast = !!sp && sp.kt > 700; box.classList.toggle("hidden", !fast); if (!fast) return;
   box.innerHTML = `<div class="notice" style="margin:0;border-color:var(--warn)"><b style="color:var(--warn)">⚠ This flight will result in a ground speed of ${sp.kt.toLocaleString()} knots.</b>` +
     `<div style="margin:4px 0 0">${esc(f.from)}–${esc(f.to)} is ${Math.round(sp.d).toLocaleString()} NM, flown in ${fmtMin(sp.t)} (${sp.what}). Maybe a time or an airport was entered incorrectly.</div></div>`;
 }
@@ -4314,9 +4335,69 @@ function renderStats(){
       return (g ? line(g, statTotals(V.flatMap(v => v[1])), true) : `<tr style="background:var(--bg);font-weight:700"><td colspan="${cols.length + 3}">Other types</td></tr>`) +
         V.map(([t, fl]) => line(t, statTotals(fl))).join("");
     }).join("") + "</tbody></table>";
+  renderRouteMap();
   $("#stInfo").textContent = (F.length ? `${T.n.toLocaleString()} flight${T.n === 1 ? "" : "s"}${T.sims ? ` and ${T.sims} simulator session${T.sims === 1 ? "" : "s"}` : ""}, ${fmtDate(F[0].date)} to ${fmtDate(F[F.length-1].date)}.` : "") +
     (hasPrev() ? ` All-time figures include ${h(data.prev.total)} brought forward from earlier logbooks.` : "");
 }
+/* Route map (Stats): the airports and routes of a period on OpenStreetMap (Leaflet), with the great-circle distance flown */
+const LEAFLET = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/";
+const EARTH_KM = 40075, MOON_KM = 384400;
+let rMap = null, rLayer = null, rRange = "30";
+function loadCss(href){ return new Promise(r => { if ($(`link[href="${href}"]`)) return r(); const l = document.createElement("link"); l.rel = "stylesheet"; l.href = href; l.onload = l.onerror = r; document.head.appendChild(l); }); }
+// an airport's [lat, lon], by the code as logged or its ICAO / IATA twin
+const aptLL = c => AIRPORTS?.[c] || AIRPORTS?.[aptAlt()[c]] || null;
+function gcKm(A, B){ const r = Math.PI / 180, h = Math.sin((B[0] - A[0]) * r / 2) ** 2 + Math.cos(A[0] * r) * Math.cos(B[0] * r) * Math.sin((B[1] - A[1]) * r / 2) ** 2; return 2 * 6371.0088 * Math.asin(Math.min(1, Math.sqrt(h))); }
+// points along the great circle, longitudes kept continuous so a line across the date line doesn't wrap round the world
+function gcPath(A, B, n = 48){
+  const r = Math.PI / 180, [p1, l1, p2, l2] = [A[0] * r, A[1] * r, B[0] * r, B[1] * r];
+  const d = 2 * Math.asin(Math.sqrt(Math.sin((p2 - p1) / 2) ** 2 + Math.cos(p1) * Math.cos(p2) * Math.sin((l2 - l1) / 2) ** 2)); if (!d) return [A, B];
+  const out = []; let prev = null;
+  for (let i = 0; i <= n; i++) { const f = i / n, a = Math.sin((1 - f) * d) / Math.sin(d), b = Math.sin(f * d) / Math.sin(d);
+    const x = a * Math.cos(p1) * Math.cos(l1) + b * Math.cos(p2) * Math.cos(l2), y = a * Math.cos(p1) * Math.sin(l1) + b * Math.cos(p2) * Math.sin(l2), z = a * Math.sin(p1) + b * Math.sin(p2);
+    let lon = Math.atan2(y, x) / r; const lat = Math.atan2(z, Math.sqrt(x * x + y * y)) / r;
+    if (prev != null) while (lon - prev > 180) lon -= 360; while (prev != null && lon - prev < -180) lon += 360; prev = lon; out.push([lat, lon]); }
+  return out;
+}
+function routeFlights(){
+  const F = data.flights.filter(f => !isSim(f) && f.from && f.to), t = todayISO();
+  return rRange === "30" ? F.filter(f => f.date >= isoDaysAgo(29)) : rRange === "ytd" ? F.filter(f => f.date >= t.slice(0, 4) + "-01-01") : rRange === "all" ? F : F.filter(f => f.date.startsWith(rRange));
+}
+async function renderRouteMap(){
+  const box = $("#routeMap"); if (!box) return;
+  const years = [...new Set(data.flights.filter(f => !isSim(f)).map(f => f.date.slice(0, 4)))].sort().reverse(), ys = $("#rmYear");
+  ys.innerHTML = '<option value="">Year…</option>' + years.map(y => `<option${rRange === y ? " selected" : ""}>${y}</option>`).join(""); ys.classList.toggle("on", /^\d{4}$/.test(rRange));
+  $$("[data-rm]").forEach(b => b.classList.toggle("on", b.dataset.rm === rRange));
+  await loadAirports(); loadAptNames();
+  const F = routeFlights(), apts = new Map(), legs = new Map(); let km = 0, longest = null, unknown = 0;
+  for (const f of F) {
+    const A = aptLL(f.from), B = aptLL(f.to); if (!A || !B) { unknown++; continue; }
+    for (const [c, ll] of [[f.from, A], [f.to, B]]) { const a = apts.get(c) || { c, ll, n: 0 }; a.n++; apts.set(c, a); }
+    const k = gcKm(A, B); km += k; if (!longest || k > longest.k) longest = { k, f };
+    if (f.from !== f.to) { const key = [f.from, f.to].sort().join("-"), l = legs.get(key) || { A, B, n: 0, k }; l.n++; legs.set(key, l); }
+  }
+  const n0 = x => Math.round(x).toLocaleString(), n2 = x => x < 10 ? x.toFixed(2) : x < 100 ? x.toFixed(1) : n0(x);
+  $("#rmStats").innerHTML = [["Distance flown", `${n0(km)} km`], ["Around the Earth", `${n2(km / EARTH_KM)}×`], ["To the Moon and back", `${n2(km / (2 * MOON_KM))}×`],
+    ["Flights", F.length.toLocaleString()], ["Airports", apts.size.toLocaleString()]].map(([k, v]) => `<div><div class="k">${k}</div><div class="v">${v}</div></div>`).join("");
+  $("#rmNote").textContent = (longest ? `Longest: ${longest.f.from}–${longest.f.to}, ${n0(longest.k)} km (great circle). ` : "") + (unknown ? `${unknown} flight${unknown === 1 ? "" : "s"} with an airport we don't know ${unknown === 1 ? "is" : "are"} not on the map or in the distance. ` : "") +
+    "Distances are great-circle, airport to airport. Around the Earth: 40,075 km; the Moon: 384,400 km away.";
+  if (!F.length && !rMap) { box.innerHTML = `<p class="hint" style="padding:16px;margin:0">No flights in this period.</p>`; }
+  try { if (!window.L) { await loadCss(LEAFLET + "leaflet.min.css"); await loadScript(LEAFLET + "leaflet.min.js"); } }
+  catch { box.innerHTML = '<p class="hint" style="padding:16px;margin:0">The map couldn\'t load (no connection?). The figures above are still right.</p>'; return; }
+  if (!rMap) { box.innerHTML = ""; rMap = L.map(box, { worldCopyJump: true, minZoom: 1, zoomSnap: 0.5 }).setView([25, 10], 2);
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 12, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' }).addTo(rMap); }
+  rLayer?.remove(); rLayer = L.layerGroup().addTo(rMap);
+  const css = getComputedStyle(document.documentElement), brand = css.getPropertyValue("--brand").trim() || "#0b3d5c", acc = css.getPropertyValue("--accent").trim() || "#d9961c";
+  if ($("#rmLines").checked) for (const l of legs.values()) L.polyline(gcPath(l.A, l.B), { color: acc, weight: 1.2 + Math.min(3, Math.log2(l.n)), opacity: .7, interactive: false }).addTo(rLayer);
+  const pts = [];
+  for (const a of apts.values()) { pts.push(a.ll);
+    L.circleMarker(a.ll, { radius: 3.5 + Math.min(8, Math.sqrt(a.n)), color: "#fff", weight: 1.5, fillColor: brand, fillOpacity: .95 })
+      .bindTooltip(`<b>${esc(a.c)}</b>${aptName(a.c) || aptName(aptAlt()[a.c]) ? " · " + esc(aptName(a.c) || aptName(aptAlt()[a.c])) : ""}<br>${a.n} visit${a.n === 1 ? "" : "s"}`).addTo(rLayer); }
+  rMap.invalidateSize();
+  if (pts.length > 1) rMap.fitBounds(pts, { padding: [24, 24], maxZoom: 7 }); else if (pts.length) rMap.setView(pts[0], 6);
+}
+document.addEventListener("click", e => { const b = e.target.closest("[data-rm]"); if (!b) return; rRange = b.dataset.rm; $("#rmYear").value = ""; renderRouteMap(); });
+$("#rmYear").addEventListener("change", e => { if (e.target.value) { rRange = e.target.value; renderRouteMap(); } });
+$("#rmLines").addEventListener("change", renderRouteMap);
 /* The hours summary to paste or share (job applications): a plain list, most asked-for first, that reads well in a mail,
    a note or a message. Totals, then each aircraft type (most hours first), then recent flying; lines with nothing are left out */
 function statSummary(){
@@ -4343,6 +4424,35 @@ function statSummary(){
   out.push("From CrewBase Log");
   return out.join("\n");
 }
+/* the same hours summary as a PDF (A4, one or two pages): headings in bold, a line per figure */
+async function statSummaryPdf(){
+  if (!window.PDFLib) await loadScript("https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js");
+  const { PDFDocument, rgb } = PDFLib, doc = await PDFDocument.create(), { font, bold, uni } = await logbookFonts(doc), W = 595.28, H = 841.89, M = 56;
+  const clean = t => uni ? t : t.replace(/[^\x20-\x7e]/g, c => ({ "·": "-", "–": "-", "’": "'" })[c] || "");
+  const lines = statSummary().split("\n"); let pg = doc.addPage([W, H]), y = H - M;
+  const put = (t, f, size, color = rgb(0.06, 0.11, 0.15)) => {
+    // long lines wrap at the margin
+    const words = clean(t).split(" "); let cur = "";
+    for (const w of words) { const next = cur ? cur + " " + w : w; if (f.widthOfTextAtSize(next, size) > W - 2 * M && cur) { draw(cur); cur = w; } else cur = next; }
+    draw(cur);
+    function draw(s){ if (y < M + 20) { pg = doc.addPage([W, H]); y = H - M; } pg.drawText(s, { x: M, y, size, font: f, color }); y -= size + 6; }
+  };
+  lines.forEach((l, i) => {
+    if (!l) { y -= 8; return; }
+    if (i === 0) return put(l, bold, 17);
+    if (/^[A-Z][A-Z ]+$/.test(l)) { y -= 4; return put(l, bold, 11.5, rgb(0.04, 0.24, 0.36)); }
+    if (l === "From CrewBase Log") return put("Made with CrewBase Log · crewbaselog.com", font, 9, rgb(0.4, 0.45, 0.5));
+    put(l, font, 10.5);
+  });
+  return doc.save();
+}
+$("#stPdf").addEventListener("click", async () => {
+  const b = $("#stPdf"); b.disabled = true; b.textContent = "Building…";
+  try { const bytes = await statSummaryPdf(), a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+    a.download = `flight-hours-summary-${todayISO()}.pdf`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); logEvent("download_summary", {}); b.textContent = "PDF summary"; }
+  catch (e) { console.warn(e); b.textContent = "Couldn't build it"; setTimeout(() => b.textContent = "PDF summary", 2000); }
+  b.disabled = false;
+});
 // the hours summary to the share sheet (mail, messages, notes) where the device has one, else copied
 $("#stShare").addEventListener("click", async () => {
   const text = statSummary();
