@@ -1955,7 +1955,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "31 Oct 2026 · 19";
+const APP_VERSION = "31 Oct 2026 · 20";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
@@ -4483,26 +4483,71 @@ function statSummary(){
   out.push("From CrewBase Log");
   return out.join("\n");
 }
-/* the same hours summary as a PDF (A4, one or two pages): headings in bold, a line per figure */
+/* The hours summary as a PDF (A4): a header with the pilot, the totals as tiles, then tables by aircraft type and of recent
+   flying; a table that runs over the page carries on with its heading row */
 async function statSummaryPdf(){
   if (!window.PDFLib) await loadScript("https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js");
-  const { PDFDocument, rgb } = PDFLib, doc = await PDFDocument.create(), { font, bold, uni } = await logbookFonts(doc), W = 595.28, H = 841.89, M = 56;
-  const clean = t => uni ? t : t.replace(/[^\x20-\x7e]/g, c => ({ "·": "-", "–": "-", "’": "'" })[c] || "");
-  const lines = statSummary().split("\n"); let pg = doc.addPage([W, H]), y = H - M;
-  const put = (t, f, size, color = rgb(0.06, 0.11, 0.15)) => {
-    // long lines wrap at the margin
-    const words = clean(t).split(" "); let cur = "";
-    for (const w of words) { const next = cur ? cur + " " + w : w; if (f.widthOfTextAtSize(next, size) > W - 2 * M && cur) { draw(cur); cur = w; } else cur = next; }
-    draw(cur);
-    function draw(s){ if (y < M + 20) { pg = doc.addPage([W, H]); y = H - M; } pg.drawText(s, { x: M, y, size, font: f, color }); y -= size + 6; }
+  const { PDFDocument, rgb } = PDFLib, doc = await PDFDocument.create(), { font, bold, uni } = await logbookFonts(doc);
+  const W = 595.28, H = 841.89, M = 40, CW = W - 2 * M, h = fmtHrs, P = data.profile, F = data.flights, T = withPrev(statTotals(F));
+  const C = { ink: rgb(0.06, 0.11, 0.15), muted: rgb(0.38, 0.44, 0.49), line: rgb(0.86, 0.89, 0.92), band: rgb(0.043, 0.239, 0.361), zebra: rgb(0.965, 0.973, 0.98), head: rgb(0.925, 0.945, 0.96), acc: rgb(0.85, 0.59, 0.11), white: rgb(1, 1, 1) };
+  const clean = t => uni ? String(t) : String(t).replace(/[^\x20-\x7e]/g, c => ({ "·": "-", "–": "-", "’": "'", "…": "..." })[c] || "");
+  const tw = (t, f, z) => f.widthOfTextAtSize(clean(t), z);
+  const fit = (t, f, z, w) => { t = clean(t); while (t.length > 1 && f.widthOfTextAtSize(t, z) > w) t = t.slice(0, -2) + "…"; return clean(t); };
+  let pg, y, pageNo = 0;
+  const text = (t, x, yy, f = font, z = 9.5, color = C.ink, align = "l", w = 0) => { const s2 = w ? fit(t, f, z, w) : clean(t); pg.drawText(s2, { x: align === "r" ? x - f.widthOfTextAtSize(s2, z) : x, y: yy, size: z, font: f, color }); };
+  const newPage = () => { pg = doc.addPage([W, H]); pageNo++; y = H - M;
+    pg.drawText(clean(`CrewBase Log · crewbaselog.com`), { x: M, y: 22, size: 8, font, color: C.muted }); text(`Page ${pageNo}`, W - M, 22, font, 8, C.muted, "r"); };
+  const need = (hgt, floor = 40) => { if (y - hgt < floor) newPage(); };
+  const section = t => { need(40); y -= 10; text(t.toUpperCase(), M, y - 10, bold, 10.5, C.band); pg.drawRectangle({ x: M, y: y - 16, width: 28, height: 2, color: C.acc }); y -= 26; };
+  // header band
+  newPage();
+  pg.drawRectangle({ x: 0, y: H - 112, width: W, height: 112, color: C.band });
+  text("Flight hours summary", M, H - 50, bold, 22, C.white);
+  text([P.name, licType(P.type), P.lic].filter(Boolean).join("  ·  ") || "Pilot", M, H - 74, font, 11, rgb(0.85, 0.9, 0.95));
+  const flown = F.filter(f => !isSim(f)), first = flown[0]?.date, last = flown.reduce((m, f) => f.date > m ? f.date : m, "");
+  text(`As of ${fmtDate(todayISO())}`, W - M, H - 50, font, 10, rgb(0.85, 0.9, 0.95), "r");
+  if (first) text(`Logbook ${fmtDate(first)} to ${fmtDate(last)}`, W - M, H - 74, font, 10, rgb(0.85, 0.9, 0.95), "r");
+  if (P.base || P.airline) text([P.base && "Base " + P.base, P.airline && "Airline " + P.airline].filter(Boolean).join("  ·  "), M, H - 94, font, 9.5, rgb(0.75, 0.82, 0.88));
+  y = H - 112 - 14;
+  // totals as tiles, four to a row
+  section("Totals");
+  const tiles = [["Total time", h(T.total)], ["Multi-pilot", h(T.mp)], ["PIC", h(T.pic)], ...(T.picus ? [["of which PICUS", h(T.picus)]] : []), ["Co-pilot", h(T.copilot)], ["IFR", h(T.ifr)], ["Night", h(T.night)],
+    ["Multi-engine", h(T.me)], ["Single-engine", h(T.se)], ["Instructor", h(T.instructor)], ["Dual received", h(T.dual)], ["Simulator (FSTD)", h(T.fstd)], ["Sectors", T.n.toLocaleString()], ["Landings", T.ldg.toLocaleString()]]
+    .filter(([k, v], i) => i < 3 || (v && v !== "0:00" && v !== "0"));
+  const tw4 = (CW - 3 * 8) / 4, th = 40;
+  tiles.forEach(([k, v], i) => { const col = i % 4; if (col === 0) { need(th + 8); if (i) y -= th + 8; }
+    const x = M + col * (tw4 + 8); pg.drawRectangle({ x, y: y - th, width: tw4, height: th, color: i === 0 ? rgb(0.99, 0.95, 0.87) : C.zebra, borderColor: C.line, borderWidth: 0.6 });
+    text(k.toUpperCase(), x + 10, y - 14, font, 7.5, C.muted); text(v, x + 10, y - 31, bold, 13.5, C.ink); });
+  y -= th + 6;
+  // a table: columns [label, width share, align], rows of cells; bold rows for subtotals
+  const table = (cols, rows, opt = {}) => {
+    const total = cols.reduce((s, c) => s + c[1], 0), xs = []; let x = M; for (const c of cols) { xs.push(x); x += CW * c[1] / total; }
+    const rowH = 17, headRow = () => { need(rowH * 2); pg.drawRectangle({ x: M, y: y - rowH, width: CW, height: rowH, color: C.head });
+      cols.forEach((c, i) => text(c[0], c[2] === "r" ? xs[i] + CW * c[1] / total - 6 : xs[i] + 6, y - 12, bold, 8, C.muted, c[2])); y -= rowH; };
+    headRow();
+    rows.forEach((r, j) => { if (y - rowH < 40) { newPage(); headRow(); }
+      const strong = opt.bold?.(r, j); if (j % 2) pg.drawRectangle({ x: M, y: y - rowH, width: CW, height: rowH, color: C.zebra });
+      r.forEach((v, i) => { const c = cols[i], w = CW * c[1] / total - 12; text(v, c[2] === "r" ? xs[i] + CW * c[1] / total - 6 : xs[i] + 6, y - 12, strong ? bold : font, 9, C.ink, c[2], w); });
+      y -= rowH; });
+    pg.drawLine({ start: { x: M, y }, end: { x: M + CW, y }, thickness: 0.6, color: C.line }); y -= 8;
   };
-  lines.forEach((l, i) => {
-    if (!l) { y -= 8; return; }
-    if (i === 0) return put(l, bold, 17);
-    if (/^[A-Z][A-Z ]+$/.test(l)) { y -= 4; return put(l, bold, 11.5, rgb(0.04, 0.24, 0.36)); }
-    if (l === "From CrewBase Log") return put("Made with CrewBase Log · crewbaselog.com", font, 9, rgb(0.4, 0.45, 0.5));
-    put(l, font, 10.5);
-  });
+  // by aircraft type, the most hours first
+  const by = {}; for (const f of flown) (by[f.acType || "Type not given"] ||= []).push(f);
+  const types = Object.entries(by).map(([t, fl]) => [t, statTotals(fl)]).sort((a, b) => b[1].total - a[1].total), anyUs = types.some(([, o]) => o.picus);
+  if (types.length) { section("By aircraft type");
+    table([["Type", 1.9], ["Class", 1.6], ["Sectors", 0.9, "r"], ["Total", 1.1, "r"], ["PIC", 1, "r"], ...(anyUs ? [["PICUS", 1, "r"]] : []), ["Co-pilot", 1, "r"], ["Instructor", 1, "r"], ["Last flown", 1.2, "r"]],
+      types.map(([t, o]) => [t, ({ MP: "Multi-pilot", SPME: "Multi-engine", SPSE: "Single-engine" })[acClass(t)] || "", o.n.toLocaleString(), h(o.total), o.pic ? h(o.pic) : "", ...(anyUs ? [o.picus ? h(o.picus) : ""] : []), o.copilot ? h(o.copilot) : "", o.instructor ? h(o.instructor) : "", o.last ? fmtDate(o.last) : ""])); }
+  // recent flying and all time
+  section("Recent experience");
+  const per = [["Last 28 days", 28], ["Last 90 days", 90], ["Last 6 months", 182], ["Last 12 months", 365], ["Last 24 months", 730], ["All time", 0]]
+    .map(([k, d]) => [k, d ? statTotals(F.filter(f => f.date >= isoDaysAgo(d - 1))) : T]);
+  table([["Period", 1.6], ["Total", 1, "r"], ["PIC", 1, "r"], ["Co-pilot", 1, "r"], ["Multi-pilot", 1, "r"], ["IFR", 1, "r"], ["Night", 1, "r"], ["Sectors", 0.8, "r"], ["Landings", 0.8, "r"]],
+    per.map(([k, o]) => [k, h(o.total), h(o.pic), h(o.copilot), h(o.mp), h(o.ifr), h(o.night), o.n.toLocaleString(), o.ldg.toLocaleString()]), { bold: r => r[0] === "All time" });
+  // notes
+  const notes = [hasPrev() && `All-time figures include ${h(data.prev.total)} brought forward from earlier logbooks.`, T.picus && "PICUS time is logged as PIC and shown on its own as well.",
+    "Simulator (FSTD) time is not included in total time."].filter(Boolean);
+  need(notes.length * 13 + 4, 30); y -= 2;
+  for (const n of notes) { text("– " + n, M, y - 10, font, 8.5, C.muted); y -= 13; }
   return doc.save();
 }
 $("#stPdf").addEventListener("click", async () => {
