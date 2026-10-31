@@ -441,6 +441,10 @@ td.r,th.r{text-align:right}
 .rmfullbtn{width:34px;height:34px;display:grid;place-items:center;background:#fff;color:#0f1c27;border:0;border-radius:8px;box-shadow:0 1px 6px rgba(0,0,0,.3);cursor:pointer}
 .routemap.mt.leaflet-container{background:#0b1622}
 .routemap.rmfull{position:fixed!important;inset:0;height:auto;z-index:150;border-radius:0;border:0}
+.hq{margin:0 0 14px}.hql{font-weight:600;font-size:14px;margin:0 0 6px}.hqseg{display:flex;flex-wrap:wrap;gap:6px}
+.hqseg button{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:99px;padding:8px 14px;font:500 14px Inter,sans-serif;cursor:pointer}
+.hqseg button.on{background:var(--brand);border-color:var(--brand);color:#fff}
+.hqhow{margin:4px 0 14px}.hqhow summary{cursor:pointer;color:var(--brand);font-weight:600;font-size:14px}.hqhow p{margin:8px 0}
 .repcard{border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:0 0 12px;background:var(--bg)}
 .rephd{display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap;word-break:break-all}
 .repctl{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;margin-top:8px}
@@ -608,15 +612,24 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
       </div>
       <h2 style="margin-top:30px">How you log your flights</h2>
       <div class="card" id="defCard">
-        <p class="hint" style="margin:0 0 14px;font-size:14px">Filled in automatically when an imported or added flight doesn't have them. A value already on a flight is never changed.</p>
-        <div class="field" style="max-width:360px"><label for="pRole">I fly as</label>
-          <select id="pRole"><option value="">Not set (single pilot: time goes to PIC)</option><option value="PIC">Pilot in command (captain)</option><option value="CP">Co-pilot (first officer)</option></select>
-          <div class="hint">Decides whether a flight's time goes to PIC or co-pilot. Files with their own PIC/co-pilot columns (like eCrew) keep their values.</div></div>
-        <div class="field" style="max-width:360px"><label for="pApt">Airport codes</label>
-          <select id="pApt"><option value="">As in my files</option><option value="ICAO">ICAO, 4 letters (EGLL, KJFK)</option><option value="IATA">IATA, 3 letters (LHR, JFK)</option></select>
-          <div class="hint">Used for every flight you import or add, and on your PDF logbook. An airport that only has one code (closed for airlines, or a small airfield without an IATA code) keeps the code it has.</div><div class="ok-msg" id="pAptMsg"></div></div>
-        <label style="display:flex;gap:8px;align-items:flex-start;font-weight:400;margin:0 0 8px"><input type="checkbox" id="pIfr" style="width:auto;margin-top:3px"> <span>Airline flights are IFR: a flight between two airports gets IFR time equal to its total time.</span></label>
-        <label style="display:flex;gap:8px;align-items:flex-start;font-weight:400;margin:0 0 14px"><input type="checkbox" id="pNight" style="width:auto;margin-top:3px"> <span>Work out night time from the block times and airports (times in UTC). Night is when the sun is more than 6° below the horizon, along the route.</span></label>
+        <p class="hint" style="margin:0 0 14px;font-size:14px">A few answers, and adding a flight fills in the rest by itself.</p>
+        <div class="hq"><div class="hql">In the cockpit you are usually</div><div class="hqseg" data-hq="role">
+          <button type="button" data-v="PIC">Captain</button><button type="button" data-v="CP">First officer</button><button type="button" data-v="DUAL">Student</button><button type="button" data-v="FI">Instructor</button><button type="button" data-v="">It varies</button></div></div>
+        <div class="hq"><div class="hql">Your flights are flown</div><div class="hqseg" data-hq="ifr">
+          <button type="button" data-v="all">IFR</button><button type="button" data-v="mix">IFR between airports, VFR at airfields</button><button type="button" data-v="none">VFR</button></div></div>
+        <div class="hq"><div class="hql">Night time</div><div class="hqseg" data-hq="night">
+          <button type="button" data-v="on">Work it out for me</button><button type="button" data-v="off">I enter it myself</button></div></div>
+        <div class="hq"><div class="hql">Airport codes</div><div class="hqseg" data-hq="apt">
+          <button type="button" data-v="ICAO">ICAO (EGLL)</button><button type="button" data-v="IATA">IATA (LHR)</button><button type="button" data-v="">As in my files</button></div><div class="ok-msg" id="pAptMsg"></div></div>
+        <select id="pRole" class="hidden"><option value=""></option><option value="PIC"></option><option value="CP"></option><option value="DUAL"></option><option value="FI"></option></select>
+        <select id="pApt" class="hidden"><option value=""></option><option value="ICAO"></option><option value="IATA"></option></select>
+        <input type="checkbox" id="pIfr" class="hidden"><input type="checkbox" id="pNight" class="hidden">
+        <details class="hqhow"><summary>How these answers are used</summary><div class="hint" style="font-size:13.5px;line-height:1.55">
+          <p><b>Captain:</b> a new flight has SELF as the PIC and its time goes to PIC. <b>First officer:</b> the time goes to co-pilot, and you are the SIC in the crew. <b>Student:</b> dual received. <b>Instructor:</b> PIC and instructor time. <b>It varies:</b> the PIC name decides (SELF is PIC, anyone else co-pilot).</p>
+          <p><b>IFR:</b> every flight gets IFR time equal to its total. <b>IFR between airports:</b> only flights between two airports with an IATA code, so a circuit at a small airfield stays VFR. <b>VFR:</b> no IFR time is filled in.</p>
+          <p><b>Night</b> is worked out from the block times (UTC) and the airports: the part of the flight when the sun is more than 6° below the horizon along the route.</p>
+          <p><b>Airport codes:</b> every flight you import or add uses that style, and so does your PDF logbook. An airport with only one code keeps it.</p>
+          <p>These fill in what a flight doesn't have yet. A box you type in yourself is never changed, and files with their own PIC, co-pilot or IFR columns (like eCrew) keep their values.</p></div></details>
         <div class="row-actions" style="margin:0"><button class="btn ghost" type="button" id="pApply">Apply to flights already in my logbook</button><span id="pApplyMsg" class="ok-msg"></span></div>
         <label style="display:flex;gap:8px;align-items:flex-start;font-weight:400;margin:18px 0 0;padding-top:14px;border-top:1px solid var(--line)"><input type="checkbox" id="pUsage" style="width:auto;margin-top:3px"> <span>Help CrewBase Log with anonymous counts: once a month, the app sends that it was used, with your main aircraft family, licence type, a range of total hours and your time zone. Never your name, email, logbook or anything that links two months together. <a href="/privacy.html#usage" target="_blank">More</a></span></label>
       </div>
@@ -1991,7 +2004,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "31 Oct 2026 · 36";
+const APP_VERSION = "31 Oct 2026 · 37";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
@@ -2066,16 +2079,30 @@ function renderProfile(){
   $("#appVersion").textContent = "CrewBase Log version " + APP_VERSION;
   renderAcTypes();
   for (const [id,k] of Object.entries(PF)) $("#"+id).value = data.profile[k] || ""; $("#profSaved").textContent = "";
-  $("#pRole").value = data.profile.role || ""; $("#pIfr").checked = data.profile.autoIfr !== false; $("#pUsage").checked = data.profile.usage !== false; $("#pApt").value = data.profile.apt || ""; $("#pAptMsg").textContent = ""; $("#pNight").checked = data.profile.autoNight !== false; $("#pApplyMsg").textContent = "";
+  hqShow(); $("#pRole").value = data.profile.role || ""; $("#pIfr").checked = data.profile.autoIfr !== false; $("#pUsage").checked = data.profile.usage !== false; $("#pApt").value = data.profile.apt || ""; $("#pAptMsg").textContent = ""; $("#pNight").checked = data.profile.autoNight !== false; $("#pApplyMsg").textContent = "";
 }
-$("#defCard").addEventListener("change", () => { data.profile.role = $("#pRole").value; data.profile.autoIfr = $("#pIfr").checked; data.profile.autoNight = $("#pNight").checked; data.profile.usage = $("#pUsage").checked; save(); });
+$("#defCard").addEventListener("change", e => { if (e.target.id === "pUsage") { data.profile.usage = $("#pUsage").checked; save(); } });
+// IFR: "all" (every flight), "mix" (between two airports with an IATA code), "none"; older profiles had a yes / no
+const ifrMode = () => data.profile.ifrMode || (data.profile.autoIfr === false ? "none" : "mix");
+function hqShow(){
+  const P = data.profile, v = { role: P.role || "", ifr: ifrMode(), night: P.autoNight === false ? "off" : "on", apt: P.apt || "" };
+  $$("[data-hq]").forEach(g => g.querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.v === v[g.dataset.hq])));
+}
+document.addEventListener("click", async e => {
+  const b = e.target.closest("[data-hq] button"); if (!b) return; const k = b.closest("[data-hq]").dataset.hq, v = b.dataset.v, P = data.profile;
+  if (k === "role") P.role = v;
+  if (k === "ifr") { P.ifrMode = v; P.autoIfr = v !== "none"; }
+  if (k === "night") P.autoNight = v === "on";
+  if (k === "apt") { hqShow(); $("#pAptMsg").textContent = await setAptStyle(v); return hqShow(); }
+  save(); hqShow();
+});
 // choosing the airport-code style converts the logbook straight away
 async function setAptStyle(pref){
   await loadAirports(); data.profile.apt = pref; data.profile.aptAsked = true; logEvent("airport_codes", { style: pref || "as in files" });
   const n = pref ? aptConvert(pref) : 0; save(); renderLogbook(); renderFix(); renderCheck();
   return pref ? (n ? `${n.toLocaleString()} airport code${n === 1 ? "" : "s"} changed to ${pref}.` : `Your logbook already uses ${pref} codes.`) : "Codes stay as they are in your files.";
 }
-$("#pApt").addEventListener("change", async e => { $("#pAptMsg").textContent = await setAptStyle(e.target.value); });
+
 document.addEventListener("click", async e => { const b = e.target.closest("[data-aptpick]"); if (!b) return; e.preventDefault();
   const msg = await setAptStyle(b.dataset.aptpick); document.querySelectorAll(".aptask").forEach(x => x.innerHTML = `<span style="color:var(--ok)">✓ ${esc(msg)}</span> <a href="#" data-go="profile" data-scroll="#defCard">Change in Profile</a>`); });
 // asked once, when a logbook mixes both styles and no choice was made yet
@@ -2609,11 +2636,18 @@ function nightMinutes(f){
   return Math.min(f.total, Math.round(night * f.total / block));
 }
 // fill what a flight is missing from the profile's logging defaults; never overwrites a value. Returns bits: 1 function time, 2 IFR, 4 night
+// the function-time boxes a flight's time goes to: SELF as PIC is PIC; otherwise what the pilot said they usually are
+function roleKeys(picName){
+  const R = data.profile.role; if (/^self$/i.test(String(picName || "").trim())) return R === "FI" ? ["pic", "instructor"] : ["pic"];
+  return R === "PIC" ? ["pic"] : R === "FI" ? ["pic", "instructor"] : R === "DUAL" ? ["dual"] : R === "CP" ? ["copilot"] : picName ? ["copilot"] : ["pic"];
+}
+// does this route get IFR time: always, never, or between two airports with an IATA code (not a small airfield)
+const ifrFits = (from, to) => { const m = ifrMode(); return m === "all" ? true : m === "none" ? false : !!(AIRPORTS?.[from] && AIRPORTS?.[to] && !isAirfield(from) && !isAirfield(to)); };
 function autoFill(f){
   if (isSim(f) || !f.total) return 0;
   const P = data.profile; let r = 0;
-  if (!f.pic && !f.copilot && !f.dual && !f.instructor) { f[P.role === "CP" ? "copilot" : "pic"] = f.total; r |= 1; }
-  if (P.autoIfr !== false && !f.ifr && AIRPORTS?.[f.from] && AIRPORTS?.[f.to] && !isAirfield(f.from) && !isAirfield(f.to)) { f.ifr = f.total; r |= 2; }
+  if (!f.pic && !f.copilot && !f.dual && !f.instructor) { for (const k of roleKeys(f.picName)) f[k] = f.total; r |= 1; }
+  if (!f.ifr && ifrFits(f.from, f.to)) { f.ifr = f.total; r |= 2; }
   if (P.autoNight !== false && !f.night) { const n = nightMinutes(f); if (n) { f.night = n; r |= 4; } }
   return r;
 }
@@ -3583,7 +3617,7 @@ const draftKey = () => "cbl_draft_" + (user?.id || "");
 function draftValues(){
   const v = {}; for (const el of $$("#addFields [id^=n_]")) if (el.type === "checkbox" ? el.checked : el.value) v[el.id.slice(2)] = el.type === "checkbox" ? true : el.value;
     const pf = pfOf("n_"); if (pf) v._pf = pf; const rs = $("#n_relShare")?.dataset; if (rs?.share) Object.assign(v, { _share: rs.share, _keys: rs.keys || "", _full: rs.full || "" }); if ($("#n_total")?.dataset.auto) v._auto = 1; v._kind = addSim() ? "sim" : "flight";
-  return Object.keys(v).some(k => !k.startsWith("_") && !(k === "flightNo" && v[k] === data.profile.airline) && !(k === "date" && v[k] === logToday()) && !(k === "reg" && /-$/.test(v[k])) && !(k === "crew" && v[k] === "SELF")) ? v : null;
+  return Object.keys(v).some(k => !k.startsWith("_") && !(k === "flightNo" && v[k] === data.profile.airline) && !(k === "date" && v[k] === logToday()) && !(k === "reg" && /-$/.test(v[k])) && !(k === "crew" && v[k] === "SELF") && !(k === "picName" && v[k] === "SELF" && ["PIC", "FI"].includes(data.profile.role))) ? v : null;
 }
 function saveDraft(){ try { const v = draftValues(); if (v) localStorage.setItem(draftKey(), JSON.stringify(v)); else localStorage.removeItem(draftKey()); } catch {} }
 const dropDraft = () => { try { localStorage.removeItem(draftKey()); } catch {} };
@@ -4173,6 +4207,21 @@ document.addEventListener("input", e => {
   if (m[2] === "pic" || (m[1] === "e_" && m[2] !== "picName")) return;   // an edited flight: only when its PIC is changed to SELF
   setTimeout(() => { selfPic(m[1]); logBtns(m[1]); clashShow?.(m[1]); renderAddPreview?.(); });   // after the total has followed the block time
 });
+/* Adding a flight: as soon as the total is known, the function time (by what the pilot usually is, or SELF as PIC) and IFR fill in.
+   Only boxes that are empty or were filled this way change; a time typed by hand stays. Relief shares have their own rules */
+function roleFill(pre){
+  if (pre !== "n_" || addSim() || isRelief(pre)) return; const tot = parseDur($("#n_total")?.value || ""); if (!tot) return;
+  const set = (k, on) => { const i = $("#n_" + k); if (!i || (i.value.trim() && !i.dataset.auto)) return; const v = on ? fmtMin(tot) : ""; if (i.value !== v) i.value = v; if (on) i.dataset.auto = "1"; else delete i.dataset.auto; };
+  const FN = ["pic", "copilot", "dual", "instructor"];
+  if (!FN.some(k => { const i = $("#n_" + k); return i?.value.trim() && !i.dataset.auto; })) { const on = roleKeys($("#n_picName")?.value || ""); FN.forEach(k => set(k, on.includes(k))); }
+  const from = aptStyle(($("#n_from")?.value || "").trim().toUpperCase()), to = aptStyle(($("#n_to")?.value || "").trim().toUpperCase());
+  if (ifrMode() === "all" || (from && to)) set("ifr", ifrFits(from, to));
+}
+document.addEventListener("input", e => {
+  const m = (e.target.id || "").match(/^n_(out|in|total|from|to|picName|pic|copilot|dual|instructor|ifr)$/); if (!m) return;
+  if (/^(pic|copilot|dual|instructor|ifr)$/.test(m[1]) && e.isTrusted) delete e.target.dataset.auto;   // typed by hand: stays
+  setTimeout(() => loadAirports().then(() => { roleFill("n_"); renderAddPreview?.(); }), 0);
+});
 // Total time is the block time by itself, until the pilot types another
 document.addEventListener("input", e => {
   const m = (e.target.id || "").match(/^(n_|e_)(out|in|total|from|to|date|pic|copilot|dual|instructor|night|ifr)$/); if (!m) return;
@@ -4738,6 +4787,8 @@ const flightLabel = f => (isSim(f) ? `${fmtDate(f.date)} simulator ${f.fstdType 
 function flightFieldsHTML(pre, f = {}){
   if (pre === "n_" && !f.flightNo && data.profile.airline) f = { ...f, flightNo: data.profile.airline };
   if (pre === "n_" && !f.date) f = { ...f, date: logToday() };   // today; one tap on the date changes it
+  // a captain or an instructor is the PIC of a new flight (changed by typing another name)
+  if (pre === "n_" && !f.picName && ["PIC", "FI"].includes(data.profile.role)) f = { ...f, picName: "SELF" };
   const v = k => LB_DUR.includes(k) ? (f[k] ? fmtMin(f[k]) : "") : k.startsWith("ldg") ? (f[k] || "") : f[k] ?? "";
   // landings: a picker (the wheel on an iPhone). While empty a cover sits on it: the first tap puts 1 in, the next opens the wheel
   const ldg = k => { const cur = +v(k) || 0, max = Math.max(50, cur);
