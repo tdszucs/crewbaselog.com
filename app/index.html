@@ -1071,7 +1071,7 @@ const CONFIG = {
   // Google Maps JavaScript API key (Stats route map), restricted to crewbaselog.com in Google Cloud. Empty: OpenStreetMap is used
   GOOGLE_MAPS_KEY: "",
   // MapTiler key (Stats route map, "Dataviz" style), restricted to crewbaselog.com in MapTiler Cloud. Used when there is no Google key
-  MAPTILER_KEY: ""
+  MAPTILER_KEY: "oxI5De0xBpMigKEB83vz"
 };
 const LIVE = !!(CONFIG.SUPABASE_URL && CONFIG.SUPABASE_ANON_KEY);
 const REDIRECT = location.origin + location.pathname;
@@ -1983,7 +1983,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "31 Oct 2026 · 24";
+const APP_VERSION = "31 Oct 2026 · 25";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
