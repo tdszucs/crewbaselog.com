@@ -431,7 +431,7 @@ td.r,th.r{text-align:right}
 .rmstats .k{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}.rmstats .v{font:500 18px "JetBrains Mono",monospace;margin-top:2px}
 .routemap{height:440px;border-radius:12px;overflow:hidden;border:1px solid var(--line);background:#aad3df;position:relative;z-index:0}
 @media (max-width:700px){.routemap{height:320px}.rmstats{grid-template-columns:1fr 1fr}.rmstats>div:first-child{grid-column:1 / -1}.rmic{width:32px;height:32px}.rmstats .v{font-size:16px}}
-@media (prefers-color-scheme: dark){.routemap{background:#1b2b36}.routemap .leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness(.9) contrast(.9)}}
+@media (prefers-color-scheme: dark){.routemap{background:#1b2b36}.routemap:not(.mt) .leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness(.9) contrast(.9)}}
 .hlimhead{display:flex;justify-content:space-between;align-items:baseline;margin:0 0 6px}.linkbtn{background:none;border:0;color:var(--brand);font:600 13.5px Inter,sans-serif;cursor:pointer;padding:4px 0}
 .limrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 0;border-bottom:1px solid var(--line)}.limrow select{width:auto;flex:1 1 170px}.limrow input{width:84px}
 .repcard{border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:0 0 12px;background:var(--bg)}
@@ -1069,7 +1069,9 @@ const CONFIG = {
   GOOGLE_ENABLED: true,
   GOOGLE_CLIENT_ID: "1007945186786-l2tff9qe5tiqtc0vhbgpsvekdf2hedvg.apps.googleusercontent.com",
   // Google Maps JavaScript API key (Stats route map), restricted to crewbaselog.com in Google Cloud. Empty: OpenStreetMap is used
-  GOOGLE_MAPS_KEY: ""
+  GOOGLE_MAPS_KEY: "",
+  // MapTiler key (Stats route map, "Dataviz" style), restricted to crewbaselog.com in MapTiler Cloud. Used when there is no Google key
+  MAPTILER_KEY: ""
 };
 const LIVE = !!(CONFIG.SUPABASE_URL && CONFIG.SUPABASE_ANON_KEY);
 const REDIRECT = location.origin + location.pathname;
@@ -1981,7 +1983,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "31 Oct 2026 · 23";
+const APP_VERSION = "31 Oct 2026 · 24";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
@@ -4495,12 +4497,23 @@ async function renderRouteMap(){
   try { if (!window.L) { await loadCss(LEAFLET + "leaflet.min.css"); await loadScript(LEAFLET + "leaflet.min.js"); } }
   catch { box.innerHTML = '<p class="hint" style="padding:16px;margin:0">The map couldn\'t load (no connection?). The figures above are still right.</p>'; return; }
   if (!rMap) { box.innerHTML = ""; rMap = L.map(box, { worldCopyJump: true, minZoom: 1, zoomSnap: 0.5 }).setView([25, 10], 2);
-    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 12, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' }).addTo(rMap); }
+    rMap._tiles = mapTiles().addTo(rMap); }
   rLayer?.remove(); rLayer = L.layerGroup().addTo(rMap);
   for (const l of Ls) L.polyline(gcPath(l.A, l.B), { color: acc, weight: line(l), opacity: .75, interactive: false }).addTo(rLayer);
   for (const a of A) L.circleMarker(a.ll, { radius: dot(a), color: "#fff", weight: 1, fillColor: brand, fillOpacity: .95 }).bindTooltip(esc(label(a))).addTo(rLayer);
   rMap.invalidateSize();
   const pts = A.map(a => a.ll); if (pts.length > 1) rMap.fitBounds(pts, { padding: [24, 24], maxZoom: 7 }); else if (pts.length) rMap.setView(pts[0], 6);
+}
+// the map underneath: MapTiler "Dataviz" (light or dark, like the phone) with a key, else OpenStreetMap. A refused MapTiler key
+// (no tile loads, several errors) falls back to OpenStreetMap
+function mapTiles(){
+  const osm = () => L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 12, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' });
+  if (!CONFIG.MAPTILER_KEY) { $("#routeMap").classList.remove("mt"); return osm(); }
+  const style = matchMedia("(prefers-color-scheme: dark)").matches ? "dataviz-dark" : "dataviz";
+  const t = L.tileLayer(`https://api.maptiler.com/maps/${style}/{z}/{x}/{y}.png?key=${encodeURIComponent(CONFIG.MAPTILER_KEY)}`, { tileSize: 512, zoomOffset: -1, minZoom: 1, maxZoom: 12, crossOrigin: true,
+    attribution: '<a href="https://www.maptiler.com/copyright/" target="_blank">&copy; MapTiler</a> <a href="https://www.openstreetmap.org/copyright" target="_blank">&copy; OpenStreetMap contributors</a>' });
+  let ok = 0, bad = 0; t.on("tileload", () => ok++); t.on("tileerror", () => { if (++bad >= 4 && !ok && rMap) { console.warn("MapTiler tiles refused: OpenStreetMap instead"); rMap.removeLayer(t); $("#routeMap").classList.remove("mt"); rMap._tiles = osm().addTo(rMap); } });
+  $("#routeMap").classList.add("mt"); return t;
 }
 // Google Maps: loaded once with the site's key; false if it can't load (no connection, key refused), and OpenStreetMap is used
 let gmapsP = null, gMap = null, gItems = [];
