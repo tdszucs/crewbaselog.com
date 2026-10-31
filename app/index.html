@@ -435,7 +435,7 @@ td.r,th.r{text-align:right}
 .hlimhead{display:flex;justify-content:space-between;align-items:baseline;margin:0 0 6px}.linkbtn{background:none;border:0;color:var(--brand);font:600 13.5px Inter,sans-serif;cursor:pointer;padding:4px 0}
 .limrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 0;border-bottom:1px solid var(--line)}.limrow select{width:auto;flex:1 1 170px}.limrow input{width:84px}
 .rmdates{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:-4px 0 12px}.rmdates label{margin:0;font-size:13px;color:var(--muted)}.rmdates input{width:auto}
-.rmpop{font:13px/1.45 Inter,sans-serif;min-width:170px}.rmpop b{font-size:15px}.rmpopn{font:600 15px "JetBrains Mono",monospace;margin:6px 0 2px}
+.rmpop{font:13px/1.45 Inter,sans-serif;min-width:190px}.rmpop b{font-size:15px}.rmpoph{display:flex;gap:10px;align-items:flex-start}.rmflag{font-size:28px;line-height:1}.rmpopn{font:600 15px "JetBrains Mono",monospace;margin:6px 0 2px}
 .routemap path.leaflet-interactive{cursor:pointer}
 .repcard{border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:0 0 12px;background:var(--bg)}
 .rephd{display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap;word-break:break-all}
@@ -1987,7 +1987,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "31 Oct 2026 · 32";
+const APP_VERSION = "31 Oct 2026 · 33";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
@@ -2545,6 +2545,8 @@ function aptFlags(pre){
 }
 document.addEventListener("focusout", e => { const m = (e.target.id || "").match(/^(n_|e_)(from|to)$/); if (m) setTimeout(() => aptFlags(m[1])); });
 document.addEventListener("input", e => { const m = (e.target.id || "").match(/^(n_|e_)(from|to)$/); if (m) Promise.all([loadAirports(), loadAptNames()]).then(() => aptFlags(m[1])); });
+// a country's name from its two-letter code (the browser knows them), else the code
+const countryName = cc => { try { return new Intl.DisplayNames(["en"], { type: "region" }).of(cc) || cc; } catch { return cc; } };
 const aptName = c => { const r = APT_NAME?.[c]; return r ? r[2] + (r[3] ? `, ${r[3]}` : "") + (r[4] ? ` · ${r[4]}` : "") : ""; };
 async function loadAirports(){
   if (AIRPORTS) return AIRPORTS;
@@ -4480,7 +4482,7 @@ async function renderRouteMap(){
   ys.innerHTML = '<option value="">Year…</option>' + years.map(y => `<option${rRange === y ? " selected" : ""}>${y}</option>`).join(""); ys.classList.toggle("on", /^\d{4}$/.test(rRange));
   $$("[data-rm]").forEach(b => b.classList.toggle("on", b.dataset.rm === rRange)); $("#rmDates").classList.toggle("hidden", rRange !== "dates");
   if (rRange === "dates" && !$("#rmFrom").value && !$("#rmTo").value) { const D = data.flights.filter(f => !isSim(f)).map(f => f.date).sort(); $("#rmFrom").value = rFrom = D[0] || ""; $("#rmTo").value = rTo = D[D.length - 1] || ""; }
-  await loadAirports(); loadAptNames();
+  await Promise.all([loadAirports(), loadAptNames()]);   // the names and countries are in the airport popups
   const F = routeFlights(), apts = new Map(), legs = new Map(); let km = 0, longest = null, unknown = 0;
   for (const f of F) {
     const A = aptLL(f.from), B = aptLL(f.to); if (!A || !B) { unknown++; continue; }
@@ -4499,8 +4501,10 @@ async function renderRouteMap(){
   const label = a => `${a.c}${aptName(a.c) || aptName(aptAlt()[a.c]) ? " · " + (aptName(a.c) || aptName(aptAlt()[a.c])) : ""} · ${a.n} visit${a.n === 1 ? "" : "s"}`;
   // small dots (a little bigger for the airports used most) and thin lines, thicker only for routes flown often
   // a tap on an airport: its name, visits (departures and arrivals), first and last visit, and the places flown to and from most
-  const pop = a => { const nm = aptName(a.c) || aptName(aptAlt()[a.c]), top = Object.entries(a.peers).sort((x, y) => y[1] - x[1]).slice(0, 5);
-    return `<div class="rmpop"><b>${esc(a.c)}</b>${nm ? `<div class="hint" style="margin:0">${esc(nm)}</div>` : ""}<div class="rmpopn">${a.n.toLocaleString()} visit${a.n === 1 ? "" : "s"}</div>` +
+  const pop = a => { const r = APT_NAME?.[a.c] || APT_NAME?.[aptAlt()[a.c]], cc = aptCountry(a.c), top = Object.entries(a.peers).sort((x, y) => y[1] - x[1]).slice(0, 5);
+    const codes = r ? [r[1], r[0]].filter(Boolean).filter((x, i, A) => A.indexOf(x) === i).join(" / ") : a.c;
+    return `<div class="rmpop"><div class="rmpoph">${cc ? `<span class="rmflag" title="${esc(cc)}">${flagOf(cc)}</span>` : ""}<div><b>${esc(r ? r[2] : a.c)}</b>` +
+      `<div class="hint" style="margin:0">${esc([codes, r?.[3], r?.[4] && r[4] !== r?.[3] ? countryName(r[4]) : ""].filter(Boolean).join(" · "))}</div></div></div><div class="rmpopn">${a.n.toLocaleString()} visit${a.n === 1 ? "" : "s"}</div>` +
       `<div>${a.dep.toLocaleString()} departure${a.dep === 1 ? "" : "s"} · ${a.arr.toLocaleString()} arrival${a.arr === 1 ? "" : "s"}</div><div class="hint" style="margin:0">${a.first === a.last ? fmtDate(a.first) : `first ${fmtDate(a.first)} · last ${fmtDate(a.last)}`}</div>` +
       (top.length ? `<div style="margin-top:6px">${top.map(([c, n]) => `${esc(c)} <span class="hint" style="margin:0">${n}×</span>`).join(" · ")}</div>` : "") + `</div>`; };
   const dot = a => 2.5 + Math.min(2.5, Math.sqrt(a.n) / 3), line = l => 0.8 + Math.min(1.2, Math.log2(l.n) / 4);
