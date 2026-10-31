@@ -1984,7 +1984,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "31 Oct 2026 · 26";
+const APP_VERSION = "31 Oct 2026 · 27";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
@@ -4506,7 +4506,7 @@ async function renderRouteMap(){
   rMap.invalidateSize();
   const pts = A.map(a => a.ll); if (pts.length > 1) rMap.fitBounds(pts, { padding: [24, 24], maxZoom: 7 }); else if (pts.length) rMap.setView(pts[0], 6);
 }
-// the map underneath: with a MapTiler key, satellite imagery (default) or the calm Dataviz map, switched in the map's corner and
+// the map underneath: with a MapTiler key, satellite imagery with borders and place names (MapTiler "hybrid", default) or the calm Dataviz map, switched in the map's corner and
 // remembered on this device; without a key, or if MapTiler refuses it (no tile loads, several errors), OpenStreetMap
 function mapTiles(){
   const osm = () => L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 12, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' });
@@ -4516,7 +4516,7 @@ function mapTiles(){
     let ok = 0, bad = 0; t.on("tileload", () => ok++);
     t.on("tileerror", () => { if (++bad >= 4 && !ok && rMap?.hasLayer(t)) { console.warn("MapTiler tiles refused: OpenStreetMap instead"); rMap.removeLayer(t); box.classList.remove("mt"); osm().addTo(rMap); } });
     return t; };
-  const layers = { Satellite: mt("satellite", "jpg"), Map: mt(matchMedia("(prefers-color-scheme: dark)").matches ? "dataviz-dark" : "dataviz", "png") };
+  const layers = { Satellite: mt("hybrid", "jpg"), Map: mt(matchMedia("(prefers-color-scheme: dark)").matches ? "dataviz-dark" : "dataviz", "png") };
   let pick = "Satellite"; try { pick = localStorage.getItem("cbl_maplayer") === "Map" ? "Map" : "Satellite"; } catch {}
   box.classList.add("mt"); box.classList.toggle("sat", pick === "Satellite");
   setTimeout(() => { if (!rMap) return; L.control.layers(layers, null, { position: "topright", collapsed: false }).addTo(rMap);
