@@ -2095,9 +2095,15 @@ async function calSync(){
   }
 }
 document.addEventListener("click", e => { if (e.target.closest("[data-calsync]")) { e.preventDefault(); calSync(); } });
+// how the roster gets here: the AIMS eCrew app puts it in Google Calendar, CrewBase Log reads it from there
+const calHelpHTML = (open) => `<details class="hqhow"${open ? " open" : ""}><summary>How to get your roster here</summary><div class="hint" style="font-size:13.5px;line-height:1.6">
+  <ol style="margin:6px 0 0;padding-left:20px"><li>In the <b>AIMS eCrew app</b>, open the side menu (your name and photo) and tap <b>Upload to Calendar</b>. Choose <b>Google Calendar</b> and allow it. Your roster is now in your Google Calendar.</li>
+  <li>Here on Home, tap <b>Connect Google Calendar</b> and allow read-only access. Your roster appears as a calendar, in UTC.</li>
+  <li>Friends you add under Friends see it too (and you see theirs once they have added you).</li></ol>
+  <p style="margin:8px 0 0">When the airline changes your roster, upload it to the calendar again in the eCrew app; CrewBase Log picks the change up when you open it, or tap <b>Sync from Google Calendar</b>. Only the events the eCrew app created are read, nothing else in your calendar.</p></div></details>`;
 function homeRosterHTML(){
   const days = cb().me.days || {}, dates = Object.keys(days).sort(); if (user?.id === "sample") return "";
-  if (!dates.length) return `<div class="card hcard" id="homeCrewStart"><h3>My roster</h3><p class="hint" style="margin:0 0 10px">Share your AIMS roster to Google Calendar and it shows here as a calendar, next to your friends' rosters, and stays up to date. Or drop the Personal Crew Schedule PDF on <a href="#" data-go="import">Your data</a>.</p>
+  if (!dates.length) return `<div class="card hcard" id="homeCrewStart"><h3>My roster</h3><p class="hint" style="margin:0 0 6px">Your AIMS roster, from your Google Calendar, shows here as a calendar next to your friends' rosters and stays up to date. Or drop the Personal Crew Schedule PDF on <a href="#" data-go="import">Your data</a>.</p>${calHelpHTML(true)}
     <div class="row-actions" style="margin:0 0 6px"><button class="btn small" type="button" data-calsync>Connect Google Calendar</button><span class="hint" data-calmsg style="margin:0"></span></div>
     <div class="hint" style="margin:6px 0 0;font-size:12.5px">Read-only. Only events from the AIMS eCrew app are read; nothing else in your calendar is looked at or kept.</div>${homeCrewHTML()}</div>`;
   const months = [...new Set(dates.map(d => d.slice(0, 7)))], now = todayISO().slice(0, 7);
@@ -2112,7 +2118,7 @@ function homeRosterHTML(){
   return `<div class="card hcard" id="homeRoster"><div class="hrhead"><h3>My roster</h3><div class="hrnav"><button class="btn ghost small" type="button" data-hrmon="-1"${mi > 0 ? "" : " disabled"} aria-label="Previous month">‹</button><b>${new Date(Y, M - 1, 1).toLocaleDateString("en-GB", { month: "long", year: "numeric" })}</b><button class="btn ghost small" type="button" data-hrmon="1"${mi < months.length - 1 ? "" : " disabled"} aria-label="Next month">›</button></div></div>` +
     `<div class="hrcal">${g}</div>${sel}` +
     `<div class="legend" style="margin-top:10px"><span><i class="sw free"></i>off</span><span><i class="sw part"></i>free part of the day</span><span><i class="sw duty"></i>duty / away</span><span><i class="sw sby"></i>standby</span></div>` +
-    `<div class="hint" style="margin:8px 0 0"><a href="#" data-calsync>↻ Sync from Google Calendar</a>${data.calSync?.last ? ` · last ${new Date(data.calSync.last).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}` : ""} <span data-calmsg></span></div>` + homeCrewHTML() + `</div>`;
+    `<div class="hint" style="margin:8px 0 0"><a href="#" data-calsync>↻ Sync from Google Calendar</a>${data.calSync?.last ? ` · last ${new Date(data.calSync.last).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}` : ""} <span data-calmsg></span></div>${calHelpHTML(false)}` + homeCrewHTML() + `</div>`;
 }
 document.addEventListener("click", e => {
   const m = e.target.closest("[data-hrmon]"), d = e.target.closest("[data-hrday]"); if (!m && !d) return;
@@ -2218,7 +2224,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "31 Oct 2026 · 55";
+const APP_VERSION = "31 Oct 2026 · 56";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
