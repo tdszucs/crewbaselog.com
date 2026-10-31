@@ -868,9 +868,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
         <div class="stats" id="stTiles"></div>
         <div class="card" id="rmCard">
           <div class="rmhead"><h3 style="margin:0">Routes flown</h3>
-            <div class="rmctl"><div class="rmseg" role="group" aria-label="Period"><button type="button" data-rm="all" class="on">All flights</button><select id="rmYear" aria-label="Year"></select><button type="button" data-rm="dates">Dates…</button></div>
-              <label class="tick" style="margin:0"><input type="checkbox" id="rmLines" checked> <span>Connect with lines</span></label></div></div>
-          <div class="rmdates hidden" id="rmDates"><label for="rmFrom">From</label><input type="date" id="rmFrom"><label for="rmTo">to</label><input type="date" id="rmTo"><span class="err" id="rmDateErr" style="margin:0"></span></div>
+            <div class="rmctl"><label class="tick" style="margin:0"><input type="checkbox" id="rmLines" checked> <span>Connect with lines</span></label></div></div>
           <div class="rmstats" id="rmStats"></div>
           <div id="routeMap" class="routemap"><p class="hint" style="padding:16px;margin:0">Loading the map…</p></div>
           <p class="hint" id="rmNote" style="margin:8px 0 0;font-size:12.5px"></p>
@@ -2128,7 +2126,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "31 Oct 2026 · 45";
+const APP_VERSION = "31 Oct 2026 · 46";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
@@ -4717,7 +4715,7 @@ const RM_ICON = {
   plane: RM_SVG('<path d="M10.5 21l1.5-3 1.5 3M12 18V14M21 13l-9-4.5V4.5a1.5 1.5 0 0 0-3 0v4L3 12v2l6-1.5v3.5l-2 1.5V19l3.5-1"/>'),
   apt: RM_SVG('<path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/>')
 };
-let rMap = null, rLayer = null, rRange = "all", rFrom = "", rTo = "";
+let rMap = null, rLayer = null;
 function loadCss(href){ return new Promise(r => { if ($(`link[href="${href}"]`)) return r(); const l = document.createElement("link"); l.rel = "stylesheet"; l.href = href; l.onload = l.onerror = r; document.head.appendChild(l); }); }
 // an airport's [lat, lon], by the code as logged or its ICAO / IATA twin
 const aptLL = c => AIRPORTS?.[c] || AIRPORTS?.[aptAlt()[c]] || null;
@@ -4733,17 +4731,9 @@ function gcPath(A, B, n = 48){
     if (prev != null) while (lon - prev > 180) lon -= 360; while (prev != null && lon - prev < -180) lon += 360; prev = lon; out.push([lat, lon]); }
   return out;
 }
-function routeFlights(){
-  const F = statFlights().filter(f => !isSim(f) && f.from && f.to), t = todayISO();
-  return rRange === "30" ? F.filter(f => f.date >= isoDaysAgo(29)) : rRange === "ytd" ? F.filter(f => f.date >= t.slice(0, 4) + "-01-01") : rRange === "all" ? F
-    : rRange === "dates" ? F.filter(f => (!rFrom || f.date >= rFrom) && (!rTo || f.date <= rTo)) : F.filter(f => f.date.startsWith(rRange));
-}
+function routeFlights(){ return statFlights().filter(f => !isSim(f) && f.from && f.to); }   // the Stats filter decides
 async function renderRouteMap(){
   const box = $("#routeMap"); if (!box) return;
-  const years = [...new Set(data.flights.filter(f => !isSim(f)).map(f => f.date.slice(0, 4)))].sort().reverse(), ys = $("#rmYear");
-  ys.innerHTML = '<option value="">Year…</option>' + years.map(y => `<option${rRange === y ? " selected" : ""}>${y}</option>`).join(""); ys.classList.toggle("on", /^\d{4}$/.test(rRange));
-  $$("[data-rm]").forEach(b => b.classList.toggle("on", b.dataset.rm === rRange)); $("#rmDates").classList.toggle("hidden", rRange !== "dates");
-  if (rRange === "dates" && !$("#rmFrom").value && !$("#rmTo").value) { const D = data.flights.filter(f => !isSim(f)).map(f => f.date).sort(); $("#rmFrom").value = rFrom = D[0] || ""; $("#rmTo").value = rTo = D[D.length - 1] || ""; }
   await Promise.all([loadAirports(), loadAptNames()]);   // the names and countries are in the airport popups
   const F = routeFlights(), apts = new Map(), legs = new Map(); let km = 0, longest = null, unknown = 0;
   for (const f of F) {
@@ -4827,11 +4817,7 @@ function drawGoogle(box, A, Ls, o){
   if (A.length > 1) { const b = new G.LatLngBounds(); A.forEach(a => b.extend({ lat: a.ll[0], lng: a.ll[1] })); gMap.fitBounds(b, 24); }
   else if (A.length) { gMap.setCenter({ lat: A[0].ll[0], lng: A[0].ll[1] }); gMap.setZoom(6); }
 }
-document.addEventListener("click", e => { const b = e.target.closest("[data-rm]"); if (!b) return; rRange = b.dataset.rm; $("#rmYear").value = ""; renderRouteMap(); });
-$("#rmYear").addEventListener("change", e => { if (e.target.value) { rRange = e.target.value; renderRouteMap(); } });
 $("#rmLines").addEventListener("change", renderRouteMap);
-["#rmFrom", "#rmTo"].forEach(id => $(id).addEventListener("change", () => { rFrom = $("#rmFrom").value; rTo = $("#rmTo").value;
-  $("#rmDateErr").textContent = rFrom && rTo && rFrom > rTo ? "The From date is after the To date." : ""; if (!$("#rmDateErr").textContent) renderRouteMap(); }));
 /* Pilot jobs (supabase/jobs.sql): vacancies the site owner posts in Admin → Jobs; the Jobs page lists the open ones and checks
    each against the pilot's logbook (total, PIC, hours on the type, licence). A dot on Jobs when a vacancy is new since the last look */
 let jobsCache = null;
