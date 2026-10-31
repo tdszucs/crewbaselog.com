@@ -1058,7 +1058,7 @@ const Auth = (() => {
     async init(){
       await loadScript("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js");
       sb = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
-      sb.auth.onAuthStateChange((e, s) => { authTrace(e + (s ? "" : " (no session)")); emit(s?.user ? { id: s.user.id, email: s.user.email } : null); if (e === "PASSWORD_RECOVERY") setTimeout(showReset, 0); });
+      sb.auth.onAuthStateChange((e, s) => { authTrace(e + (s ? "" : " (no session)")); if (s?.refresh_token) sessKeep(s); emit(s?.user ? { id: s.user.id, email: s.user.email } : null); if (e === "PASSWORD_RECOVERY") setTimeout(showReset, 0); });
     },
     async signUp(email, pw){
       const { data, error } = await sb.auth.signUp({ email, password: pw, options: { emailRedirectTo: REDIRECT } });
@@ -1075,8 +1075,18 @@ const Auth = (() => {
     async resetPw(email){ const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: REDIRECT }); if (error) throw error; },
     async updatePw(pw){ const { error } = await sb.auth.updateUser({ password: pw }); if (error) throw error; },
     async resend(email){ const { error } = await sb.auth.resend({ type: "signup", email, options: { emailRedirectTo: REDIRECT } }); if (error) throw error; },
-    async signOut(){ authTrace("log out pressed"); await sb.auth.signOut({ scope: "local" }); emit(null); },
-    async current(){ const { data } = await sb.auth.getSession(); const u = data.session?.user; return u ? { id: u.id, email: u.email } : null; }
+    async signOut(){ authTrace("log out pressed"); sessDrop(); await sb.auth.signOut({ scope: "local" }); emit(null); },
+    async current(){
+      const { data } = await sb.auth.getSession(); let u = data.session?.user;
+      // the browser lost the saved sign-in (seen on iPhone Safari after a reload) but the app's own copy is there: sign in again with it.
+      // If the server no longer accepts it (logged out elsewhere, revoked), the copy goes and the log-in page shows as usual
+      const b = !u && store.get(SESS_KEY, null);
+      if (b?.r) { authTrace("saved sign-in missing: restoring it from the app's copy");
+        const { data: d, error } = await sb.auth.setSession({ access_token: b.a, refresh_token: b.r });
+        if (error) { authTrace("restore failed: " + String(error.message || error).slice(0, 80)); if (error.status >= 400 && error.status < 500) sessDrop(); }
+        else { u = d.session?.user; authTrace("restored"); } }
+      return u ? { id: u.id, email: u.email } : null;
+    }
   };
   const impl = LIVE ? L : D;
   return {
@@ -1821,7 +1831,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "31 Oct 2026 · 10";
+const APP_VERSION = "31 Oct 2026 · 11";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
@@ -5512,9 +5522,13 @@ $("#btnSample").addEventListener("click", e => {
    there, the trace goes to the admin activity log at the next log-in, so it can be fixed */
 function authTrace(ev){ try { const t = JSON.parse(localStorage.getItem("cbl_authtrace") || "[]"); t.push(new Date().toISOString().slice(5, 19) + " " + ev); localStorage.setItem("cbl_authtrace", JSON.stringify(t.slice(-25))); } catch {} }
 const savedSignIn = () => { try { return Object.keys(localStorage).some(k => /^sb-.+-auth-token$/.test(k)); } catch { return false; } };
+/* the app's own copy of the sign-in (the same tokens Supabase keeps), updated on every sign-in and token refresh, removed only on Log out */
+const SESS_KEY = "cbl_sess";
+function sessKeep(s){ try { localStorage.setItem(SESS_KEY, JSON.stringify({ a: s.access_token, r: s.refresh_token })); } catch {} }
+function sessDrop(){ try { localStorage.removeItem(SESS_KEY); } catch {} }
 function authTraceSend(){
   try { const t = JSON.parse(localStorage.getItem("cbl_authtrace") || "[]");
-    if (t.some(x => /log-in page.*saved sign-in/.test(x))) { logEvent("auth_trace", { trace: t.join(" | ").slice(-1800), ua: navigator.userAgent.slice(0, 160), standalone: matchMedia("(display-mode: standalone)").matches }); localStorage.setItem("cbl_authtrace", "[]"); } } catch {}
+    if (t.some(x => /log-in page.*saved sign-in|saved sign-in missing/.test(x))) { logEvent("auth_trace", { trace: t.join(" | ").slice(-1800), ua: navigator.userAgent.slice(0, 160), standalone: matchMedia("(display-mode: standalone)").matches }); localStorage.setItem("cbl_authtrace", "[]"); } } catch {}
 }
 function showLogin(why){ authTrace("log-in page: " + why + (savedSignIn() ? " (a saved sign-in was there)" : "")); setMode(/^#(signup|start)$/.test(location.hash) ? "signup" : "login"); localLabel(); show("#vAuth");
   // just deleted: when it goes for good, and that logging in before then keeps it
@@ -5536,7 +5550,7 @@ function showLogin(why){ authTrace("log-in page: " + why + (savedSignIn() ? " (a
   let err = null;
   for (let i = 0; i < 5; i++) {
     try { user = await Auth.current(); err = null; } catch (x) { user = null; err = x; authTrace("reading the sign-in failed: " + String(x?.message || x).slice(0, 80)); }
-    if (user || !Auth.live || !savedSignIn()) break;
+    if (user || !Auth.live || !(savedSignIn() || store.get(SESS_KEY, null))) break;
     await new Promise(r => setTimeout(r, 700));
   }
   if (user && $("#vApp").classList.contains("hidden")) { enterApp(); authTraceSend(); }
