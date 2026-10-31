@@ -1063,7 +1063,9 @@ const CONFIG = {
   SUPABASE_URL: "https://pwpkecvqljxpprricfho.supabase.co",
   SUPABASE_ANON_KEY: "sb_publishable_he0QsgUmKOiGydtLGkDo6g_FEdDRjhu",
   GOOGLE_ENABLED: true,
-  GOOGLE_CLIENT_ID: "1007945186786-l2tff9qe5tiqtc0vhbgpsvekdf2hedvg.apps.googleusercontent.com"
+  GOOGLE_CLIENT_ID: "1007945186786-l2tff9qe5tiqtc0vhbgpsvekdf2hedvg.apps.googleusercontent.com",
+  // Google Maps JavaScript API key (Stats route map), restricted to crewbaselog.com in Google Cloud. Empty: OpenStreetMap is used
+  GOOGLE_MAPS_KEY: ""
 };
 const LIVE = !!(CONFIG.SUPABASE_URL && CONFIG.SUPABASE_ANON_KEY);
 const REDIRECT = location.origin + location.pathname;
@@ -1951,7 +1953,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "31 Oct 2026 · 17";
+const APP_VERSION = "31 Oct 2026 · 18";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
@@ -2691,6 +2693,8 @@ async function parseEasaLogbookPDF(buf){
       while ((m = re.exec(str))) W.push({ s: m[0], x: it.transform[4] + it.width * m.index / str.length, w: it.width * m[0].length / str.length, y: h - it.transform[5] });
     }
     W.forEach(w => w.c = w.x + w.w / 2);
+    // thousands written with a dot ("8.596:41", "1.234"): read as plain numbers (a date has 2-digit groups, so stays a date)
+    for (const w of W) if (/^\d{1,3}(?:\.\d{3})+(?::\d{2})?$/.test(w.s)) w.s = w.s.replace(/\./g, "");
     // headings in mixed case ("Date", "Departure", "Name(s) PIC": Wader): read as the usual capitals. Only on pages
     // without capital headings, so nothing changes for the others
     // and only above the first line and, for the total labels, below the last one: names and remarks keep their case
@@ -2784,7 +2788,8 @@ async function parseEasaLogbookPDF(buf){
         if (!f.total) f.total = dur(a.mp || []) || dur(a.me || []) || dur(a.se || []);
         if (/^self$/i.test(f.picName)) f.picName = "SELF";
         const cls = a.mp && dur(a.mp) ? "MP" : a.me ? "SPME" : a.se ? "SPSE" : "";
-        if (cls && f.acType) out.classes[f.acType] ||= cls;
+        // the column this line was printed in (the totals check counts it there); the type's class is the one most of its lines use
+        if (cls) { f._cls = cls; if (f.acType) { const t = (out.clsCount ||= {})[f.acType] ||= {}; t[cls] = (t[cls] || 0) + 1; } }
         if (f.date) out.flights.push(f);
       }
       if (b.simDate && b.fstdTime) {
@@ -2803,8 +2808,11 @@ async function parseEasaLogbookPDF(buf){
       for (const k of EASA_PREV) { const c = k === "fstd" ? g.fstdTime : g[k]; o[k] = !c ? 0 : k.startsWith("ldg") ? cnt(c) : dur(c); } if (g.picus) o.pic += dur(g.picus); return o; };
     if (spreads === 1) out.prev = totals(labels.prev);
     out.check = totals(labels.all) || out.check;
+    // the PDF's own page totals, added up: when they agree with what we read but the last page doesn't, its running total is off
+    const th = totals(labels.this); if (th) out.pageSum = (out.pageSum || 0) + (th.total || th.se + th.me + th.mp); else out.pageSum = NaN;
   }
   if (!spreads) return null;
+  for (const [t, c] of Object.entries(out.clsCount || {})) out.classes[t] = Object.entries(c).sort((a, b) => b[1] - a[1])[0][0];
   if (out.prev && !Object.values(out.prev).some(Boolean)) out.prev = null;
   out.simLdg = (out.simLdgDay || 0) + (out.simLdgNight || 0);
   if (out.check) { out.check.ldgDay -= out.simLdgDay || 0; out.check.ldgNight -= out.simLdgNight || 0; }
@@ -2820,12 +2828,16 @@ function easaCheck(r, file){
   for (const f of r.flights) {
     if (isSim(f)) { sum.fstd += f.fstdTime; continue; }
     for (const k of ["total","pic","copilot","dual","instructor","night","ifr","ldgDay","ldgNight"]) sum[k] += f[k] || 0;
-    const c = r.classes[f.acType] || acClass(f.acType); sum[{ SPSE: "se", SPME: "me", MP: "mp" }[c]] += f.total || 0;
+    const c = f._cls || r.classes[f.acType] || acClass(f.acType); sum[{ SPSE: "se", SPME: "me", MP: "mp" }[c]] += f.total || 0;
   }
   const v = (k, m) => k.startsWith("ldg") ? m.toLocaleString() : fmtHrs(m);
   const off = EASA_PREV.filter(k => sum[k] !== r.check[k]);
   const simNote = r.simIfr || r.simLdg ? `<div class="hint">The PDF also counts ${[r.simIfr ? fmtMin(r.simIfr) + " of simulator IFR time" : "", r.simLdg ? r.simLdg + " simulator landing" + (r.simLdg === 1 ? "" : "s") : ""].filter(Boolean).join(" and ")} in its totals; your logbook keeps those with the simulator sessions, not as flight time.</div>` : "";
   if (!off.length) return `<div><span style="color:var(--ok)">✓ <b>Matches your PDF's own totals</b></span> · ${fmtHrs(r.check.total)} total time${simNote}</div>`;
+  // only the total and its flying columns off, and the PDF's own page totals give what we read: the PDF carried a wrong total forward
+  if (off.includes("total") && off.every(c => ["total", "se", "me", "mp"].includes(c)) && Math.abs((r.prev?.total || 0) + r.pageSum - sum.total) <= 1)
+    return `<div class="notice" style="margin:10px 0;border-color:var(--warn)"><b style="color:var(--warn)">✓ Every page read correctly, but your PDF's running total is off</b>` +
+      `<div style="margin:4px 0 0">Its pages add up to <b>${fmtHrs(sum.total)}</b> total time (with what was brought forward), the same as we read. Its last page carries <b>${fmtHrs(r.check.total)}</b>, ${fmtHrs(Math.abs(sum.total - r.check.total))} ${sum.total > r.check.total ? "less" : "more"}: a mistake in the app that printed it. Your logbook here has the right figure.</div></div>`;
   // what doesn't add up, as a small table, and a way to send us the file
   const k = file && "f" + failedFiles.size; if (file) failedFiles.set(k, { file, error: "Totals don't match the PDF: " + off.map(c => `${PREV_LABEL[c]} read ${v(c, sum[c])}, PDF ${v(c, r.check[c])}`).join("; ") });
   return `<div class="notice" style="margin:10px 0;border-color:var(--bad)"><b style="color:var(--bad)">⚠ Doesn't add up to your PDF</b>` +
@@ -3073,7 +3085,7 @@ function doImport(){
   const today = logToday(), stored = new Set(data.flights), renewed = new Set();
   for (const r of imp.flights || imp.rows) {
     if (imp.own && /^brought forward$/i.test(String(r[imp.map.flightNo] || "").trim())) { data.prev = prevFromCSV(rowToFlight(r, imp.map, fmt)); bf = " (and your previous experience)"; continue; }
-    const f = imp.flights ? { ...r } : rowToFlight(r, imp.map, fmt);
+    const f = imp.flights ? { ...r } : rowToFlight(r, imp.map, fmt); delete f._cls;
     // report lines (pilot name, totals, "Generated on") are not flights: only a dated line or a route counts as left out
     if (!valid(f)) { if (f.date || (f.from && f.to)) badRows.push(f.date ? fmtDate(f.date) : `${f.from}–${f.to}`); continue; }
     if (!isSim(f)) { f.from = aptStyle(f.from); f.to = aptStyle(f.to); }
@@ -3093,9 +3105,11 @@ function doImport(){
     data.flights.push(f); added++;
   }
   data.flights.sort((a,b) => (a.date+a.out).localeCompare(b.date+b.out));
-  const mpFixed = [];
+  const mpFixed = [], spFixed = [], cnt = imp.pdf?.clsCount || {};
   for (const [t, c] of Object.entries(imp.classes || imp.pdf?.classes || {})) {
     if (acGuess(t) === "MP" && c !== "MP") { mpFixed.push(t); continue; }   // an airliner logged as single-pilot in the old logbook
+    // a single-pilot aircraft (C172, DA42) with some of its time printed as multi-pilot: it stays single-pilot here
+    if (/^SP/.test(acGuess(t)) && (c === "MP" || cnt[t]?.MP)) { spFixed.push(t); if (!(data.acTypes || {})[t] && acClass(t) !== acGuess(t)) (data.acTypes ||= {})[t] = acGuess(t); continue; }
     if (!(data.acTypes || {})[t] && acClass(t) !== c) (data.acTypes ||= {})[t] = c;
   }
   if (imp.pdf) {
@@ -3108,6 +3122,7 @@ function doImport(){
   found(imp.name, imp.kind === "airline" || imp.ecrew ? "airline" : "logbook", `${added.toLocaleString()} new line${added === 1 ? "" : "s"}${updated ? `, ${updated.toLocaleString()} updated` : ""}${dup ? `, ${dup.toLocaleString()} already in your logbook` : ""}${bf ? " · " + bf.replace(/^[\s(]+|\)$/g, "") : ""}`);
   impLog.push(`<b>${added.toLocaleString()} new line${added === 1 ? "" : "s"}</b> from ${esc(imp.name)}${bf}` + (updated ? ` · ${updated.toLocaleString()} updated with new times` : "") + (dup ? ` · ${dup.toLocaleString()} already in your logbook` : "") +
     (future ? `, ${future} flight${future === 1 ? "" : "s"} not flown yet left out (the logbook only holds flights already flown)` : "") + (badRows.length ? `, ${badRows.length} line${badRows.length === 1 ? "" : "s"} with no route, flight time or sim time left out (${badRows.slice(0, 5).join(", ")}${badRows.length > 5 ? " …" : ""})` : ""));
+  if (spFixed.length) impLog.push(`<span style="color:var(--warn)">${spFixed.map(esc).join(", ")}: some of ${spFixed.length === 1 ? "its" : "their"} time was logged as multi-pilot in the file. ${spFixed.length === 1 ? "It is a single-pilot aircraft, so all its time counts" : "They are single-pilot aircraft, so all their time counts"} as single-pilot here (change it in <a href="#" data-go="profile" data-scroll="#acSection">Profile</a>).</span>`);
   if (picusN) impLog.push(`${picusN.toLocaleString()} line${picusN === 1 ? "" : "s"} with PICUS in the remarks logged as PICUS (PIC time).`);
   if (mpFixed.length) impLog.push(`<span style="color:var(--warn)">${mpFixed.map(esc).join(", ")} ${mpFixed.length === 1 ? "was" : "were"} logged as single-pilot in the file. ${mpFixed.length === 1 ? "It is an airliner, so it counts" : "They are airliners, so they count"} as multi-pilot here (change it in <a href="#" data-go="profile" data-scroll="#acSection">Profile</a> if that's wrong).</span>`);
   if (imp.appPrev) impLog.push(`Previous experience from the file: <b>${fmtMin(imp.appPrev.total)}</b> total time. Saved as your <a href="#" data-go="import" data-scroll="#prevBox">previous experience</a>.`);
@@ -4381,19 +4396,42 @@ async function renderRouteMap(){
   $("#rmNote").textContent = (longest ? `Longest: ${longest.f.from}–${longest.f.to}, ${n0(longest.k)} km (great circle). ` : "") + (unknown ? `${unknown} flight${unknown === 1 ? "" : "s"} with an airport we don't know ${unknown === 1 ? "is" : "are"} not on the map or in the distance. ` : "") +
     "Distances are great-circle, airport to airport. Around the Earth: 40,075 km; the Moon: 384,400 km away.";
   if (!F.length && !rMap) { box.innerHTML = `<p class="hint" style="padding:16px;margin:0">No flights in this period.</p>`; }
+  const css = getComputedStyle(document.documentElement), brand = css.getPropertyValue("--brand").trim() || "#0b3d5c", acc = css.getPropertyValue("--accent").trim() || "#d9961c";
+  const A = [...apts.values()], Ls = $("#rmLines").checked ? [...legs.values()] : [];
+  const label = a => `${a.c}${aptName(a.c) || aptName(aptAlt()[a.c]) ? " · " + (aptName(a.c) || aptName(aptAlt()[a.c])) : ""} · ${a.n} visit${a.n === 1 ? "" : "s"}`;
+  // small dots (a little bigger for the airports used most) and thin lines, thicker only for routes flown often
+  const dot = a => 2.5 + Math.min(2.5, Math.sqrt(a.n) / 3), line = l => 0.8 + Math.min(1.2, Math.log2(l.n) / 4);
+  if (CONFIG.GOOGLE_MAPS_KEY && await gmapsReady()) return drawGoogle(box, A, Ls, { brand, acc, dot, line, label });
   try { if (!window.L) { await loadCss(LEAFLET + "leaflet.min.css"); await loadScript(LEAFLET + "leaflet.min.js"); } }
   catch { box.innerHTML = '<p class="hint" style="padding:16px;margin:0">The map couldn\'t load (no connection?). The figures above are still right.</p>'; return; }
   if (!rMap) { box.innerHTML = ""; rMap = L.map(box, { worldCopyJump: true, minZoom: 1, zoomSnap: 0.5 }).setView([25, 10], 2);
     L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 12, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' }).addTo(rMap); }
   rLayer?.remove(); rLayer = L.layerGroup().addTo(rMap);
-  const css = getComputedStyle(document.documentElement), brand = css.getPropertyValue("--brand").trim() || "#0b3d5c", acc = css.getPropertyValue("--accent").trim() || "#d9961c";
-  if ($("#rmLines").checked) for (const l of legs.values()) L.polyline(gcPath(l.A, l.B), { color: acc, weight: 1.2 + Math.min(3, Math.log2(l.n)), opacity: .7, interactive: false }).addTo(rLayer);
-  const pts = [];
-  for (const a of apts.values()) { pts.push(a.ll);
-    L.circleMarker(a.ll, { radius: 3.5 + Math.min(8, Math.sqrt(a.n)), color: "#fff", weight: 1.5, fillColor: brand, fillOpacity: .95 })
-      .bindTooltip(`<b>${esc(a.c)}</b>${aptName(a.c) || aptName(aptAlt()[a.c]) ? " · " + esc(aptName(a.c) || aptName(aptAlt()[a.c])) : ""}<br>${a.n} visit${a.n === 1 ? "" : "s"}`).addTo(rLayer); }
+  for (const l of Ls) L.polyline(gcPath(l.A, l.B), { color: acc, weight: line(l), opacity: .75, interactive: false }).addTo(rLayer);
+  for (const a of A) L.circleMarker(a.ll, { radius: dot(a), color: "#fff", weight: 1, fillColor: brand, fillOpacity: .95 }).bindTooltip(esc(label(a))).addTo(rLayer);
   rMap.invalidateSize();
-  if (pts.length > 1) rMap.fitBounds(pts, { padding: [24, 24], maxZoom: 7 }); else if (pts.length) rMap.setView(pts[0], 6);
+  const pts = A.map(a => a.ll); if (pts.length > 1) rMap.fitBounds(pts, { padding: [24, 24], maxZoom: 7 }); else if (pts.length) rMap.setView(pts[0], 6);
+}
+// Google Maps: loaded once with the site's key; false if it can't load (no connection, key refused), and OpenStreetMap is used
+let gmapsP = null, gMap = null, gItems = [];
+function gmapsReady(){
+  return gmapsP ||= new Promise(ok => {
+    if (window.google?.maps?.Map) return ok(true);
+    window.cblMapsReady = () => ok(true); window.gm_authFailure = () => { console.warn("Google Maps key refused"); CONFIG.GOOGLE_MAPS_KEY = ""; rMap = null; gMap = null; renderRouteMap(); };
+    loadScript(`https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(CONFIG.GOOGLE_MAPS_KEY)}&v=weekly&callback=cblMapsReady`).catch(() => ok(false));
+    setTimeout(() => ok(!!window.google?.maps?.Map), 15000);
+  });
+}
+function drawGoogle(box, A, Ls, o){
+  const G = google.maps;
+  if (!gMap) { box.innerHTML = ""; gMap = new G.Map(box, { center: { lat: 25, lng: 10 }, zoom: 2, minZoom: 1, streetViewControl: false, mapTypeControl: false, fullscreenControl: true,
+    colorScheme: matchMedia("(prefers-color-scheme: dark)").matches ? "DARK" : "LIGHT" }); }
+  gItems.forEach(x => x.setMap(null)); gItems = [];
+  for (const l of Ls) gItems.push(new G.Polyline({ map: gMap, path: [{ lat: l.A[0], lng: l.A[1] }, { lat: l.B[0], lng: l.B[1] }], geodesic: true, strokeColor: o.acc, strokeOpacity: .8, strokeWeight: o.line(l), clickable: false }));
+  for (const a of A) { const m = new G.Marker({ map: gMap, position: { lat: a.ll[0], lng: a.ll[1] }, title: o.label(a),
+    icon: { path: G.SymbolPath.CIRCLE, scale: o.dot(a), fillColor: o.brand, fillOpacity: .95, strokeColor: "#fff", strokeWeight: 1 } }); gItems.push(m); }
+  if (A.length > 1) { const b = new G.LatLngBounds(); A.forEach(a => b.extend({ lat: a.ll[0], lng: a.ll[1] })); gMap.fitBounds(b, 24); }
+  else if (A.length) { gMap.setCenter({ lat: A[0].ll[0], lng: A[0].ll[1] }); gMap.setZoom(6); }
 }
 document.addEventListener("click", e => { const b = e.target.closest("[data-rm]"); if (!b) return; rRange = b.dataset.rm; $("#rmYear").value = ""; renderRouteMap(); });
 $("#rmYear").addEventListener("change", e => { if (e.target.value) { rRange = e.target.value; renderRouteMap(); } });
