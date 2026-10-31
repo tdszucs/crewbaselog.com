@@ -1760,7 +1760,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "31 Oct 2026 · 7";
+const APP_VERSION = "31 Oct 2026 · 8";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
@@ -3264,7 +3264,7 @@ function restoreDraft(){
   let v; try { v = JSON.parse(localStorage.getItem(draftKey()) || "null"); } catch {} if (v) restoreValues(v);
 }
 function restoreValues(v){
-  queueMicrotask(() => { crewRender("n_"); if ($("#n_picus")?.checked) $("#n_sigBox")?.classList.remove("hidden"); });
+  queueMicrotask(() => { crewRender("n_"); });
   if (v._kind === "sim" && !addSim()) { $('[name="addKind"][value="sim"]').checked = true; addFormReset(); }
   for (const [k, x] of Object.entries(v)) { const el = $("#n_" + k); if (el && !k.startsWith("_") && !k.startsWith("ldg")) { if (el.type === "checkbox") el.checked = !!x; else el.value = x; } }
   if ($("#n_ldgDay")) setLdg("n_", v.ldgDay ?? "", v.ldgNight ?? "");
@@ -3460,7 +3460,7 @@ $("#addForm").addEventListener("submit", async e => {
   if (!sim && !pfOf("n_")) { $("#addErr").textContent = "Choose your role: pilot flying, pilot monitoring or relief crew."; $("#n_roleField").classList.add("need", "flash"); setTimeout(() => $("#n_roleField")?.classList.remove("flash"), 1600); return $("#n_roleField").scrollIntoView({ behavior: "smooth", block: "center" }); }
   if (!sim) autoFill(f);
   if (data.flights.some(x => dupKey(x) === dupKey(f))) return $("#addErr").textContent = `That ${sim ? "session" : "flight"} is already in your logbook.`;
-  if (!sim && $("#n_picus")?.checked && addSig) f.remarkSig = addSig;
+  if (!sim && addSig) f.remarkSig = addSig;
   data.flights.push(f); data.flights.sort((a,b) => (a.date+a.out).localeCompare(b.date+b.out));
   if (!save()) return;
   addFormReset(); dropDraft();
@@ -4234,14 +4234,14 @@ function flightFieldsHTML(pre, f = {}){
     (k === "ldgNight" ? `<div class="field wide err hidden" id="${pre}clash" role="alert" style="margin:0"></div>` + extrasHTML(pre, f) : "")).join("");
 }
 let addSig = "";
-const addSigHTML = () => addSig ? `<img src="${addSig}" alt="PIC signature" class="sigthumb"><span class="hint" style="margin:0">signed</span><button class="btn ghost small" type="button" data-addsign>Sign again</button><button class="btn ghost small" type="button" data-addsigdel>Remove</button>`
-  : `<button class="btn small" type="button" data-addsign>✍ PIC signs</button><span class="hint" style="margin:0">opens a signing pad</span>`;
-/* above Remarks: PICUS (a tick: PIC time, "(PICUS)" in the remarks, the PIC signs) and the crew on board (+ to add a name) */
+const addSigHTML = () => addSig ? `<img src="${addSig}" alt="Signature" class="sigthumb"><span class="hint" style="margin:0">signed</span><button class="btn ghost small" type="button" data-addsign>Sign again</button><button class="btn ghost small" type="button" data-addsigdel>Remove</button>`
+  : `<button class="btn ghost small" type="button" data-addsign>✍ Signature</button><span class="hint" style="margin:0">the PIC or instructor signs this line</span>`;
+/* above Remarks: PICUS (a tick: PIC time, "(PICUS)" in the remarks), a signature for any flight and the crew on board (+ to add a name) */
 function extrasHTML(pre, f){
   // a new flight of a first officer: SELF is the SIC from the start
   const picus = /\bPIC\s*\(?\s*US\s*\)?|\bPICUS\b/i.test(f.remarks || ""), crew = f.crew || (pre === "n_" && data.profile.role === "CP" ? ["SELF"] : []);
-  return `<div class="field wide extras"><label class="tick"><input type="checkbox" id="${pre}picus"${picus ? " checked" : ""}> <span><b>PICUS</b> <span class="hint">pilot in command under supervision: PIC time, (PICUS) in the remarks, signed by the PIC</span></span></label>` +
-    (pre === "n_" ? (addSig = "", `<div class="${picus ? "" : "hidden "}sigbox" id="n_sigBox" style="margin:8px 0 4px"><div class="sigline" id="n_sigLine">${addSigHTML()}</div></div>`) : "") +
+  return `<div class="field wide extras"><label class="tick"><input type="checkbox" id="${pre}picus"${picus ? " checked" : ""}> <span><b>PICUS</b> <span class="hint">pilot in command under supervision: PIC time and (PICUS) in the remarks</span></span></label>` +
+    (pre === "n_" ? (addSig = "", `<div class="sigbox" id="n_sigBox" style="margin:8px 0 4px"><div class="sigline" id="n_sigLine">${addSigHTML()}</div></div>`) : "") +
     `<div class="crewbox"><span class="clabel">Crew</span><span class="crewlist" id="${pre}crewList">${crew.map(crewChip).join("")}</span><button class="btn ghost small" type="button" data-crewadd="${pre}">${crewAddLabel(crew.length)}</button>
       <input type="hidden" id="${pre}crew" value="${esc(crew.join(";"))}"></div></div>`;
 }
@@ -4270,11 +4270,11 @@ document.addEventListener("click", e => {
     crewSync(pre); crewRender(pre); $("#" + pre + "crew").dispatchEvent(new Event("input", { bubbles: true })); }
 });
 document.addEventListener("input", e => { if (!e.target.classList?.contains("crewin")) return; const el = e.target, at = el.selectionStart; el.value = el.value.toUpperCase(); try { el.setSelectionRange(at, at); } catch {} const pre = el.closest(".crewlist").id.slice(0, 2); crewSync(pre); if (pre === "n_") saveDraft(); });
-// PICUS ticked: PIC time (the whole flight), no co-pilot time, "(PICUS)" in front of the remarks, and the PIC signs
+// PICUS ticked: PIC time (the whole flight), no co-pilot time, "(PICUS)" in front of the remarks
 document.addEventListener("click", e => {
   if (e.target.closest("[data-addsigdel]")) { addSig = ""; $("#n_sigLine").innerHTML = addSigHTML(); return; }
   if (!e.target.closest("[data-addsign]")) return;
-  openSign("PIC signature", "The PIC signs the remarks of this flight (PICUS).", async cv => { addSig = await smallSigPNG(cv); $("#n_sigLine").innerHTML = addSigHTML(); });
+  openSign("Signature", "The PIC or instructor signs the remarks of this flight.", async cv => { addSig = await smallSigPNG(cv); $("#n_sigLine").innerHTML = addSigHTML(); });
 });
 document.addEventListener("change", e => {
   const m = (e.target.id || "").match(/^(n_|e_)picus$/); if (!m) return; const pre = m[1], on = e.target.checked, rem = $("#" + pre + "remarks");
@@ -4282,7 +4282,6 @@ document.addEventListener("change", e => {
   rem.value = on ? ("(PICUS) " + bare).trim() : bare;
   if (on) { const tot = $("#" + pre + "total").value.trim(); if (tot) $("#" + pre + "pic").value = tot; $("#" + pre + "copilot").value = "";
     if (/^self$/i.test($("#" + pre + "picName").value.trim())) $("#" + pre + "picName").value = ""; }
-  if (pre === "n_") $("#n_sigBox").classList.toggle("hidden", !on);
   rem.dispatchEvent(new Event("input", { bubbles: true }));
 });
 // a simulator session: EASA FSTD columns (date, type, session time) and remarks
