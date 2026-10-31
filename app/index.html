@@ -2225,7 +2225,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "31 Oct 2026 · 60";
+const APP_VERSION = "31 Oct 2026 · 61";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
@@ -3211,8 +3211,8 @@ function easaCheck(r, file){
     `<div style="margin:4px 0 8px">${off.length === 1 ? "One total" : off.length + " totals"} from your PDF's last page ${off.length === 1 ? "is" : "are"} different from what we read:</div>` +
     `<table class="mmtab"><thead><tr><th></th><th class="r">Your PDF</th><th class="r">We read</th></tr></thead><tbody>` +
     off.map(c => `<tr><td>${PREV_LABEL[c]}</td><td class="r"><b>${v(c, r.check[c])}</b></td><td class="r" style="color:var(--bad)">${v(c, sum[c])}</td></tr>`).join("") + `</tbody></table>` +
-    `<div style="margin:8px 0 0">Most likely we read a column wrongly. ${file ? "Send us the file and we'll fix it for you:" : "Check those flights on the Logbook tab."}</div>` +
-    (file ? `<div class="fl-btns"><button class="btn small" type="button" data-report="${k}">Send us this file</button></div>` : "") + `</div>`;
+    `<div style="margin:8px 0 0">Most likely we read a column wrongly, so this import needs our approval. ${file ? "Send us the file and come back later (within 48 hours): we'll check it and make sure it imports correctly." : "Check those flights on the Logbook tab."}</div>` +
+    (file ? `<div class="fl-btns"><button class="btn small" type="button" data-report="${k}">Send it for checking</button></div>` : "") + `</div>`;
 }
 /* A flight list printed as a table in a PDF (eCrew "Pilot LogBook report" PDF): the column headings line
    (Date, Airport, Time ...) gives each column's position; every dated line below it becomes a row of cells,
@@ -3276,7 +3276,7 @@ const pageDrop = e => !$('[data-p="import"]').classList.contains("hidden") && !e
 document.addEventListener("dragover", e => { if (pageDrop(e)) e.preventDefault(); });
 document.addEventListener("drop", e => { if (!pageDrop(e)) return; e.preventDefault(); handleFiles(e.dataTransfer.files); });
 /* What we found: each dropped file with what it turned out to be */
-const FOUND = { logbook: ["Past logbook", "ok"], airline: ["Airline export", "ok"], roster: ["Future roster", "ok"], backup: ["Full backup", "ok"], unknown: ["Not sure what this is", "warn"], skipped: ["Skipped", "none"] };
+const FOUND = { logbook: ["Past logbook", "ok"], airline: ["Airline export", "ok"], roster: ["Future roster", "ok"], backup: ["Full backup", "ok"], unknown: ["Needs a check", "warn"], skipped: ["Skipped", "none"] };
 function found(name, kind, html){
   const box = $("#dropFound"), [label, c] = FOUND[kind] || FOUND.unknown; box.classList.remove("hidden");
   box.insertAdjacentHTML("beforeend", `<div class="fnd"><span class="chip ${c}">${label}</span><div><b>${esc(name)}</b><div class="hint">${html}</div></div></div>`);
@@ -3322,8 +3322,8 @@ async function nextFile(){
     await busy(`Reading ${f.name}…${impTotal > 1 ? ` (${k} of ${impTotal})` : ""}`);
     let err; try { err = await handleFile(f); } catch (e) { busy(null); throw e; }
     if (err) { const k = "f" + failedFiles.size; failedFiles.set(k, { file: f, error: err });
-      found(f.name, "unknown", `${/can't read this file yet/.test(err) ? "We couldn't read it." : esc(err)} Would you like to share it with us, so CrewBase Log can read files like it in the future? <button class="rowbtn sug" type="button" data-report="${k}">Share it with us</button>`);
-      impLog.push(`<b>${esc(f.name)}</b>: <span style="color:var(--bad)">${esc(err)}</span> <button class="rowbtn sug" type="button" data-report="${k}">Help us read it</button>`); impErrs++; continue; }
+      found(f.name, "unknown", `${/can't read this file yet/.test(err) ? "We couldn't read it." : esc(err)} <b>We can't be sure this file would import correctly, so it needs our approval first.</b> Send it to us and come back later (within 48 hours): once we have checked it, it imports correctly. <button class="rowbtn sug" type="button" data-report="${k}">Send it for checking</button>`);
+      impLog.push(`<b>${esc(f.name)}</b>: <span style="color:var(--bad)">${esc(err)}</span> <button class="rowbtn sug" type="button" data-report="${k}">Send it for checking</button>`); impErrs++; continue; }
     if (imp?.own || imp?.auto) { await busy(`Adding the flights from ${f.name}…`); doImport(); imp = null; continue; }
     if (imp) return busy(null); // waiting for the column check
   }
