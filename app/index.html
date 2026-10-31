@@ -830,6 +830,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
     <div data-p="logbook" class="hidden">
       <h2>Logbook</h2>
       <p class="lead">Your flights are saved in your account. Downloads, backup and starting over are on <a href="#" data-go="import" data-scroll="#outCard">Your data</a>.</p>
+      <div id="lbRoster"></div>
       <div class="stats" id="lbStats"></div>
       <div class="row-actions" style="margin:0 0 16px"><button class="btn" type="button" data-go="add">+ Add a flight</button><span class="hint lbhint" style="margin:0;font-size:14px">For a flight or simulator session that isn't in any file.</span></div>
       <div class="notice hidden lbadded" id="lbAdded" role="status"></div>
@@ -1806,25 +1807,31 @@ function typeRecency(){
     return { type, in90, until, ok: !!until && until >= todayISO(), last: F.reduce((m, f) => f.date > m ? f.date : m, "") };
   }).sort((a, b) => b.last.localeCompare(a.last));
 }
-/* Roster flights to log: legs of the Crew Base roster in the last 7 days (and today) that the logbook doesn't have yet
-   (same route within a day). Add opens the form filled in; Not flown hides one for good */
+/* Roster flights to log: legs of the roster (Home calendar) from 3 hours before they depart (UTC departure from the calendar, else
+   the duty's start) until they are in the logbook, looking back 7 days (same route within a day). Add opens the form filled in;
+   Not flown hides one for good */
+const ROSTER_LEAD = 3 * 36e5;
 function rosterPending(){
-  const out = [], skip = new Set(data.rosterSkip || []);
-  for (let n = 7; n >= 0; n--) { const iso = isoDaysAgo(n);
+  const out = [], skip = new Set(data.rosterSkip || []), now = Date.now();
+  for (let n = 7; n >= -1; n--) { const iso = isoDaysAgo(n), d = data.crew?.me?.days?.[iso];
     for (const l of rosterLegs(iso)) { const key = `${iso} ${l.from}-${l.to} ${l.no}`; if (skip.has(key)) continue;
-      if (!data.flights.some(f => !isSim(f) && Math.abs(Date.parse(f.date) - Date.parse(iso)) <= 864e5 && sameApt(f.from, l.from) && sameApt(f.to, l.to))) out.push({ ...l, date: iso, key }); } }
-  return out;
+      const depMin = l.dep ?? (d?.duties?.[0]?.[0] ?? 0), depAt = Date.parse(iso + "T00:00:00Z") + depMin * 6e4; if (now < depAt - ROSTER_LEAD) continue;
+      if (!data.flights.some(f => !isSim(f) && Math.abs(Date.parse(f.date) - Date.parse(iso)) <= 864e5 && sameApt(f.from, l.from) && sameApt(f.to, l.to))) out.push({ ...l, date: iso, key, depAt, known: l.dep != null }); } }
+  return out.sort((a, b) => a.depAt - b.depAt);
 }
+// "departs in 2 h 10 min", "departed 40 min ago", or just the day
+const rosterWhen = l => { if (!l.known) return fmtDate(l.date).slice(0, 5); const m = Math.round((l.depAt - Date.now()) / 6e4), t = new Date(l.depAt).toISOString().slice(11, 16), a = Math.abs(m);
+  const dur = a >= 60 ? `${Math.floor(a / 60)} h${a % 60 ? " " + a % 60 + " min" : ""}` : `${a} min`; return `${fmtDate(l.date).slice(0, 5)} ${t}Z · ${m > 0 ? "departs in " + dur : "departed " + (a < 2 ? "now" : dur + " ago")}`; };
 function rosterAddHTML(){
   const P = rosterPending(); if (!P.length) return "";
   return `<div class="card hcard"><h3>From your roster: ${P.length === 1 ? "a flight" : P.length + " flights"} to log</h3>` + P.slice(0, 5).map((l, j) =>
-    `<div class="rrow"><span><b>${fmtDate(l.date).slice(0, 5)}</b> · ${esc(withAirline(l.no) || "")} ${esc(l.from)} → ${esc(l.to)}</span><span class="fl-btns" style="margin:0"><button class="btn small" type="button" data-rosteradd="${j}">Add</button><button class="btn ghost small" type="button" data-rosterskip="${j}">Not flown</button></span></div>`).join("") +
+    `<div class="rrow"><span><b>${esc(rosterWhen(l))}</b> · ${esc(withAirline(l.no) || "")} ${esc(l.from)} → ${esc(l.to)}</span><span class="fl-btns" style="margin:0"><button class="btn small" type="button" data-rosteradd="${j}">Add</button><button class="btn ghost small" type="button" data-rosterskip="${j}">Not flown</button></span></div>`).join("") +
     (P.length > 5 ? `<p class="hint" style="margin:6px 0 0">${P.length - 5} more after these.</p>` : "") + `</div>`;
 }
 document.addEventListener("click", e => {
   const a = e.target.closest("[data-rosteradd]"), k = e.target.closest("[data-rosterskip]"); if (!a && !k) return;
   const l = rosterPending()[+(a || k).dataset[a ? "rosteradd" : "rosterskip"]]; if (!l) return;
-  if (k) { (data.rosterSkip ||= []).push(l.key); data.rosterSkip = data.rosterSkip.slice(-200); save(); renderHome(); return; }
+  if (k) { (data.rosterSkip ||= []).push(l.key); data.rosterSkip = data.rosterSkip.slice(-200); save(); renderHome(); renderLbRoster(); return; }
   stashForm(); tab("add"); addFormReset(); dropDraft(); rosterFill(l);
 });
 // what the roster knows about a leg goes into the form: date, flight number, From and To; then the off-block time
@@ -2052,13 +2059,16 @@ function calRoster(evs){
     }
     const s0 = Date.parse(e.start?.dateTime), t1 = Date.parse(e.end?.dateTime); if (!(s0 > 0) || !(t1 > s0)) continue;
     const flights = [];
-    for (const ln of desc.split("\n")) { const ap = [...ln.matchAll(/\b([A-Z]{3,4})\s+\(\d{4}/g)].map(m => m[1]), no = ln.match(/^\s*([A-Z0-9]{1,7})\s+-\s+[A-Z]{3,4}\s+\(/); if (ap.length > 1) flights.push({ no: no ? no[1] : "", ap }); }
+    for (const ln of desc.split("\n")) { const pts = [...ln.matchAll(/\b([A-Z]{3,4})\s+\((\d{2})(\d{2})/g)], ap = pts.map(m => m[1]), no = ln.match(/^\s*([A-Z0-9]{1,7})\s+-\s+[A-Z]{3,4}\s+\(/);
+      let add = 0, prev = -1; const tm = pts.map(m => { const t = +m[2] * 60 + +m[3]; if (t < prev) add += 1440; prev = t; return t + add; });   // minutes UTC, past midnight for a later leg
+      if (ap.length > 1) flights.push({ no: no ? no[1] : "", ap, tm }); }
     if (!flights.length) { const m = (e.summary || "").match(/^\s*([A-Z0-9]{1,7})\s+([A-Z]{3,4}(?:-[A-Z]{3,4})+)/); if (m) flights.push({ no: m[1], ap: m[2].split("-") }); }
     const sby = !flights.length && CAL_SBY.test(`${e.summary || ""} ${first}`), dest = flights.length ? flights[flights.length - 1].ap.slice(-1)[0] : null;
     const a = isoOf(s0), z = isoOf(t1);
     for (let t = Date.parse(a); t <= Date.parse(z); t += 864e5) { const iso = isoOf(t), d = day(iso), w = [iso === a ? mins(s0) : 0, iso === z ? mins(t1) : 1440];
       if (w[1] <= w[0] && iso === z) continue;   // ends at midnight sharp
       (sby ? d.sby : d.duties).push(w); if (sby) d.standby = true;
+      if (iso === a && flights.length) d.legs = (d.legs || []).concat(flights.flatMap(f => f.ap.slice(0, -1).map((from, i) => ({ no: f.no, from, to: f.ap[i + 1], dep: f.tm[i] }))));
       if (iso === a) label(iso, flights.length ? flights.map(f => `flight ${f.no} · ${f.ap.join("-")}`).join(" · ") : sby ? `${(e.summary || "SBY").trim()} ${cbClock(w[0])}–${cbClock(w[1])}` : (e.summary || "duty").trim());
       else if (flights.length) label(iso, `arrives ${dest}`);
       if (iso === z && dest) d.lands = dest; }
@@ -2208,7 +2218,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "31 Oct 2026 · 54";
+const APP_VERSION = "31 Oct 2026 · 55";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
@@ -4055,7 +4065,7 @@ function rosterLegs(iso, st = aptStyle){
   const d = data.crew?.me?.days?.[iso]; if (!d || d.free || !d.code) return [];
   const nos = [...d.code.matchAll(/flight (\w+)/g)].map(m => m[1]), legs = [];
   for (const m of d.code.matchAll(/\b[A-Z]{3,4}(?:-[A-Z]{3,4})+\b/g)) { const a = m[0].split("-"); for (let i = 1; i < a.length; i++) legs.push({ from: st(a[i - 1]), to: st(a[i]) }); }
-  legs.forEach((l, i) => l.no = nos[i] || ""); return legs;
+  legs.forEach((l, i) => { l.no = nos[i] || ""; const c = (d.legs || []).find(x => x.from === l.from && x.to === l.to || (x.no && x.no === l.no)); if (c && c.dep != null) l.dep = c.dep; }); return legs;
 }
 const sameApt = (a, b) => !!a && !!b && (a === b || aptAlt()[a] === b);
 function flightSuggest(pre, k){
@@ -5179,7 +5189,11 @@ function lbCards(rows, hits){
   return h + "</div>";
 }
 document.addEventListener("click", e => { if (e.target.closest('[data-t]:not([data-t="logbook"]),[data-go]') && !e.target.closest("#lbAdded")) $("#lbAdded")?.classList.add("hidden"); }, true);
+function renderLbRoster(){ const b = $("#lbRoster"); if (b) b.innerHTML = rosterAddHTML(); }
+// the prompt appears at its 3 hour mark while the app is open
+setInterval(() => { if (document.visibilityState !== "visible" || !user || !data?.flights) return; if (!$('[data-p="overview"]').classList.contains("hidden")) renderHome(); if (!$('[data-p="logbook"]').classList.contains("hidden")) renderLbRoster(); }, 5 * 6e4);
 function renderLogbook(){
+  renderLbRoster();
   // the list is drawn again: a form open under a card goes back above it first (it would be wiped with the list)
   if ($("#lbEdit").closest("#lbTable")) { lbEditHome.after($("#lbEdit")); $("#lbEdit").classList.remove("inplace"); }
   const F = data.flights, sum = k => F.reduce((s,f) => s + (f[k]||0), 0);
