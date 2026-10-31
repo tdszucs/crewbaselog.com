@@ -1652,16 +1652,23 @@ function hrStates(){
   for (const iso of Object.keys(me.days).sort()) { const f = cbWindows(r, iso, away); away = f.away; out[iso] = cbState(f, me.days[iso]); }
   return out;
 }
-// what fits in a day box: OFF / SBY, or where the duty goes ("LHR"), else the duty's first word
-function hrShort(d){
+// what fits in a day box: the flight number; a day that only finishes yesterday's flight shows that flight's number;
+// no flight: OFF / SBY / the duty code (">OFF" reads OFF)
+const hrNos = d => [...(d?.code || "").matchAll(/flight (\w+)/g)].map(m => m[1]);
+function hrShort(d, iso){
   if (!d) return "";
-  const base = (cb().me.base || data.profile.base || "").toUpperCase(), first = (d.code || "").split(" · ")[0];
+  const first = (d.code || "").split(" · ")[0].replace(/^>/, "");
   if (d.free) return first.split(" ")[0] || "OFF";
-  const apts = [...(d.code || "").matchAll(/\b[A-Z]{3,4}(?:-[A-Z]{3,4})+\b/g)].flatMap(m => m[0].split("-"));
-  const away = [...new Set(apts.filter(a => !sameApt(a, base) && a !== base))];
-  if (away.length) return away.slice(0, 2).join(" ");
+  const nos = hrNos(d); if (nos.length) return nos.join(" ");
+  if (/^arrives\b/.test(d.code || "")) { const y = new Date(Date.parse(iso + "T00:00:00Z") - 864e5).toISOString().slice(0, 10), py = hrNos(cb().me.days[y]); return py[py.length - 1] || ""; }
   if (d.standby) return first.split(" ")[0] || "SBY";
-  return first.replace(/^flight /, "").split(" ")[0] || "duty";
+  return first.split(" ")[0] || "duty";
+}
+// tapped day: the roster line and its times (UTC)
+function hrDetail(d){
+  if (!d) return "no roster for this day";
+  const t = (d.duties || []).map(([a, b]) => a <= 0 && b >= 1440 ? "all day" : a <= 0 ? `until ${cbClock(b)}` : b >= 1440 ? `from ${cbClock(a)}` : `${cbClock(a)}–${cbClock(b)}`);
+  return esc(d.code || "") + (t.length ? ` · <b>duty ${t.join(", ")}</b>` : "") + (d.free ? "" : " <span>(UTC)</span>");
 }
 function homeRosterHTML(){
   const days = cb().me.days || {}, dates = Object.keys(days).sort(); if (!dates.length || user?.id === "sample") return "";
@@ -1672,8 +1679,8 @@ function homeRosterHTML(){
   const iso = d => `${hrMonth}-${String(d).padStart(2, "0")}`;
   let g = "MTWTFSS".split("").map(c => `<div class="hrw">${c}</div>`).join("") + '<div class="blank"></div>'.repeat(lead);
   for (let d = 1; d <= nd; d++) { const i = iso(d), day = days[i];
-    g += `<button type="button" class="hd ${day ? st[i] : ""}${i === today ? " today" : ""}${i === hrSel ? " sel" : ""}" data-hrday="${i}" title="${esc(day ? day.code : "no roster")}"><span class="n">${d}</span><span class="c">${esc(hrShort(day))}</span></button>`; }
-  const sel = hrSel && hrSel.startsWith(hrMonth) ? `<div class="hrday"><b>${cbNice(hrSel)}</b> · ${esc(days[hrSel]?.code || "no roster for this day")}${days[hrSel] && !days[hrSel].free ? " <span>(times in UTC)</span>" : ""}</div>` : "";
+    g += `<button type="button" class="hd ${day ? st[i] : ""}${i === today ? " today" : ""}${i === hrSel ? " sel" : ""}" data-hrday="${i}" title="${esc(day ? day.code : "no roster")}"><span class="n">${d}</span><span class="c">${esc(hrShort(day, i))}</span></button>`; }
+  const sel = hrSel && hrSel.startsWith(hrMonth) ? `<div class="hrday"><b>${cbNice(hrSel)}</b> · ${hrDetail(days[hrSel])}</div>` : "";
   return `<div class="card hcard" id="homeRoster"><div class="hrhead"><h3>My roster</h3><div class="hrnav"><button class="btn ghost small" type="button" data-hrmon="-1"${mi > 0 ? "" : " disabled"} aria-label="Previous month">‹</button><b>${new Date(Y, M - 1, 1).toLocaleDateString("en-GB", { month: "long", year: "numeric" })}</b><button class="btn ghost small" type="button" data-hrmon="1"${mi < months.length - 1 ? "" : " disabled"} aria-label="Next month">›</button></div></div>` +
     `<div class="hrcal">${g}</div>${sel}` +
     `<div class="legend" style="margin-top:10px"><span><i class="sw free"></i>off</span><span><i class="sw part"></i>free part of the day</span><span><i class="sw duty"></i>duty / away</span><span><i class="sw sby"></i>standby</span></div>` +
@@ -1752,7 +1759,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "31 Oct 2026 · 4";
+const APP_VERSION = "31 Oct 2026 · 5";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
