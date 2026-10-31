@@ -1935,7 +1935,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "31 Oct 2026 · 15";
+const APP_VERSION = "31 Oct 2026 · 16";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
@@ -2712,7 +2712,7 @@ async function parseEasaLogbookPDF(buf){
     const L = pages[i].W, R = pages[i + 1]?.kind === "R" ? pages[i + 1].W : [];
     // left page columns
     const tt = L.filter(w => w.s === "TOTAL").sort((a, b) => a.y - b.y)[0];
-    const H = { date: head(L, "DATE"), mk: head(L, "MAKE,") || head(L, "AIRCRAFT"), reg: head(L, "REGISTRATION"), se: head(L, "SE"), me: head(L, "ME"),
+    const H = { date: head(L, "DATE"), mk: head(L, "MAKE,") || head(L, "AIRCRAFT"), reg: head(L, "REGISTRATION") || head(L, "REG"), se: head(L, "SE"), me: head(L, "ME"),
       mp: head(L, "MULTI-PILOT") || head(L, "MULTI") || head(L, "MULTI-"), total: pc(L, tt), name: head(L, "NAME"), ldg: head(L, "LANDINGS"), to: head(L, "TAKEOFFS") || head(L, "TAKE-OFFS") };
     const places = L.filter(w => w.s === "PLACE").sort((a, b) => a.x - b.x), times = L.filter(w => w.s === "TIME" && places[0] && Math.abs(w.y - places[0].y) < 2).sort((a, b) => a.x - b.x);
     if (!H.date || places.length < 2 || times.length < 2 || !H.total) continue;
@@ -2726,15 +2726,17 @@ async function parseEasaLogbookPDF(buf){
     lcol.push(["acType", lcol[4][2], H.reg ? mid(H.mk.c, H.reg.c) : 1e9]);
     if (H.reg) lcol.push(["reg", lcol[5][2], mid(H.reg.c, nums[0][1].c)]);
     nums.forEach(([k, h], j) => lcol.push([k, j ? mid(nums[j - 1][1].c, h.c) : lcol[lcol.length - 1][2], nums[j + 1] ? mid(h.c, nums[j + 1][1].c) : h.c + 22]));
-    const lHi = lcol[lcol.length - 1][2], toX = H.to ? H.to.x - 2 : H.ldg ? H.ldg.x - 2 : 1e9, ldgX = H.ldg ? H.ldg.x - 10 : 1e9, ldgMid = H.ldg ? H.ldg.c : 1e9;
+    const lHi = lcol[lcol.length - 1][2], toX = H.to ? H.to.x - 2 : H.ldg ? H.ldg.x - 10 : 1e9, ldgX = H.ldg ? H.ldg.x - 10 : 1e9, ldgMid = H.ldg ? H.ldg.c : 1e9;
     const lcell = w => w.x < lHi ? lcol.find(([, a, b]) => w.c >= a && w.c < b)?.[0] : w.x < toX ? (/^\d/.test(w.s) ? "" : "picName") : w.x >= ldgX ? (w.c < ldgMid ? "ldgDay" : "ldgNight") : "";
     // right page columns
     // LogTen splits PIC into P1 and P1 u/s (PICUS) and prints CO- / PILOT on two lines
     const p1 = R.filter(w => w.s === "P1").sort((a, b) => a.x - b.x), us = R.find(w => w.s === "u/s");
     const rh = { night: head(R, "NIGHT"), ifr: head(R, "IFR"), pic: us && p1.length > 1 ? { c: p1[0].c } : head(R, "PILOT-IN-") || head(R, "PIC"),
-      picus: us && p1.length > 1 ? { c: (p1[1].x + us.x + us.w) / 2 } : null, copilot: head(R, "CO-PILOT") || head(R, "CO-"), dual: head(R, "DUAL"), instructor: head(R, "INSTRUCTOR") };
+      picus: us && p1.length > 1 ? { c: (p1[1].x + us.x + us.w) / 2 } : null, copilot: head(R, "CO-PILOT") || head(R, "CO-") || head(R, "COP"), dual: head(R, "DUAL"), instructor: head(R, "INSTRUCTOR") || head(R, "INSTR") };
     const sdate = R.find(w => w.s === "DATE"), stype = R.find(w => w.s === "TYPE" && sdate && Math.abs(w.y - sdate.y) < 6 && w.x > sdate.x),
-      stt = R.filter(w => w.s === "TOTAL" && sdate && w.x > sdate.x).sort((a, b) => Math.abs(a.y - sdate.y) - Math.abs(b.y - sdate.y))[0], stime = pc(R, stt);
+      stt = R.filter(w => w.s === "TOTAL" && sdate && w.x > sdate.x).sort((a, b) => Math.abs(a.y - sdate.y) - Math.abs(b.y - sdate.y))[0],
+      // the session's time column: "TOTAL TIME", or just "TIME" on the DATE / TYPE row (Flylog book layout)
+      stime = pc(R, stt) || (() => { const t = R.find(w => w.s === "TIME" && sdate && Math.abs(w.y - sdate.y) < 6 && w.x > (stype || sdate).x); return t && { c: t.c, x: t.x, y: t.y }; })();
     const rk = Object.keys(rh).filter(k => rh[k]), rcol = [];
     rk.forEach((k, j) => rcol.push([k, j ? mid(rh[rk[j - 1]].c, rh[k].c) : -1e9, rk[j + 1] ? mid(rh[k].c, rh[rk[j + 1]].c) : sdate ? mid(rh[k].c, sdate.c) : rh[k].c + 40]));
     if (sdate) rcol.push(["simDate", rcol.length ? rcol[rcol.length - 1][2] : -1e9, stype ? mid(sdate.c, stype.c) : sdate.c + 30]);
@@ -2755,7 +2757,9 @@ async function parseEasaLogbookPDF(buf){
     const date = s => { const m = s && s.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})$/); return m ? iso(+m[3], +m[2], +m[1]) : ""; };
     for (const { L: a, R: b } of lines) {
       const remarks = txt(b.remarks);
-      if (a.date) {
+      // a simulator session printed across both pages (Flylog book): on the left only its date and the instructor's name
+      const simOnly = b.simDate && b.fstdTime && !a.from && !a.to && !a.total && !a.mp && !a.se && !a.me;
+      if (a.date && !simOnly) {
         const f = { date: date(txt(a.date)), flightNo: "", from: txt(a.from).toUpperCase(), to: txt(a.to).toUpperCase(), out: (a.out || []).map(w => w.s).find(clock) || "", off: "", on: "",
           in: (a.in || []).map(w => w.s).find(clock) || "", acType: acTypeName(txt(a.acType)), reg: txt(a.reg).toUpperCase(), picName: txt(a.picName),
           total: dur(a.total || []), pic: dur(b.pic || []) + dur(b.picus || []), copilot: dur(b.copilot || []), dual: dur(b.dual || []), instructor: dur(b.instructor || []),
@@ -2770,8 +2774,8 @@ async function parseEasaLogbookPDF(buf){
       if (b.simDate && b.fstdTime) {
         // a simulator line's landings (LogTen prints them on the left page) count in the PDF's totals, not as flight landings
         if (!a.date) { out.simLdgDay = (out.simLdgDay || 0) + cnt(a.ldgDay || []); out.simLdgNight = (out.simLdgNight || 0) + cnt(a.ldgNight || []); }
-        const s = { date: date(txt(b.simDate)), flightNo: "", from: "", to: "", out: "", off: "", on: "", in: "", acType: "", reg: "", picName: "",
-          total: 0, pic: 0, copilot: 0, dual: 0, instructor: 0, night: 0, ifr: 0, ldgDay: 0, ldgNight: 0, fstdType: txt(b.fstdType).toUpperCase(), fstdTime: dur(b.fstdTime), remarks: a.date ? "" : remarks };
+        const s = { date: date(txt(b.simDate)), flightNo: "", from: "", to: "", out: "", off: "", on: "", in: "", acType: "", reg: "", picName: simOnly ? txt(a.picName) : "",
+          total: 0, pic: 0, copilot: 0, dual: 0, instructor: 0, night: 0, ifr: 0, ldgDay: 0, ldgNight: 0, fstdType: txt(b.fstdType).toUpperCase(), fstdTime: dur(b.fstdTime), remarks: a.date && !simOnly ? "" : remarks };
         if (s.date && s.fstdTime) out.flights.push(s);
       }
     }
