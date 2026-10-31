@@ -818,7 +818,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
         <div class="stats" id="stTiles"></div>
         <div class="card" id="rmCard">
           <div class="rmhead"><h3 style="margin:0">Routes flown</h3>
-            <div class="rmctl"><div class="rmseg" role="group" aria-label="Period"><button type="button" data-rm="30">Last 30 days</button><button type="button" data-rm="ytd">This year</button><select id="rmYear" aria-label="Year"></select><button type="button" data-rm="all" class="on">All flights</button><button type="button" data-rm="dates">Dates…</button></div>
+            <div class="rmctl"><div class="rmseg" role="group" aria-label="Period"><button type="button" data-rm="all" class="on">All flights</button><select id="rmYear" aria-label="Year"></select><button type="button" data-rm="dates">Dates…</button></div>
               <label class="tick" style="margin:0"><input type="checkbox" id="rmLines" checked> <span>Connect with lines</span></label></div></div>
           <div class="rmdates hidden" id="rmDates"><label for="rmFrom">From</label><input type="date" id="rmFrom"><label for="rmTo">to</label><input type="date" id="rmTo"><span class="err" id="rmDateErr" style="margin:0"></span></div>
           <div class="rmstats" id="rmStats"></div>
@@ -1987,7 +1987,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "31 Oct 2026 · 31";
+const APP_VERSION = "31 Oct 2026 · 32";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
