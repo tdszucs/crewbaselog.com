@@ -451,6 +451,9 @@ td.r,th.r{text-align:right}
 .hcrow{display:grid;grid-template-columns:76px repeat(var(--days),16px);gap:2px;align-items:center}.hcrow .d{height:18px;border-radius:3px;cursor:default;display:block}
 .hcn{font:500 9px "JetBrains Mono",monospace;color:var(--muted);text-align:center}.hcnm{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:6px}
 .hctog{margin-top:4px}.hctog .d{height:22px}
+.hfadd{margin-top:14px}.hflist{display:grid;gap:2px;margin:6px 0 0}.hfrow{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line);font-size:14px}
+.hfrow>span:first-child{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}.hfx{border:0;background:none;color:var(--muted);font-size:18px;cursor:pointer;padding:0 6px}.hfx.sure{color:var(--bad);font-size:12px;font-weight:700}
+.hfform{display:flex;gap:8px;margin:10px 0 0}.hfform input{flex:1;min-width:0}
 .repcard{border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:0 0 12px;background:var(--bg)}
 .rephd{display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap;word-break:break-all}
 .repctl{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;margin-top:8px}
@@ -543,7 +546,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
       <!-- the rest sit under More, as on a phone (kept here for the page list) -->
       <button data-t="profile" class="tmore">Profile</button>
       <button data-t="import" class="tmore">Your data</button>
-      <button data-t="crewbase" class="tmore">Crew Base</button>
+      <button data-t="crewbase" class="tmore hidden">Crew Base</button>
       <button data-t="jobs" class="tmore">Jobs</button>
       <button data-t="help" class="tmore">Help</button>
       <button data-t="admin" id="tabAdmin" class="tmore hidden">Admin</button>
@@ -559,7 +562,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
     <button data-more><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg><span>More</span></button>
   </nav>
   <div class="moremenu hidden" id="moreMenu" role="menu">
-    <button data-t="profile">Profile</button><button data-t="import">Your data</button><button data-t="crewbase">Crew Base</button><button data-t="jobs">Jobs</button><button data-t="admin" id="moreAdmin" class="hidden">Admin</button><button data-t="help">Help</button>
+    <button data-t="profile">Profile</button><button data-t="import">Your data</button><button data-t="jobs">Jobs</button><button data-t="admin" id="moreAdmin" class="hidden">Admin</button><button data-t="help">Help</button>
   </div>
   <div class="setup hidden" id="setup" role="dialog" aria-label="Set up CrewBase Log"><div class="setupin"><div class="suhead"><span class="logo-sm">CrewBase Log</span><button class="btn ghost small" type="button" data-su="skip">Skip setup</button></div><div id="setupBody"></div></div></div>
   <main>
@@ -1897,26 +1900,47 @@ function hrDetail(d){
   const t = (d.duties || []).map(([a, b]) => a <= 0 && b >= 1440 ? "all day" : a <= 0 ? `until ${cbClock(b)}` : b >= 1440 ? `from ${cbClock(a)}` : `${cbClock(a)}–${cbClock(b)}`);
   return esc(d.code || "") + (t.length ? ` · <b>duty ${t.join(", ")}</b>` : "") + (d.free ? "" : " <span>(UTC)</span>");
 }
-/* Home, under My roster: the month side by side with the friends' rosters (Crew Base colours), the days you are all free,
-   and a link to add friends on Crew Base */
+/* Home, under My roster: the month side by side with the friends' rosters (coloured rows and a Together row), then the friends
+   themselves: add one by email, remove one. Friends see the profile name and base */
 function homeCrewHTML(){
-  const R = cbRosters(), add = `<a href="#" data-go="crewbase" data-scroll="#cbFriends">+ Add friends</a>`;
-  if (R.length < 2) return `<div class="hrfriends"><span class="hint" style="margin:0">See when you and your friends are free at base.</span> ${add}</div>`;
-  const [Y, M] = hrMonth.split("-").map(Number), nd = new Date(Y, M, 0).getDate(), iso = d => `${hrMonth}-${String(d).padStart(2, "0")}`;
-  const dates = [...new Set(R.flatMap(r => Object.keys(r.days)))].sort(), carry = R.map(() => false), per = {};
-  for (const d of dates) { const row = R.map((r, i) => { const f = cbWindows(r, d, carry[i]); carry[i] = f.away; return f; });
-    let common = row[0].windows; for (let i = 1; i < row.length; i++) common = cbIntersect(common, row[i].windows); per[d] = { row, common: common.filter(w => w[1] - w[0] >= 180) }; }
-  const days = Array.from({ length: nd }, (_, i) => i + 1);
-  let h = `<div class="hcrow"><span></span>${days.map(d => `<span class="hcn">${d}</span>`).join("")}</div>`;
-  R.forEach((r, ri) => { h += `<div class="hcrow"><span class="hcnm">${esc(ri ? r.name : "Me")}</span>${days.map(d => { const p = per[iso(d)]; return `<i class="d ${p ? cbState(p.row[ri], r.days[iso(d)]) : "none"}" title="${esc(r.name)} · ${d}: ${esc(r.days[iso(d)]?.code || "no roster")}"></i>`; }).join("")}</div>`; });
-  h += `<div class="hcrow hctog"><span class="hcnm">Together</span>${days.map(d => { const p = per[iso(d)]; const st = !p ? "none" : p.common.length ? (p.common.reduce((s, w) => s + w[1] - w[0], 0) >= CB_DAY - 1 ? "free" : "part") : p.row.some(f => f.windows.length) ? "some" : "duty";
-    return `<i class="d ${st}" title="${d}: ${p?.common.length ? "all free " + p.common.map(w => cbClock(w[0]) + "–" + cbClock(w[1])).join(", ") + " UTC" : "not all free"}"></i>`; }).join("")}</div>`;
-  const free = days.filter(d => per[iso(d)]?.common.length && iso(d) >= todayISO()).length;
-  return `<div class="hrfriends"><div class="hrfhead"><b>With friends</b><span class="hint" style="margin:0">${free ? `${free} day${free === 1 ? "" : "s"} you are all free this month` : "No day you are all free this month"}</span></div>` +
-    `<div class="hcwrap"><div class="hcgrid" style="--days:${nd}">${h}</div></div><div class="row-actions" style="margin:8px 0 0">${add}<a href="#" data-go="crewbase">Open Crew Base</a></div></div>`;
+  const R = cbRosters(), F = cb().friends;
+  let rows = "";
+  if (R.length > 1 && hrMonth) {
+    const [Y, M] = hrMonth.split("-").map(Number), nd = new Date(Y, M, 0).getDate(), iso = d => `${hrMonth}-${String(d).padStart(2, "0")}`;
+    const dates = [...new Set(R.flatMap(r => Object.keys(r.days)))].sort(), carry = R.map(() => false), per = {};
+    for (const d of dates) { const row = R.map((r, i) => { const f = cbWindows(r, d, carry[i]); carry[i] = f.away; return f; });
+      let common = row[0].windows; for (let i = 1; i < row.length; i++) common = cbIntersect(common, row[i].windows); per[d] = { row, common: common.filter(w => w[1] - w[0] >= 180) }; }
+    const days = Array.from({ length: nd }, (_, i) => i + 1);
+    let h = `<div class="hcrow"><span></span>${days.map(d => `<span class="hcn">${d}</span>`).join("")}</div>`;
+    R.forEach((r, ri) => { h += `<div class="hcrow"><span class="hcnm">${esc(ri ? r.name : "Me")}</span>${days.map(d => { const p = per[iso(d)]; return `<i class="d ${p ? cbState(p.row[ri], r.days[iso(d)]) : "none"}" title="${esc(r.name)} · ${d}: ${esc(r.days[iso(d)]?.code || "no roster")}"></i>`; }).join("")}</div>`; });
+    h += `<div class="hcrow hctog"><span class="hcnm">Together</span>${days.map(d => { const p = per[iso(d)]; const st = !p ? "none" : p.common.length ? (p.common.reduce((s, w) => s + w[1] - w[0], 0) >= CB_DAY - 1 ? "free" : "part") : p.row.some(f => f.windows.length) ? "some" : "duty";
+      return `<i class="d ${st}" title="${d}: ${p?.common.length ? "all free " + p.common.map(w => cbClock(w[0]) + "–" + cbClock(w[1])).join(", ") + " UTC" : "not all free"}"></i>`; }).join("")}</div>`;
+    const free = days.filter(d => per[iso(d)]?.common.length && iso(d) >= todayISO()).length;
+    rows = `<div class="hrfhead"><b>With friends</b><span class="hint" style="margin:0">${free ? `${free} day${free === 1 ? "" : "s"} you are all free this month` : "No day you are all free this month"}</span></div>` +
+      `<div class="hcwrap"><div class="hcgrid" style="--days:${nd}">${h}</div></div>`;
+  }
+  const list = F.map((f, i) => { const n = Object.keys(f.days || {}).length, st = f.shared || n ? "sharing" : cbOnline() ? "waiting: they add your email too" : "no roster yet";
+    return `<div class="hfrow"><span><b>${esc(f.name || f.email)}</b>${f.name ? ` <span class="hint" style="margin:0">${esc(f.email)}</span>` : ""}</span><span class="hint" style="margin:0">${st}</span><button class="hfx" type="button" data-hfdel="${i}" aria-label="Remove ${esc(f.email)}">×</button></div>`; }).join("");
+  return `<div class="hrfriends">${rows}<div class="hfadd"><b>Friends</b>${list ? `<div class="hflist">${list}</div>` : `<div class="hint" style="margin:2px 0 0">Add a colleague by the email they log in with. When you have both added each other, your rosters show here side by side.</div>`}` +
+    (isLocal() ? `<div class="hint" style="margin:6px 0 0">Sharing rosters needs a free account.</div>` :
+    `<div class="hfform"><input id="hfEmail" type="email" inputmode="email" autocomplete="off" placeholder="friend@example.com" aria-label="Friend's email"><button class="btn small" type="button" data-hfadd>Add friend</button></div><div class="hint" id="hfMsg" style="margin:4px 0 0"></div>`) + `</div></div>`;
 }
+document.addEventListener("click", e => {
+  const add = e.target.closest("[data-hfadd]"), del = e.target.closest("[data-hfdel]"); if (!add && !del) return;
+  const F = cb().friends, msg = t => { const m = $("#hfMsg"); if (m) m.textContent = t; };
+  if (del) { if (del.textContent !== "Sure?") { del.textContent = "Sure?"; del.classList.add("sure"); return; } F.splice(+del.dataset.hfdel, 1); save(); cbPush(); return renderHome(); }
+  const email = ($("#hfEmail")?.value || "").trim().toLowerCase();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return msg("That doesn't look like an email address.");
+  if (email === (user.email || "").toLowerCase()) return msg("That's your own email.");
+  if (F.some(f => f.email === email)) return msg("That friend is already on your list.");
+  F.push({ email, name: "", base: "", days: {}, show: true }); logEvent("friend_added", { friends: F.length }); save(); renderHome();
+  msg("Added. Their roster shows here once they have added your email too.");
+  cbSync()?.then?.(() => renderHome());
+});
+document.addEventListener("keydown", e => { if (e.key === "Enter" && e.target.id === "hfEmail") { e.preventDefault(); $("[data-hfadd]")?.click(); } });
 function homeRosterHTML(){
-  const days = cb().me.days || {}, dates = Object.keys(days).sort(); if (!dates.length || user?.id === "sample") return "";
+  const days = cb().me.days || {}, dates = Object.keys(days).sort(); if (user?.id === "sample") return "";
+  if (!dates.length) return `<div class="card hcard" id="homeCrewStart"><h3>My roster</h3><p class="hint" style="margin:0 0 4px">Drop your roster (the Personal Crew Schedule PDF from AIMS) on <a href="#" data-go="import">Your data</a>: it shows here as a calendar, next to your friends' rosters.</p>${homeCrewHTML()}</div>`;
   const months = [...new Set(dates.map(d => d.slice(0, 7)))], now = todayISO().slice(0, 7);
   if (!hrMonth || !months.includes(hrMonth)) hrMonth = months.includes(now) ? now : months.find(m => m > now) || months[months.length - 1];
   const [Y, M] = hrMonth.split("-").map(Number), nd = new Date(Y, M, 0).getDate(), lead = (new Date(Y, M - 1, 1).getDay() + 6) % 7;
@@ -1969,6 +1993,7 @@ document.addEventListener("click", e => {
 });
 function renderHome(){
   const box = $("#homeDash"); if (!box || !data?.flights) return; const F = data.flights;
+  if (cbPulledFor !== user?.id && cbOnline()) { cbPulledFor = user.id; cbSync()?.then?.(() => renderHome()); }   // friends' rosters, once per sign-in
   // roster legs and logbook lines compare by airport (FCO and LIRF are the same): the airport list first
   if (!AIRPORTS && data.crew?.me?.days && Object.keys(data.crew.me.days).length) { loadAirports().then(() => AIRPORTS && renderHome()); }
   $('[data-p="overview"] .lead')?.classList.toggle("hidden", !!F.length);
@@ -2029,7 +2054,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "31 Oct 2026 · 38";
+const APP_VERSION = "31 Oct 2026 · 39";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
@@ -2047,7 +2072,10 @@ $("#fbForm").addEventListener("submit", async e => {
   }
   $("#fbSend").disabled = false;
 });
-document.addEventListener("click", e => { const g = e.target.closest("[data-go]"); if (!g) return; e.preventDefault(); tab(g.dataset.go); const t = g.dataset.scroll && $(g.dataset.scroll); if (t?.tagName === "DETAILS") t.open = true; if (t) t.scrollIntoView({ behavior: "smooth", block: "start" }); });
+document.addEventListener("click", e => { const g = e.target.closest("[data-go]"); if (!g) return; e.preventDefault();
+  // Crew Base lives on Home now: the roster with friends
+  if (g.dataset.go === "crewbase") { tab("overview"); setTimeout(() => ($("#homeRoster") || $("#homeCrewStart"))?.scrollIntoView({ behavior: "smooth", block: "start" }), 60); return; }
+  tab(g.dataset.go); const t = g.dataset.scroll && $(g.dataset.scroll); if (t?.tagName === "DETAILS") t.open = true; if (t) t.scrollIntoView({ behavior: "smooth", block: "start" }); });
 
 /* ---------- profile ---------- */
 // base airport: ICAO (4) or IATA (3); airline: IATA (2, may hold a digit) or ICAO (3 letters). Empty is fine
@@ -5452,9 +5480,9 @@ async function isRosterPDF(f){
   } catch { return false; }
 }
 function takeRoster(f){
-  if (!$("#setup").classList.contains("hidden")) { closeSetup(); tab("crewbase"); scrollTo({ top: 0 }); return cbTakeMine(f, "This is your roster, so it went to Crew Base, not your logbook. "); }
+  if (!$("#setup").classList.contains("hidden")) { closeSetup(); tab("overview"); return cbTakeMine(f, "This is your roster, so it went to your roster on Home, not your logbook. ", () => { renderHome(); $("#homeRoster")?.scrollIntoView({ behavior: "smooth", block: "start" }); }); }
   renderCrewBase();   // its name and base boxes hold what is saved, before the roster is added
-  cbTakeMine(f, "", (n, meta) => found(f.name, n ? "roster" : "unknown", n ? `${n} days added to Crew Base. <a href="#" data-go="crewbase">Open Crew Base</a>` : esc(cbWhy(meta))),
+  cbTakeMine(f, "", (n, meta) => found(f.name, n ? "roster" : "unknown", n ? `${n} days added to your roster. <a href="#" data-go="crewbase">See it on Home</a>` : esc(cbWhy(meta))),
     () => { found(f.name, "roster", "Printed in local time: choose its time difference on Crew Base."); tab("crewbase"); });
 }
 // the roster: a spinner while it is read, gone when it is in (or asks for its time difference, or can't be read)
