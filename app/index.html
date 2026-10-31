@@ -465,6 +465,10 @@ td.r,th.r{text-align:right}
 .switch input:checked+span{background:var(--ok)}.switch input:checked+span::before{transform:translateX(22px)}.switch input:disabled+span{opacity:.5}
 .joshare{display:grid;gap:8px}.joshare .tick{margin:0;gap:8px}.joshare .tick .btn{margin-left:auto}
 .adcand{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:start;padding:12px 0;border-bottom:1px solid var(--line)}.adsum{white-space:pre-wrap;font-size:12px;background:var(--bg);padding:10px;border-radius:8px;margin:8px 0 0}
+.sfcard.on{border-color:var(--brand)}.sfhead{display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap;margin:0 0 8px}
+.sfrow{display:grid;grid-template-columns:78px minmax(0,1.3fr) minmax(0,1fr) minmax(0,1.4fr) 28px;gap:6px;align-items:center;margin:0 0 6px}.sfrow select,.sfrow input{width:100%;min-width:0;padding:8px 10px}
+.sfwhere{font-size:13px;color:var(--muted);text-align:center}.sfx{border:0;background:none;color:var(--muted);font-size:20px;cursor:pointer;padding:0}
+@media (max-width:700px){.sfrow{grid-template-columns:78px 1fr 28px;padding:8px 0;border-bottom:1px solid var(--line)}.sfrow>[data-sf="o"]{grid-column:2}.sfrow>[data-sf="v"]{grid-column:2 / 4}.sfrow>[data-sf="o"]{grid-row:2}.sfrow>[data-sf="v"]{grid-row:3}}
 .repcard{border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:0 0 12px;background:var(--bg)}
 .rephd{display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap;word-break:break-all}
 .repctl{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;margin-top:8px}
@@ -851,6 +855,11 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
       </div>
       <p class="hint" id="stTypesNote" style="margin:16px 0 0;font-size:14px"></p>
       <div class="card hidden" id="stEmpty"><p class="hint" style="margin:0">No flights yet. <a href="#" data-go="import">Import or add your flights</a>.</p></div>
+      <div class="card sfcard" id="sfCard"><div class="sfhead"><h3 style="margin:0">Filter flights</h3><span class="hint" id="sfCount" style="margin:0"></span></div>
+        <div id="sfRows"></div>
+        <div class="row-actions" style="margin:10px 0 0"><button class="btn ghost small" type="button" id="sfAdd">+ Add condition</button><button class="btn ghost small hidden" type="button" id="sfClear">Clear filter</button></div>
+        <details class="hqhow"><summary>How filters combine</summary><div class="hint" style="font-size:13.5px;line-height:1.55"><p><b>And</b> means both must be true; <b>Or</b> starts another set: a flight counts if it matches every condition of at least one set. For <b>not</b>, choose “is not” or “doesn't contain”.</p>
+          <p>For example: Aircraft is A320 <b>and</b> Night time more than 0:00 <b>or</b> Remarks contain “check” gives every A320 night flight, plus every flight with “check” in its remarks. Everything on this page, and the route map, follows the filter; brought-forward hours count only when there is no filter.</p></div></details></div>
       <div id="stBody">
         <div class="stats" id="stTiles"></div>
         <div class="card" id="rmCard">
@@ -2115,7 +2124,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "31 Oct 2026 · 42";
+const APP_VERSION = "31 Oct 2026 · 43";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
@@ -4583,20 +4592,84 @@ function withPrev(o){
   o.me += (P.me || 0) + (P.mp || 0); o.fstd += P.fstd || 0; o.ldg += (P.ldgDay || 0) + (P.ldgNight || 0); o.ldgNight += P.ldgNight || 0;
   return o;
 }
+/* Smart filter (Stats): conditions joined by And / Or (And binds first: Or starts a new set), each with its own "not" form.
+   Kept with the logbook. Everything on Stats and the route map counts only the flights that match */
+const SF_FIELDS = {
+  type: ["Aircraft type", "text", f => f.acType], reg: ["Registration", "text", f => f.reg], from: ["From", "text", f => f.from], to: ["To", "text", f => f.to],
+  apt: ["Airport (from or to)", "text", f => [f.from, f.to]], country: ["Country (from or to)", "text", f => [aptCountry(f.from), aptCountry(f.to)].filter(Boolean).flatMap(c => [c, countryName(c)])],
+  pic: ["PIC name", "text", f => f.picName], crew: ["Crew member", "text", f => f.crew || []], flightNo: ["Flight number", "text", f => f.flightNo], remarks: ["Remarks", "text", f => f.remarks],
+  fn: ["Function", "fn", null], cls: ["Aircraft class", "cls", null], kind: ["Kind", "kind", null],
+  date: ["Date", "date", f => f.date], year: ["Year", "year", f => f.date.slice(0, 4)],
+  total: ["Total time", "dur", f => f.total], night: ["Night time", "dur", f => f.night], ifr: ["IFR time", "dur", f => f.ifr], ldg: ["Landings", "num", f => (f.ldgDay || 0) + (f.ldgNight || 0)]
+};
+const SF_OPS = { text: [["is", "is"], ["not", "is not"], ["has", "contains"], ["hasnt", "doesn't contain"], ["starts", "starts with"]],
+  fn: [["is", "is"], ["not", "is not"]], cls: [["is", "is"], ["not", "is not"]], kind: [["is", "is"]], year: [["is", "is"], ["not", "is not"]],
+  date: [["after", "on or after"], ["before", "on or before"]], dur: [["gt", "more than"], ["lt", "less than"]], num: [["gt", "more than"], ["lt", "less than"], ["is", "exactly"]] };
+const SF_CHOICES = { fn: [["pic", "PIC"], ["picus", "PICUS"], ["copilot", "Co-pilot"], ["dual", "Dual received"], ["instructor", "Instructor"]],
+  cls: [["MP", "Multi-pilot"], ["SPSE", "Single-pilot, single-engine"], ["SPME", "Single-pilot, multi-engine"]], kind: [["flight", "Flight"], ["sim", "Simulator session"]] };
+const sfRows = () => (data.statFilter ||= []);
+const sfActive = () => sfRows().some(r => r.v !== "" && r.v != null);
+// brought-forward hours belong to no flight: they count only without a filter
+const sfPrev = o => sfActive() ? o : withPrev(o);
+function sfTest(f, r){
+  const [, kind, get] = SF_FIELDS[r.k] || [], v = String(r.v ?? "").trim(); if (!kind || v === "") return true;
+  if (kind === "fn") { const has = r.v === "picus" ? PICUS_RE.test(f.remarks || "") : (f[r.v] || 0) > 0; return r.o === "not" ? !has : has; }
+  if (kind === "cls") { if (isSim(f)) return false; const is = acClass(f.acType) === r.v; return r.o === "not" ? !is : is; }
+  if (kind === "kind") return r.v === "sim" ? isSim(f) : !isSim(f);
+  if (kind === "dur" || kind === "num") { const x = +get(f) || 0, n = kind === "dur" ? parseDur(v) : +v; return r.o === "gt" ? x > n : r.o === "lt" ? x < n : x === n; }
+  if (kind === "date") return r.o === "after" ? f.date >= v : f.date <= v;
+  const vals = [].concat(get(f) || []).map(x => String(x || "").toUpperCase()), q = v.toUpperCase();
+  const alt = r.k === "apt" || r.k === "from" || r.k === "to" ? [q, aptAlt()[q]].filter(Boolean) : [q];
+  const m = { is: () => vals.some(x => alt.includes(x)), has: () => vals.some(x => x.includes(q)), starts: () => vals.some(x => x.startsWith(q)) };
+  return r.o === "not" ? !m.is() : r.o === "hasnt" ? !m.has() : (m[r.o] || m.is)();
+}
+function statFlights(){
+  const R = sfRows().filter(r => r.v !== "" && r.v != null); if (!R.length) return data.flights;
+  const sets = [[]]; R.forEach((r, i) => { if (i && r.j === "or") sets.push([]); sets[sets.length - 1].push(r); });
+  return data.flights.filter(f => sets.some(set => set.every(r => sfTest(f, r))));
+}
+// the known values of a field, for its suggestions
+function sfValues(k){ const g = SF_FIELDS[k]?.[2], c = new Map(); if (!g) return [];
+  for (const f of data.flights) for (const x of [].concat(g(f) || [])) if (x && String(x).length < 40) c.set(String(x), (c.get(String(x)) || 0) + 1);
+  return [...c.entries()].sort((a, b) => b[1] - a[1]).slice(0, 150).map(([x]) => x); }
+function sfRender(){
+  const R = sfRows(), box = $("#sfRows");
+  const valBox = (r, i) => { const kind = SF_FIELDS[r.k][1];
+    if (SF_CHOICES[kind]) return `<select data-sf="v" data-i="${i}"><option value="">Choose…</option>${SF_CHOICES[kind].map(([v, l]) => `<option value="${v}"${r.v === v ? " selected" : ""}>${l}</option>`).join("")}</select>`;
+    if (kind === "year") { const Y = [...new Set(data.flights.map(f => f.date.slice(0, 4)))].sort().reverse(); return `<select data-sf="v" data-i="${i}"><option value="">Choose…</option>${Y.map(y => `<option${r.v === y ? " selected" : ""}>${y}</option>`).join("")}</select>`; }
+    if (kind === "date") return `<input type="date" data-sf="v" data-i="${i}" value="${esc(r.v || "")}">`;
+    if (kind === "dur") return `<input data-sf="v" data-i="${i}" inputmode="numeric" placeholder="h:mm" value="${esc(r.v || "")}">`;
+    if (kind === "num") return `<input type="number" data-sf="v" data-i="${i}" min="0" value="${esc(r.v || "")}">`;
+    return `<input data-sf="v" data-i="${i}" list="sfList${i}" autocomplete="off" placeholder="Type or choose" value="${esc(r.v || "")}"><datalist id="sfList${i}">${sfValues(r.k).map(x => `<option value="${esc(x)}">`).join("")}</datalist>`; };
+  box.innerHTML = R.map((r, i) => `<div class="sfrow">${i ? `<select class="sfj" data-sf="j" data-i="${i}"><option value="and"${r.j !== "or" ? " selected" : ""}>And</option><option value="or"${r.j === "or" ? " selected" : ""}>Or</option></select>` : `<span class="sfj sfwhere">Where</span>`}` +
+    `<select data-sf="k" data-i="${i}">${Object.entries(SF_FIELDS).map(([k, [l]]) => `<option value="${k}"${r.k === k ? " selected" : ""}>${l}</option>`).join("")}</select>` +
+    `<select data-sf="o" data-i="${i}">${SF_OPS[SF_FIELDS[r.k][1]].map(([o, l]) => `<option value="${o}"${r.o === o ? " selected" : ""}>${l}</option>`).join("")}</select>${valBox(r, i)}` +
+    `<button class="sfx" type="button" data-sfdel="${i}" aria-label="Remove condition">×</button></div>`).join("");
+  const n = statFlights().length; $("#sfCount").textContent = sfActive() ? `${n.toLocaleString()} of ${data.flights.length.toLocaleString()} lines match` : "";
+  $("#sfClear").classList.toggle("hidden", !R.length); $("#sfCard").classList.toggle("on", sfActive());
+}
+let sfT = 0;
+const sfApply = (redraw) => { save(); if (redraw) sfRender(); clearTimeout(sfT); sfT = setTimeout(() => { renderStats(); }, 250); };
+$("#sfAdd").addEventListener("click", () => { sfRows().push({ j: "and", k: "type", o: "is", v: "" }); sfRender(); $(`#sfRows .sfrow:last-child [data-sf="v"]`)?.focus(); });
+$("#sfClear").addEventListener("click", () => { data.statFilter = []; sfApply(true); });
+$("#sfRows").addEventListener("click", e => { const d = e.target.closest("[data-sfdel]"); if (!d) return; sfRows().splice(+d.dataset.sfdel, 1); sfApply(true); });
+$("#sfRows").addEventListener("change", e => { const t = e.target.closest("[data-sf]"); if (!t) return; const r = sfRows()[+t.dataset.i], k = t.dataset.sf;
+  if (k === "k") { r.k = t.value; r.o = SF_OPS[SF_FIELDS[r.k][1]][0][0]; r.v = ""; } else r[k] = t.value; sfApply(k !== "v"); });
+$("#sfRows").addEventListener("input", e => { const t = e.target.closest('[data-sf="v"]'); if (!t || t.tagName === "SELECT") return; sfRows()[+t.dataset.i].v = t.value; save(); clearTimeout(sfT); sfT = setTimeout(() => renderStats(), 450); });
 function renderStats(){
-  const F = data.flights, T0 = acTypesFlown();
+  sfRender(); const F = statFlights(), T0 = acTypesFlown();
   $("#stTypesNote").innerHTML = "";
   const any = F.length || hasPrev();
   $("#stEmpty").classList.toggle("hidden", !!any); $("#stBody").classList.toggle("hidden", !any);
   if (!any) return;
-  const T = withPrev(statTotals(F)), h = fmtHrs;
+  const T = sfPrev(statTotals(F)), h = fmtHrs;
   const tiles = [["Total time", h(T.total)], ["PIC", h(T.pic)], ...(T.picus ? [["…of which PICUS", h(T.picus)]] : []), ["Co-pilot (SIC)", h(T.copilot)], ["Multi-crew (multi-pilot)", h(T.mp)], ["Multi-engine", h(T.me)],
     ["Single-engine", h(T.se)], ["IFR", h(T.ifr)], ["Night", h(T.night)], ["Instructor", h(T.instructor)], ["Dual received", h(T.dual)], ["Sectors", T.n.toLocaleString()], ["Landings", `${T.ldg.toLocaleString()}${T.ldgNight ? ` (${T.ldgNight} night)` : ""}`],
     ["Simulator (FSTD)", `${h(T.fstd)}${T.sims ? ` · ${T.sims} session${T.sims === 1 ? "" : "s"}` : ""}`]];
   $("#stTiles").innerHTML = tiles.map(([k, v]) => `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`).join("");
   const ago = d => new Date(Date.now() - d*864e5).toISOString().slice(0, 10);
   const per = [["Last 28 days", 28], ["Last 90 days", 90], ["Last 6 months", 182], ["Last 12 months", 365], ["Last 24 months", 730], ["All time", 0]]
-    .map(([k, d]) => [k, d ? statTotals(F.filter(f => f.date >= ago(d))) : withPrev(statTotals(F))]);
+    .map(([k, d]) => [k, d ? statTotals(F.filter(f => f.date >= ago(d))) : sfPrev(statTotals(F))]);
   const cols = [["Total","total"],["PIC","pic"],...(T.picus ? [["PICUS","picus"]] : []),["Co-pilot","copilot"],["Multi-crew","mp"],["IFR","ifr"],["Night","night"]];
   $("#stPeriods").innerHTML = `<table><thead><tr><th>Period</th>${cols.map(c => `<th class="r">${c[0]}</th>`).join("")}<th class="r">Sectors</th><th class="r">Landings</th></tr></thead><tbody>` +
     per.map(([k, o]) => `<tr${k === "All time" ? ' style="font-weight:700"' : ""}><td>${k}</td>${cols.map(c => `<td class="r">${h(o[c[1]])}</td>`).join("")}<td class="r">${o.n}</td><td class="r">${o.ldg}</td></tr>`).join("") + "</tbody></table>";
@@ -4611,7 +4684,7 @@ function renderStats(){
     }).join("") + "</tbody></table>";
   renderRouteMap();
   $("#stInfo").textContent = (F.length ? `${T.n.toLocaleString()} flight${T.n === 1 ? "" : "s"}${T.sims ? ` and ${T.sims} simulator session${T.sims === 1 ? "" : "s"}` : ""}, ${fmtDate(F[0].date)} to ${fmtDate(F[F.length-1].date)}.` : "") +
-    (hasPrev() ? ` All-time figures include ${h(data.prev.total)} brought forward from earlier logbooks.` : "");
+    (hasPrev() && !sfActive() ? ` All-time figures include ${h(data.prev.total)} brought forward from earlier logbooks.` : "");
 }
 /* Route map (Stats): the airports and routes of a period on OpenStreetMap (Leaflet), with the great-circle distance flown */
 const LEAFLET = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/";
@@ -4642,7 +4715,7 @@ function gcPath(A, B, n = 48){
   return out;
 }
 function routeFlights(){
-  const F = data.flights.filter(f => !isSim(f) && f.from && f.to), t = todayISO();
+  const F = statFlights().filter(f => !isSim(f) && f.from && f.to), t = todayISO();
   return rRange === "30" ? F.filter(f => f.date >= isoDaysAgo(29)) : rRange === "ytd" ? F.filter(f => f.date >= t.slice(0, 4) + "-01-01") : rRange === "all" ? F
     : rRange === "dates" ? F.filter(f => (!rFrom || f.date >= rFrom) && (!rTo || f.date <= rTo)) : F.filter(f => f.date.startsWith(rRange));
 }
