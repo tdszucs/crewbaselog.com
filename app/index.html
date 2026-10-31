@@ -1955,7 +1955,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "31 Oct 2026 · 20";
+const APP_VERSION = "31 Oct 2026 · 21";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
@@ -2632,7 +2632,7 @@ function parseOnePageLogbook(pages){
     const date = above("DATE")[0], multi = above("MULTI")[0], total = above("TOTAL")[0], pn = above("PIC", "NAME")[0], rem = above("REMARKS")[0];
     if (date) C.push({ k: "date", c: date.c }); if (multi) C.push({ k: "mp", c: multi.c }); if (total) C.push({ k: "total", c: total.c });
     if (pn) { const nm = W.find(v => v.s === "NAME" && Math.abs(v.y - pn.y) < 2 && v.x > pn.x); C.push({ k: "picName", c: (pn.x + nm.x + nm.w) / 2 }); }
-    const ft = C.find(c => c.k === "fstdTime"), remX = rem ? Math.min(rem.x, (ft ? ft.c : rem.x) + 12) : 1e9;
+    const ft = C.find(c => c.k === "fstdTime"), remX = rem ? Math.min(rem.x, (ft ? ft.c : rem.x) + 12) : 1e9; pg.remX = remX;
     const col = w => w.x >= remX ? "remarks" : C.reduce((b, c) => Math.abs(c.c - w.c) < Math.abs(b.c - w.c) ? c : b).k;
     // lines end at the page totals
     const tot = W.filter(w => w.s === "TOTAL" && w.y > hy).sort((a, b) => a.y - b.y), stop = tot.length ? tot[0].y - 6 : 1e9;
@@ -2649,7 +2649,7 @@ function parseOnePageLogbook(pages){
       const day = iso(+dm[3], +dm[2], +dm[1]), fst = t(r, "fstdTime"), tot2 = t(r, "total");
       // a simulator line's IFR time and landings are not flight time: counted apart, so the check can leave them out
       if (fst && !tot2) { out.simIfr = (out.simIfr || 0) + t(r, "ifr"); out.simLdg = (out.simLdg || 0) + cnt(r, "ldgDay") + cnt(r, "ldgNight"); out.simLdgDay = (out.simLdgDay || 0) + cnt(r, "ldgDay"); out.simLdgNight = (out.simLdgNight || 0) + cnt(r, "ldgNight");
-        out.flights.push({ date: day, flightNo: "", from: "", to: "", out: "", off: "", on: "", in: "", acType: "", reg: "", picName: "", total: 0, pic: 0, copilot: 0, dual: 0, instructor: 0,
+        out.flights.push({ _pg: pg, _y: r.y, date: day, flightNo: "", from: "", to: "", out: "", off: "", on: "", in: "", acType: "", reg: "", picName: "", total: 0, pic: 0, copilot: 0, dual: 0, instructor: 0,
         night: 0, ifr: 0, ldgDay: 0, ldgNight: 0, fstdTime: fst, fstdType: txt(r.c.fstdType).toUpperCase(), remarks: txt(r.c.remarks) }); continue; }
       const clock = k => (r.c[k] || []).map(w => w.s).find(s => /^\d{1,2}:\d{2}$/.test(s)) || "";
       const f = { date: day, flightNo: "", from: txt(r.c.from).toUpperCase(), to: txt(r.c.to).toUpperCase(), out: clock("out").padStart(5, "0"), off: "", on: "", in: clock("in").padStart(5, "0"),
@@ -2661,7 +2661,7 @@ function parseOnePageLogbook(pages){
       if (/^self$/i.test(f.picName)) f.picName = "SELF";
       const cls = t(r, "mp") ? "MP" : r.c.me ? "SPME" : r.c.se ? "SPSE" : "";
       if (cls && f.acType) out.classes[f.acType] ||= cls;
-      if (f.total || f.from) out.flights.push(f);
+      if (f.total || f.from) { f._pg = pg; f._y = r.y; out.flights.push(f); }
     }
     // the totals at the foot: "TOTAL FROM PREVIOUS PAGES" on the first page, "TOTAL TIME" on the last
     const totals = label => { const lab = W.find(w => w.s === label && w.y > hy && W.some(v => v.s === "TOTAL" && Math.abs(v.y - w.y) < 2)); if (!lab) return null;
@@ -2679,6 +2679,46 @@ function parseOnePageLogbook(pages){
 const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
 const PDF_HEADS = new Set(["DATE", "DEPARTURE", "ARRIVAL", "PLACE", "TIME", "AIRCRAFT", "MAKE,", "REGISTRATION", "MULTI-PILOT", "TOTAL", "NAME", "TAKEOFFS",
   "LANDINGS", "THIS", "PREVIOUS", "NIGHT", "IFR", "CO-PILOT", "DUAL", "INSTRUCTOR", "REMARKS", "FUNCTION", "TYPE"]);
+/* Signatures in a PDF logbook: the images drawn on each page and where (from the page's drawing operations) */
+async function pdfPageImages(pg, h){
+  const O = pdfjsLib.OPS, ol = await pg.getOperatorList(), st = []; let m = [1, 0, 0, 1, 0, 0]; const out = [];
+  const mul = (a, b) => [a[0] * b[0] + a[2] * b[1], a[1] * b[0] + a[3] * b[1], a[0] * b[2] + a[2] * b[3], a[1] * b[2] + a[3] * b[3], a[0] * b[4] + a[2] * b[5] + a[4], a[1] * b[4] + a[3] * b[5] + a[5]];
+  ol.fnArray.forEach((fn, i) => { const a = ol.argsArray[i];
+    if (fn === O.save) st.push(m.slice()); else if (fn === O.restore) m = st.pop() || m; else if (fn === O.transform) m = mul(m, a);
+    else if ((fn === O.paintImageXObject || fn === O.paintJpegXObject) && typeof a[0] === "string") {
+      const w = Math.abs(m[0]), hh = Math.abs(m[3]), top = h - Math.max(m[5], m[5] + m[3]); out.push({ name: a[0], x: m[4] + Math.min(0, m[0]), y: top, w, h: hh }); } });
+  return out;
+}
+// an image as a PNG with its white background taken out (signatures are drawn on white), at most maxW x maxH
+async function pdfImageUrl(pg, name, maxW = 240, maxH = 60){
+  const store = name.startsWith("g_") ? pg.commonObjs : pg.objs;
+  const o = await new Promise(r => { try { store.get(name, r); } catch { r(null); } setTimeout(() => r(null), 3000); }); if (!o) return "";
+  const c = document.createElement("canvas"); c.width = o.width; c.height = o.height; const x = c.getContext("2d");
+  if (o.bitmap) x.drawImage(o.bitmap, 0, 0);
+  else if (o.data) { const id = x.createImageData(o.width, o.height), d = id.data, s = o.data, n = o.width * o.height;
+    if (o.kind === 3) d.set(s.subarray(0, n * 4));
+    else if (o.kind === 2) for (let i = 0; i < n; i++) { d[i * 4] = s[i * 3]; d[i * 4 + 1] = s[i * 3 + 1]; d[i * 4 + 2] = s[i * 3 + 2]; d[i * 4 + 3] = 255; }
+    else { const row = (o.width + 7) >> 3; for (let i = 0; i < n; i++) { const yy = Math.floor(i / o.width), xx = i % o.width, v = (s[yy * row + (xx >> 3)] >> (7 - (xx & 7))) & 1 ? 255 : 0; d[i * 4] = d[i * 4 + 1] = d[i * 4 + 2] = v; d[i * 4 + 3] = 255; } }
+    x.putImageData(id, 0, 0); } else return "";
+  const id = x.getImageData(0, 0, c.width, c.height), d = id.data; let ink = 0;
+  for (let i = 0; i < d.length; i += 4) if (d[i] > 225 && d[i + 1] > 225 && d[i + 2] > 225) d[i + 3] = 0; else if (d[i + 3]) ink++;
+  if (ink < 20) return "";   // blank
+  x.putImageData(id, 0, 0); return smallSigPNG(c, maxW, maxH);
+}
+/* an image in a line's remarks cell is that line's signature (an instructor's or examiner's); the one at the foot of the pages,
+   below the lines, is the pilot's own (out.ownSig, for the profile when it has none) */
+async function pdfSigs(out, pages){
+  for (const P of pages) {
+    if (!P.imgs?.length) continue; const F = out.flights.filter(f => f._pg === P), lastY = F.length ? Math.max(...F.map(f => f._y)) : -1e9;
+    for (const im of P.imgs) {
+      const cy = im.y + im.h / 2;
+      if (F.length && P.remX != null && im.x + im.w / 2 >= P.remX - 5 && cy < lastY + 14) {
+        const f = F.reduce((b, f) => Math.abs(f._y - cy) < Math.abs(b._y - cy) ? f : b); if (Math.abs(f._y - cy) < 14 && !f.remarkSig) f.remarkSig = await pdfImageUrl(P.pg, im.name) || undefined;
+      } else if (!out.ownSig && F.length && im.y > lastY + 10 && im.w >= 50) out.ownSig = await pdfImageUrl(P.pg, im.name, 600, 200);
+    }
+  }
+  for (const f of out.flights) { delete f._pg; delete f._y; if (!f.remarkSig) delete f.remarkSig; }
+}
 async function parseEasaLogbookPDF(buf){
   if (!window.pdfjsLib) { await loadScript(PDFJS + "pdf.min.js"); pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS + "pdf.worker.min.js"; }
   const doc = await pdfjsLib.getDocument({ data: new Uint8Array(buf) }).promise, pages = [];
@@ -2707,11 +2747,11 @@ async function parseEasaLogbookPDF(buf){
         if (PDF_HEADS.has(u) && (w.y < first || w.y > last && ["TOTAL", "THIS", "PREVIOUS", "TIME"].includes(u))) w.s = u; }
     }
     const has = s => W.some(w => w.s === s);
-    pages.push({ W, kind: has("DEPARTURE") && has("ARRIVAL") ? "L" : (has("REMARKS") || has("FUNCTION")) && has("NIGHT") ? "R" : "" });
+    pages.push({ W, kind: has("DEPARTURE") && has("ARRIVAL") ? "L" : (has("REMARKS") || has("FUNCTION")) && has("NIGHT") ? "R" : "", pg, h, imgs: await pdfPageImages(pg, h) });
   }
   // the whole line on one page (Flylog EASA / JAR-FCL PDF): its own reader
   const one = pages.filter(p => p.kind === "L" && p.W.filter(w => w.s === "PLACE").length >= 2 && p.W.some(w => w.s === "COP") && p.W.some(w => w.s === "INSTR"));
-  if (one.length) return parseOnePageLogbook(one);
+  if (one.length) { const r = parseOnePageLogbook(one); if (r) await pdfSigs(r, one); return r; }
   // the printed heading words: centre of a word (or of a word and the next one on its line)
   const head = (W, s, next) => { const a = W.find(w => w.s === s && (!next || W.some(v => v.s === next && Math.abs(v.y - w.y) < 2 && v.x > w.x && v.x - (w.x + w.w) < 8)));
     if (!a) return null; const b = next && W.find(v => v.s === next && Math.abs(v.y - a.y) < 2 && v.x > a.x && v.x - (a.x + a.w) < 8); return { c: b ? (a.x + b.x + b.w) / 2 : a.c, y: a.y, x: a.x, r: b ? b.x + b.w : a.x + a.w }; };
@@ -2763,7 +2803,7 @@ async function parseEasaLogbookPDF(buf){
     rk.forEach((k, j) => rcol.push([k, j ? mid(rh[rk[j - 1]].c, rh[k].c) : -1e9, rk[j + 1] ? mid(rh[k].c, rh[rk[j + 1]].c) : sdate ? mid(rh[k].c, sdate.c) : rh[k].c + 40]));
     if (sdate) rcol.push(["simDate", rcol.length ? rcol[rcol.length - 1][2] : -1e9, stype ? mid(sdate.c, stype.c) : sdate.c + 30]);
     if (stype && stime) rcol.push(["fstdType", rcol[rcol.length - 1][2], stime.c - 18], ["fstdTime", stime.c - 18, stime.c + 19]);
-    const remX = rcol.length ? rcol[rcol.length - 1][2] : 1e9;
+    const remX = rcol.length ? rcol[rcol.length - 1][2] : 1e9; if (pages[i + 1]?.kind === "R") pages[i + 1].remX = remX;
     const isDate = s => /^\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}$/.test(s);
     const rcell = w => { if (w.x >= remX - 1) return "remarks"; const k = rcol.find(([, a, b]) => w.c >= a && w.c < b)?.[0]; return k === "simDate" && !isDate(w.s) ? "fstdType" : k; };
     // lines: anchored on the dates in the DATE columns
@@ -2777,8 +2817,8 @@ async function parseEasaLogbookPDF(buf){
     put(L, lcell, "L"); put(R, rcell, "R");
     const txt = ws => (ws || []).sort((a, b) => a.y - b.y > 2 ? 1 : b.y - a.y > 2 ? -1 : a.x - b.x).map(w => w.s).join(" ").trim();
     const date = s => { const m = s && s.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})$/); return m ? iso(+m[3], +m[2], +m[1]) : ""; };
-    const n0 = out.flights.length;
-    for (const { L: a, R: b } of lines) {
+    const n0 = out.flights.length, sigPage = pages[i + 1]?.kind === "R" ? pages[i + 1] : pages[i];
+    for (const { L: a, R: b, y: lineY } of lines) {
       const remarks = txt(b.remarks);
       // a simulator session printed across both pages (Flylog book): on the left only its date and the instructor's name
       const simOnly = b.simDate && b.fstdTime && !a.from && !a.to && !a.total && !a.mp && !a.se && !a.me;
@@ -2793,14 +2833,14 @@ async function parseEasaLogbookPDF(buf){
         const cls = a.mp && dur(a.mp) ? "MP" : a.me ? "SPME" : a.se ? "SPSE" : "";
         // the column this line was printed in (the totals check counts it there); the type's class is the one most of its lines use
         if (cls) { f._cls = cls; if (f.acType) { const t = (out.clsCount ||= {})[f.acType] ||= {}; t[cls] = (t[cls] || 0) + 1; } }
-        if (f.date) out.flights.push(f);
+        if (f.date) { f._pg = sigPage; f._y = lineY; out.flights.push(f); }
       }
       if (b.simDate && b.fstdTime) {
         // a simulator line's landings (LogTen prints them on the left page) count in the PDF's totals, not as flight landings
         if (!a.date) { out.simLdgDay = (out.simLdgDay || 0) + cnt(a.ldgDay || []); out.simLdgNight = (out.simLdgNight || 0) + cnt(a.ldgNight || []); }
         const s = { date: date(txt(b.simDate)), flightNo: "", from: "", to: "", out: "", off: "", on: "", in: "", acType: "", reg: "", picName: simOnly ? txt(a.picName) : "",
           total: 0, pic: 0, copilot: 0, dual: 0, instructor: 0, night: 0, ifr: 0, ldgDay: 0, ldgNight: 0, fstdType: txt(b.fstdType).toUpperCase(), fstdTime: dur(b.fstdTime), remarks: a.date && !simOnly ? "" : remarks };
-        if (s.date && s.fstdTime) out.flights.push(s);
+        if (s.date && s.fstdTime) { s._pg = sigPage; s._y = lineY; out.flights.push(s); }
       }
     }
     // the total rows at the foot of the page: values sit just above their label, level with it, or (some exports) just below;
@@ -2817,6 +2857,7 @@ async function parseEasaLogbookPDF(buf){
     (out.pageChk ||= []).push([i + 1, thT, out.flights.slice(n0).reduce((s, f) => s + (f.total || 0), 0)]);
   }
   if (!spreads) return null;
+  await pdfSigs(out, pages);
   for (const [t, c] of Object.entries(out.clsCount || {})) out.classes[t] = Object.entries(c).sort((a, b) => b[1] - a[1])[0][0];
   if (out.prev && !Object.values(out.prev).some(Boolean)) out.prev = null;
   out.simLdg = (out.simLdgDay || 0) + (out.simLdgNight || 0);
@@ -3133,6 +3174,8 @@ function doImport(){
   found(imp.name, imp.kind === "airline" || imp.ecrew ? "airline" : "logbook", `${added.toLocaleString()} new line${added === 1 ? "" : "s"}${updated ? `, ${updated.toLocaleString()} updated` : ""}${dup ? `, ${dup.toLocaleString()} already in your logbook` : ""}${bf ? " · " + bf.replace(/^[\s(]+|\)$/g, "") : ""}`);
   impLog.push(`<b>${added.toLocaleString()} new line${added === 1 ? "" : "s"}</b> from ${esc(imp.name)}${bf}` + (updated ? ` · ${updated.toLocaleString()} updated with new times` : "") + (dup ? ` · ${dup.toLocaleString()} already in your logbook` : "") +
     (future ? `, ${future} flight${future === 1 ? "" : "s"} not flown yet left out (the logbook only holds flights already flown)` : "") + (badRows.length ? `, ${badRows.length} line${badRows.length === 1 ? "" : "s"} with no route, flight time or sim time left out (${badRows.slice(0, 5).join(", ")}${badRows.length > 5 ? " …" : ""})` : ""));
+  if (imp.pdf?.ownSig && !data.signature) { data.signature = imp.pdf.ownSig; impLog.push(`Your signature from the foot of the PDF's pages is now your logbook signature (<a href="#" data-go="profile" data-scroll="#sigSection">see it in Profile</a>).`); }
+  const sigN = (imp.pdf?.flights || []).filter(f => f.remarkSig).length; if (sigN) impLog.push(`${sigN.toLocaleString()} line${sigN === 1 ? "" : "s"} came with a signature in the remarks: kept with ${sigN === 1 ? "that flight" : "those flights"}.`);
   if (spFixed.length) impLog.push(`<span style="color:var(--warn)">${spFixed.map(esc).join(", ")}: some of ${spFixed.length === 1 ? "its" : "their"} time was logged as multi-pilot in the file. ${spFixed.length === 1 ? "It is a single-pilot aircraft, so all its time counts" : "They are single-pilot aircraft, so all their time counts"} as single-pilot here (change it in <a href="#" data-go="profile" data-scroll="#acSection">Profile</a>).</span>`);
   if (picusN) impLog.push(`${picusN.toLocaleString()} line${picusN === 1 ? "" : "s"} with PICUS in the remarks logged as PICUS (PIC time).`);
   if (mpFixed.length) impLog.push(`<span style="color:var(--warn)">${mpFixed.map(esc).join(", ")} ${mpFixed.length === 1 ? "was" : "were"} logged as single-pilot in the file. ${mpFixed.length === 1 ? "It is an airliner, so it counts" : "They are airliners, so they count"} as multi-pilot here (change it in <a href="#" data-go="profile" data-scroll="#acSection">Profile</a> if that's wrong).</span>`);
