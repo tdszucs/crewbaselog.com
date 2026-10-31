@@ -1989,7 +1989,9 @@ function homeCrewHTML(){
     // otherwise duty. Hover: each person's day (flight, destination, standby)
     h += `<div class="hcrow hctog"><span class="hcnm">Together</span>${days.map(d => { const p = per[iso(d)], i0 = iso(d);
       const sts = p ? R.map((r, ri) => cbState(p.row[ri], r.days[i0])) : [];
-      const st = !p ? "none" : p.common.length && !sts.includes("sby") ? (p.common.reduce((s, w) => s + w[1] - w[0], 0) >= CB_DAY - 1 ? "free" : "part")
+      // "part" needs 3 free hours in the daytime (06:00–22:00), like the single rows: a free night around a duty day is not a free day
+      const dayFree = p ? p.common.reduce((s, w) => s + Math.max(0, Math.min(w[1], 1320) - Math.max(w[0], 360)), 0) : 0;
+      const st = !p ? "none" : p.common.length && !sts.includes("sby") && (dayFree >= 180 || p.common.reduce((s, w) => s + w[1] - w[0], 0) >= CB_DAY - 1) ? (p.common.reduce((s, w) => s + w[1] - w[0], 0) >= CB_DAY - 1 ? "free" : "part")
         : sts.includes("sby") && sts.every(x => x === "sby" || x === "free" || x === "part") ? "sby" : p.row.some(f => f.windows.length) ? "some" : "duty";
       const who = R.map((r, ri) => `${ri ? r.name : "Me"}: ${r.days[i0]?.code || "no roster"}`).join("\n");
       return `<i class="d ${st}" title="${esc(`${d}${p?.common.length && !sts.includes("sby") ? " · all free " + p.common.map(w => cbClock(w[0]) + "–" + cbClock(w[1])).join(", ") + " UTC" : ""}\n${who}`)}"></i>`; }).join("")}</div>`;
@@ -2137,7 +2139,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "31 Oct 2026 · 50";
+const APP_VERSION = "31 Oct 2026 · 51";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
