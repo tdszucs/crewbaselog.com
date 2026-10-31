@@ -400,6 +400,22 @@ td.r,th.r{text-align:right}
 @media (max-width:640px){ .ugrid{grid-template-columns:1fr} }
 .ubar{display:grid;grid-template-columns:minmax(0,9em) 1fr auto;gap:8px;align-items:center;font-size:13px;margin:3px 0}
 .ubar span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ubar i{display:block;height:8px;border-radius:4px;background:var(--accent)}
+.adtabs{display:flex;gap:6px;flex-wrap:wrap;margin:16px 0 16px}
+.adtabs button{border:1px solid var(--line);background:var(--surface);color:var(--muted);border-radius:99px;padding:7px 14px;font:500 14px Inter,sans-serif;cursor:pointer}
+.adtabs button.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}.adn{font:500 12px "JetBrains Mono",monospace;opacity:.75}
+.adctl{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 10px}.adctl input{flex:1 1 200px;width:auto}.adctl select{width:auto}
+.stat .sub{font-size:12px;color:var(--muted);margin-top:2px}
+.sgchart{display:grid;grid-template-columns:repeat(12,1fr);gap:6px;align-items:end;height:140px;margin-top:12px}
+.sgcol{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:3px;min-width:0}
+.sgcol i{display:block;width:100%;max-width:34px;background:var(--accent);border-radius:4px 4px 0 0;min-height:2px}
+.sgcol b{font:500 11px "JetBrains Mono",monospace}.sgcol span{font-size:10.5px;color:var(--muted);white-space:nowrap}
+#adUsers tr[data-aduser]:hover td{background:var(--bg)}
+@media (max-width:700px){
+  #adUsers table,#adUsers tbody,#adUsers tr{display:block;min-width:0;width:100%}#adUsers thead{display:none}
+  #adUsers tr{padding:10px 2px;border-bottom:1px solid var(--line)}#adUsers td{display:inline-block;border:0;padding:1px 12px 1px 0;font-size:12.5px;text-align:left;white-space:nowrap}
+  #adUsers td:first-child{display:block;font-size:14px;padding-bottom:3px;white-space:normal;word-break:break-all}
+  #adUsers td[data-l]::before{content:attr(data-l) " ";color:var(--muted)}#adUsers td:empty{display:none}
+}
 .repcard{border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:0 0 12px;background:var(--bg)}
 .rephd{display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap;word-break:break-all}
 .repctl{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;margin-top:8px}
@@ -928,19 +944,38 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
     <!-- admin: only for the site owner; the database only answers the owner's account -->
     <div data-p="admin" class="hidden">
       <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-end;flex-wrap:wrap">
-        <div><h2>Admin</h2><p class="lead" style="margin-bottom:0">Who registered and what they did. Counts and formats only: logbooks stay on each pilot's device.</p></div>
-        <button class="btn ghost small" type="button" id="adRefresh">Refresh</button>
+        <div><h2>Admin</h2><p class="lead" style="margin-bottom:0">Pilots, sign-ups and what they use. Logbooks themselves are private to each pilot.</p></div>
+        <div style="display:flex;gap:10px;align-items:center"><span class="hint" id="adWhen" style="margin:0"></span><button class="btn ghost small" type="button" id="adRefresh">Refresh</button></div>
       </div>
       <p class="err" id="adErr"></p>
-      <div class="stats" id="adTiles"></div>
-      <div class="card"><h3>Usage</h3><p class="hint" style="margin:0 0 12px;font-size:14px">Every pilot, with or without an account, counted anonymously: once a month per device (active), and each import, PDF, backup, restore and Crew Base roster. Pilots can switch this off in Profile.</p><div id="adUsage"></div></div>
-      <div class="card"><h3>Files sent for help</h3><p class="hint" style="margin:0 0 12px;font-size:14px">Files pilots sent because the app couldn't read them. Claude checks new ones every 8 hours, fixes the reader, marks them <b>Works now</b> and deletes them. Any file still here after 30 days is deleted automatically. A file also turns to Works now by itself when its pilot imports it successfully. Then press <b>Email the pilot</b>: your email app opens with the message ready.</p><div id="adReps"></div></div>
-      <div class="card"><h3>Registered pilots</h3><p class="hint" style="margin:0 0 10px;font-size:14px">Tap a pilot to see only their actions.</p><div class="tablewrap" id="adUsers"></div></div>
+      <div class="adtabs" role="tablist"><button type="button" data-adt="sum" class="on">Overview</button><button type="button" data-adt="pilots">Pilots <span class="adn" id="adNPilots"></span></button><button type="button" data-adt="act">Activity</button><button type="button" data-adt="files">Files <span class="adn" id="adNFiles"></span></button><button type="button" data-adt="tools">Tools</button></div>
+      <section data-ad="sum">
+        <div class="stats" id="adTiles"></div>
+        <div class="card"><div style="display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap"><h3 style="margin:0">Sign-ups</h3><span class="hint" id="adSignTot" style="margin:0"></span></div><div id="adSignups"></div></div>
+        <div class="card"><h3>Usage</h3><p class="hint" style="margin:0 0 12px;font-size:14px">Every pilot, with or without an account, counted anonymously: once a month per device (active), and each import, PDF, backup, restore and Crew Base roster. Pilots can switch this off in Profile.</p><div id="adUsage"></div></div>
+      </section>
+      <section data-ad="pilots" class="hidden">
+        <div class="card">
+          <div class="adctl"><input id="adFind" type="search" placeholder="Search email" autocomplete="off">
+            <select id="adShow"><option value="">All pilots</option><option value="new7">Joined in the last 7 days</option><option value="act30">Active in the last 30 days</option><option value="idle30">Not seen for 30+ days</option><option value="unver">Email not verified</option><option value="crew">Using Crew Base</option></select>
+            <select id="adSort"><option value="new">Newest first</option><option value="seen">Last seen</option><option value="flights">Most flights</option><option value="actions">Most actions</option><option value="email">Email A–Z</option></select></div>
+          <p class="hint" id="adUserCount" style="margin:0 0 8px"></p>
+          <div class="tablewrap" id="adUsers"></div>
+          <div class="row-actions" style="margin:10px 0 0"><button class="btn ghost small hidden" type="button" id="adUsersMore">Show more</button></div>
+          <p class="hint" style="margin:8px 0 0;font-size:13px">Flights and device come from each pilot's latest app opening. Tap a pilot to see their activity.</p>
+        </div>
+      </section>
+      <section data-ad="act" class="hidden">
       <div class="card">
         <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 10px"><h3 style="margin:0">Activity</h3>
-          <div style="display:flex;gap:8px;flex-wrap:wrap"><select id="adWho" style="width:auto;max-width:240px"><option value="">Everyone</option></select><select id="adWhat" style="width:auto"><option value="">All actions</option></select></div></div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap"><input id="adFindAct" type="search" placeholder="Search" style="width:auto;max-width:180px"><select id="adWho" style="width:auto;max-width:240px"><option value="">Everyone</option></select><select id="adWhat" style="width:auto"><option value="">All actions</option></select></div></div>
         <div class="tablewrap" id="adLog"></div><p class="hint" id="adMore"></p>
       </div>
+      </section>
+      <section data-ad="files" class="hidden">
+      <div class="card"><h3>Files sent for help</h3><p class="hint" style="margin:0 0 12px;font-size:14px">Files pilots sent because the app couldn't read them. Claude checks new ones every 8 hours, fixes the reader, marks them <b>Works now</b> and deletes them. Any file still here after 30 days is deleted automatically. A file also turns to Works now by itself when its pilot imports it successfully. Then press <b>Email the pilot</b>: your email app opens with the message ready.</p><div id="adReps"></div></div>
+      </section>
+      <section data-ad="tools" class="hidden">
       <!-- the site owner's account only: back to a brand-new account, for testing -->
       <div class="card danger-zone hidden" id="wipeCard">
         <h3 class="dz-title">Debug: wipe everything</h3>
@@ -948,6 +983,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
         <button class="btn danger small" type="button" id="wipeBtn">Wipe everything</button>
         <p class="err" id="wipeMsg"></p>
       </div>
+      </section>
     </div>
     </div>
   </main>
@@ -1406,32 +1442,75 @@ const AD_EV = {
 let adData = null;
 async function renderAdmin(force){
   if (!isAdmin()) return;
-  $("#wipeCard").classList.remove("hidden");
+  $("#wipeCard").classList.remove("hidden"); let t0 = "sum"; try { t0 = sessionStorage.getItem("cbl_adtab") || t0; } catch {} adTab(t0);
   const db = Auth.db(), err = $("#adErr"); err.textContent = "";
   if (!adData || force) {
     $("#adTiles").innerHTML = '<p class="hint">Loading…</p>';
     const [g, u, a, f] = await Promise.all([db.rpc("cbl_usage_summary"),db.rpc("cbl_admin_users"), db.from("activity").select("user_id,email,event,detail,created_at").order("created_at", { ascending: false }).limit(2000),
       db.from("file_reports").select("*").order("created_at", { ascending: false }).limit(300)]);
     if (u.error || a.error) { err.textContent = "Couldn't load: " + (u.error || a.error).message + ". Has supabase/admin_activity.sql been run in Supabase (SQL Editor)?"; $("#adTiles").innerHTML = ""; return; }
-    adData = { users: u.data || [], log: a.data || [], reps: f.error ? null : f.data || [], usage: g.error ? null : g.data };
+    adData = { users: u.data || [], log: a.data || [], reps: f.error ? null : f.data || [], usage: g.error ? null : g.data, at: new Date() };
   }
-  renderAdReps(); renderAdUsage();
-  const { users, log } = adData, ago = d => Date.now() - 864e5 * d, dt = s => s ? new Date(s).toLocaleString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "–";
-  const act7 = new Set(log.filter(e => Date.parse(e.created_at) > ago(7)).map(e => e.user_id));
-  $("#adTiles").innerHTML = [["Registered", users.length], ["Verified", users.filter(u => u.confirmed_at).length], ["New in 7 days", users.filter(u => Date.parse(u.created_at) > ago(7)).length],
-    ["Active in 7 days", act7.size], ["Actions in 7 days", log.filter(e => Date.parse(e.created_at) > ago(7)).length], ["PDFs downloaded", log.filter(e => e.event === "download_pdf").length]]
-    .map(([k, v]) => `<div class="stat"><div class="k">${k}</div><div class="v">${v.toLocaleString()}</div></div>`).join("");
-  $("#adUsers").innerHTML = `<table><thead><tr><th>Email</th><th>Registered</th><th>Verified</th><th>Last sign-in</th><th class="r">Actions</th><th>Last action</th><th>Crew Base</th></tr></thead><tbody>` +
-    users.map(u => `<tr data-aduser="${esc(u.id)}" style="cursor:pointer"><td>${esc(u.email)}${u.provider !== "email" ? ` <span class="tag">${esc(u.provider)}</span>` : ""}</td><td>${dt(u.created_at)}</td><td>${u.confirmed_at ? "✓" : '<span style="color:var(--warn)">not yet</span>'}</td><td>${dt(u.last_sign_in_at)}</td><td class="r">${u.actions}</td><td>${dt(u.last_action_at)}</td><td>${u.roster_days ? `${u.roster_days} days` : ""}${u.friends ? ` · ${u.friends} friend${u.friends == 1 ? "" : "s"}` : ""}</td></tr>`).join("") + "</tbody></table>";
-  const who = $("#adWho"), what = $("#adWhat"), w0 = who.value, e0 = what.value;
-  who.innerHTML = '<option value="">Everyone</option>' + users.map(u => `<option value="${esc(u.id)}">${esc(u.email)}</option>`).join(""); who.value = w0;
-  what.innerHTML = '<option value="">All actions</option>' + [...new Set(log.map(e => e.event))].sort().map(e => `<option>${esc(e)}</option>`).join(""); what.value = e0;
-  const L = log.filter(e => (!who.value || e.user_id === who.value) && (!what.value || e.event === what.value));
-  $("#adLog").innerHTML = L.length ? `<table><thead><tr><th>When</th><th>Who</th><th>What</th></tr></thead><tbody>` + L.slice(0, 500).map(e =>
-    `<tr><td style="white-space:nowrap">${dt(e.created_at)}</td><td>${esc(e.email || "")}</td><td>${esc((AD_EV[e.event] || (() => e.event + " " + JSON.stringify(e.detail)))(e.detail || {}))}</td></tr>`).join("") + "</tbody></table>"
-    : '<p class="hint" style="margin:0">No actions recorded yet. They appear here as pilots use the app.</p>';
-  $("#adMore").textContent = L.length > 500 ? `Showing the latest 500 of ${L.length.toLocaleString()}.` : "";
+  adData.at ||= new Date(); $("#adWhen").textContent = "Updated " + adData.at.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  renderAdReps(); renderAdUsage(); adPrep(); renderAdSum(); renderAdUsers(); renderAdLog();
 }
+const adDt = s => s ? new Date(s).toLocaleString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "–";
+const adAgo = d => Date.now() - 864e5 * d;
+// "3 h ago", "2 d ago": how long since
+const adSince = s => { if (!s) return "never"; const m = (Date.now() - Date.parse(s)) / 6e4; return m < 60 ? Math.max(1, Math.round(m)) + " min ago" : m < 1440 ? Math.round(m / 60) + " h ago" : m < 1440 * 60 ? Math.round(m / 1440) + " d ago" : fmtDate(s.slice(0, 10)); };
+// each pilot with what the activity log says about them: last seen, flights and device at the latest opening
+function adPrep(){
+  const { users, log } = adData, open = {};
+  for (const e of log) if (e.event === "open" && !open[e.user_id]) open[e.user_id] = e;   // the log is newest first
+  adData.P = users.map(u => { const o = open[u.id], seen = [u.last_sign_in_at, u.last_action_at].filter(Boolean).sort().pop() || null;
+    return { ...u, seen, flights: o ? (o.detail?.flights || 0) + (o.detail?.sims || 0) : null, phone: o ? !!o.detail?.phone : null }; });
+}
+function renderAdSum(){
+  const { P, log, reps } = adData, n = P.length, d = (x, k) => P.filter(u => u[k] && Date.parse(u[k]) > adAgo(x)).length;
+  const act = x => new Set(log.filter(e => Date.parse(e.created_at) > adAgo(x)).map(e => e.user_id)).size;
+  const waiting = (reps || []).filter(r => ["new", "working"].includes(r.status)).length;
+  const tile = (k, v, sub, go) => `<div class="stat"${go ? ` data-adgo="${go}" style="cursor:pointer"` : ""}><div class="k">${k}</div><div class="v">${v.toLocaleString()}</div>${sub ? `<div class="sub">${sub}</div>` : ""}</div>`;
+  $("#adTiles").innerHTML = tile("Pilots", n, `${d(1, "created_at")} today · ${d(7, "created_at")} this week`, "pilots") +
+    tile("Active, 7 days", act(7), n ? Math.round(act(7) / n * 100) + "% of pilots" : "") + tile("Active, 30 days", act(30), n ? Math.round(act(30) / n * 100) + "% of pilots" : "") +
+    tile("Files waiting", waiting, waiting ? "need a look" : "all handled", "files");
+  $("#adNPilots").textContent = n ? n.toLocaleString() : ""; $("#adNFiles").textContent = waiting || "";
+  // sign-ups per week, the last 12 weeks (weeks start on Monday)
+  const wk = t => { const x = new Date(t); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() - (x.getDay() + 6) % 7); return x.getTime(); };
+  const now = wk(Date.now()), W = Array.from({ length: 12 }, (_, i) => ({ t: now - (11 - i) * 7 * 864e5, n: 0 }));
+  for (const u of P) { const i = W.findIndex(w => w.t === wk(Date.parse(u.created_at))); if (i >= 0) W[i].n++; }
+  const max = Math.max(1, ...W.map(w => w.n));
+  $("#adSignTot").textContent = `${n.toLocaleString()} in total · ${W.reduce((s, w) => s + w.n, 0)} in 12 weeks`;
+  $("#adSignups").innerHTML = `<div class="sgchart">${W.map((w, i) => `<div class="sgcol" title="Week of ${new Date(w.t).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}: ${w.n}"><b>${w.n || ""}</b><i style="height:${Math.round(w.n / max * 100)}%"></i><span>${i === 11 ? "this wk" : new Date(w.t).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</span></div>`).join("")}</div>`;
+}
+let adShowN = 50;
+function renderAdUsers(){
+  const q = $("#adFind").value.trim().toLowerCase(), show = $("#adShow").value, sort = $("#adSort").value;
+  const F = { new7: u => Date.parse(u.created_at) > adAgo(7), act30: u => u.seen && Date.parse(u.seen) > adAgo(30), idle30: u => !u.seen || Date.parse(u.seen) <= adAgo(30), unver: u => !u.confirmed_at, crew: u => u.roster_days || u.friends }[show] || (() => true);
+  const S = { new: (a, b) => b.created_at.localeCompare(a.created_at), seen: (a, b) => (b.seen || "").localeCompare(a.seen || ""), flights: (a, b) => (b.flights ?? -1) - (a.flights ?? -1),
+    actions: (a, b) => (b.actions || 0) - (a.actions || 0), email: (a, b) => (a.email || "").localeCompare(b.email || "") }[sort];
+  const L = adData.P.filter(u => (!q || (u.email || "").toLowerCase().includes(q)) && F(u)).sort(S);
+  $("#adUserCount").textContent = `${L.length.toLocaleString()} pilot${L.length === 1 ? "" : "s"}${L.length !== adData.P.length ? ` of ${adData.P.length.toLocaleString()}` : ""}`;
+  $("#adUsers").innerHTML = L.length ? `<table><thead><tr><th>Pilot</th><th>Joined</th><th>Last seen</th><th class="r">Flights</th><th>Device</th><th class="r">Actions</th><th>Crew Base</th></tr></thead><tbody>` +
+    L.slice(0, adShowN).map(u => `<tr data-aduser="${esc(u.id)}" style="cursor:pointer"><td>${esc(u.email)}${u.provider !== "email" ? ` <span class="tag">${esc(u.provider)}</span>` : ""}${u.confirmed_at ? "" : ' <span class="tag" style="color:var(--warn)">not verified</span>'}</td>
+      <td data-l="Joined" style="white-space:nowrap" title="${adDt(u.created_at)}">${fmtDate(u.created_at.slice(0, 10))}</td><td data-l="Seen" style="white-space:nowrap" title="${adDt(u.seen)}">${adSince(u.seen)}</td>
+      <td data-l="Flights" class="r">${u.flights == null ? "–" : u.flights.toLocaleString()}</td><td data-l="Device">${u.phone == null ? "–" : u.phone ? "phone" : "computer"}</td><td data-l="Actions" class="r">${u.actions || 0}</td>
+      <td data-l="Crew Base">${u.roster_days ? `${u.roster_days} days` : ""}${u.friends ? ` · ${u.friends} friend${u.friends == 1 ? "" : "s"}` : ""}</td></tr>`).join("") + "</tbody></table>"
+    : '<p class="hint" style="margin:0">No pilots match.</p>';
+  const more = $("#adUsersMore"); more.classList.toggle("hidden", L.length <= adShowN); more.textContent = `Show ${Math.min(50, L.length - adShowN)} more`;
+}
+function renderAdLog(){
+  const { users, log } = adData, who = $("#adWho"), what = $("#adWhat"), w0 = who.value, e0 = what.value, q = $("#adFindAct").value.trim().toLowerCase();
+  who.innerHTML = '<option value="">Everyone</option>' + [...users].sort((a, b) => (a.email || "").localeCompare(b.email || "")).map(u => `<option value="${esc(u.id)}">${esc(u.email)}</option>`).join(""); who.value = w0;
+  what.innerHTML = '<option value="">All actions</option>' + [...new Set(log.map(e => e.event))].sort().map(e => `<option>${esc(e)}</option>`).join(""); what.value = e0;
+  const txt = e => (AD_EV[e.event] || (() => e.event + " " + JSON.stringify(e.detail)))(e.detail || {});
+  const L = log.filter(e => (!who.value || e.user_id === who.value) && (!what.value || e.event === what.value) && (!q || (e.email || "").toLowerCase().includes(q) || txt(e).toLowerCase().includes(q)));
+  $("#adLog").innerHTML = L.length ? `<table><thead><tr><th>When</th><th>Who</th><th>What</th></tr></thead><tbody>` + L.slice(0, 500).map(e =>
+    `<tr><td style="white-space:nowrap">${adDt(e.created_at)}</td><td>${esc(e.email || "")}</td><td>${esc(txt(e))}</td></tr>`).join("") + "</tbody></table>"
+    : '<p class="hint" style="margin:0">No actions match.</p>';
+  $("#adMore").textContent = L.length > 500 ? `Showing the latest 500 of ${L.length.toLocaleString()}.` : log.length >= 2000 ? "The latest 2,000 actions are loaded." : "";
+}
+function adTab(t){ $$("[data-adt]").forEach(b => b.classList.toggle("on", b.dataset.adt === t)); $$("[data-ad]").forEach(x => x.classList.toggle("hidden", x.dataset.ad !== t)); try { sessionStorage.setItem("cbl_adtab", t); } catch {} }
+document.addEventListener("click", e => { const b = e.target.closest("[data-adt], [data-adgo]"); if (b) adTab(b.dataset.adt || b.dataset.adgo); });
 // an email to the pilot, ready in the site owner's mail app: the file works now (or why it can't)
 async function repMail(r){
   const when = fmtDate(r.created_at.slice(0, 10)), step = { ecrew: " on Your data", roster: " on Your data or the Crew Base tab", logbook: " on Your data" }[r.kind] || "";
@@ -1485,8 +1564,10 @@ $("#adReps").addEventListener("click", async e => {
     await db.from("file_reports").update({ file_deleted: true, updated_at: new Date().toISOString() }).eq("id", r.id); r.file_deleted = true; renderAdReps(); }
 });
 $("#adRefresh").addEventListener("click", () => renderAdmin(true));
-$("#adWho").addEventListener("change", () => renderAdmin()); $("#adWhat").addEventListener("change", () => renderAdmin());
-$("#adUsers").addEventListener("click", e => { const r = e.target.closest("[data-aduser]"); if (!r) return; $("#adWho").value = r.dataset.aduser; renderAdmin(); $("#adLog").scrollIntoView({ behavior: "smooth", block: "start" }); });
+["#adWho", "#adWhat"].forEach(x => $(x).addEventListener("change", () => adData && renderAdLog())); $("#adFindAct").addEventListener("input", () => adData && renderAdLog());
+["#adFind", "#adShow", "#adSort"].forEach(x => $(x).addEventListener(x === "#adFind" ? "input" : "change", () => { adShowN = 50; if (adData) renderAdUsers(); }));
+$("#adUsersMore").addEventListener("click", () => { adShowN += 50; renderAdUsers(); });
+$("#adUsers").addEventListener("click", e => { const r = e.target.closest("[data-aduser]"); if (!r) return; $("#adWho").value = r.dataset.aduser; $("#adWhat").value = ""; $("#adFindAct").value = ""; renderAdLog(); adTab("act"); scrollTo({ top: 0 }); });
 /* ---------- anonymous usage counts (usage_events): no ID, no email; monthly "active" plus key actions ---------- */
 const USAGE_KINDS = { import: "import", download_pdf: "pdf", download_backup: "backup", restore_backup: "restore", roster_saved: "crewbase" };
 function usageFacts(){
@@ -1847,7 +1928,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "31 Oct 2026 · 13";
+const APP_VERSION = "31 Oct 2026 · 14";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
