@@ -445,6 +445,12 @@ td.r,th.r{text-align:right}
 .hqseg button{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:99px;padding:8px 14px;font:500 14px Inter,sans-serif;cursor:pointer}
 .hqseg button.on{background:var(--brand);border-color:var(--brand);color:#fff}
 .hqhow{margin:4px 0 14px}.hqhow summary{cursor:pointer;color:var(--brand);font-weight:600;font-size:14px}.hqhow p{margin:8px 0}
+.hrfriends{margin-top:14px;padding-top:12px;border-top:1px solid var(--line);font-size:14px}.hrfriends a{font-weight:600}
+.hrfhead{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:baseline;margin:0 0 8px}
+.hcwrap{overflow-x:auto}.hcgrid{display:grid;gap:3px;min-width:max-content}
+.hcrow{display:grid;grid-template-columns:76px repeat(var(--days),16px);gap:2px;align-items:center}.hcrow .d{height:18px;border-radius:3px;cursor:default;display:block}
+.hcn{font:500 9px "JetBrains Mono",monospace;color:var(--muted);text-align:center}.hcnm{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:6px}
+.hctog{margin-top:4px}.hctog .d{height:22px}
 .repcard{border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:0 0 12px;background:var(--bg)}
 .rephd{display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap;word-break:break-all}
 .repctl{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;margin-top:8px}
@@ -872,7 +878,8 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
 
       <div class="card">
         <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:baseline"><h3>My roster</h3><span class="hint" id="cbMyInfo"></span></div>
-        <div class="grid2" style="margin-top:12px">
+        <p class="hint" id="cbWho" style="margin:8px 0 12px;font-size:13.5px"></p>
+        <div class="grid2 hidden" style="margin-top:12px">
           <div class="field"><label for="cbName">Name shown to friends</label><input id="cbName" placeholder="e.g. Sarah"></div>
           <div class="field"><label for="cbBase">Home base (IATA or ICAO)</label><input id="cbBase" class="mono" maxlength="4" placeholder="e.g. MXP" style="text-transform:uppercase"></div>
         </div>
@@ -892,10 +899,10 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
       </div>
 
       <div class="card">
-        <h3>Friends</h3>
+        <h3 id="cbFriends">Friends</h3>
         <div class="grid2" style="margin-top:12px">
           <div class="field"><label for="cbFEmail">Friend's email</label><input id="cbFEmail" type="email" placeholder="name@example.com"></div>
-          <div class="field"><label for="cbFName">Name to show</label><input id="cbFName" placeholder="e.g. Marco"></div>
+          <div class="field hidden"><label for="cbFName">Name to show</label><input id="cbFName" placeholder="e.g. Marco"></div>
         </div>
         <div class="row-actions"><button class="btn ghost" id="cbFAdd" type="button">Add friend</button>
           <button class="btn ghost" id="cbFLoadBtn" type="button">Load a roster a friend sent me</button><input type="file" id="cbFLoad" accept=".pdf,application/pdf,.json" class="hidden"><span id="cbFMsg" class="hint"></span></div>
@@ -1890,6 +1897,24 @@ function hrDetail(d){
   const t = (d.duties || []).map(([a, b]) => a <= 0 && b >= 1440 ? "all day" : a <= 0 ? `until ${cbClock(b)}` : b >= 1440 ? `from ${cbClock(a)}` : `${cbClock(a)}–${cbClock(b)}`);
   return esc(d.code || "") + (t.length ? ` · <b>duty ${t.join(", ")}</b>` : "") + (d.free ? "" : " <span>(UTC)</span>");
 }
+/* Home, under My roster: the month side by side with the friends' rosters (Crew Base colours), the days you are all free,
+   and a link to add friends on Crew Base */
+function homeCrewHTML(){
+  const R = cbRosters(), add = `<a href="#" data-go="crewbase" data-scroll="#cbFriends">+ Add friends</a>`;
+  if (R.length < 2) return `<div class="hrfriends"><span class="hint" style="margin:0">See when you and your friends are free at base.</span> ${add}</div>`;
+  const [Y, M] = hrMonth.split("-").map(Number), nd = new Date(Y, M, 0).getDate(), iso = d => `${hrMonth}-${String(d).padStart(2, "0")}`;
+  const dates = [...new Set(R.flatMap(r => Object.keys(r.days)))].sort(), carry = R.map(() => false), per = {};
+  for (const d of dates) { const row = R.map((r, i) => { const f = cbWindows(r, d, carry[i]); carry[i] = f.away; return f; });
+    let common = row[0].windows; for (let i = 1; i < row.length; i++) common = cbIntersect(common, row[i].windows); per[d] = { row, common: common.filter(w => w[1] - w[0] >= 180) }; }
+  const days = Array.from({ length: nd }, (_, i) => i + 1);
+  let h = `<div class="hcrow"><span></span>${days.map(d => `<span class="hcn">${d}</span>`).join("")}</div>`;
+  R.forEach((r, ri) => { h += `<div class="hcrow"><span class="hcnm">${esc(ri ? r.name : "Me")}</span>${days.map(d => { const p = per[iso(d)]; return `<i class="d ${p ? cbState(p.row[ri], r.days[iso(d)]) : "none"}" title="${esc(r.name)} · ${d}: ${esc(r.days[iso(d)]?.code || "no roster")}"></i>`; }).join("")}</div>`; });
+  h += `<div class="hcrow hctog"><span class="hcnm">Together</span>${days.map(d => { const p = per[iso(d)]; const st = !p ? "none" : p.common.length ? (p.common.reduce((s, w) => s + w[1] - w[0], 0) >= CB_DAY - 1 ? "free" : "part") : p.row.some(f => f.windows.length) ? "some" : "duty";
+    return `<i class="d ${st}" title="${d}: ${p?.common.length ? "all free " + p.common.map(w => cbClock(w[0]) + "–" + cbClock(w[1])).join(", ") + " UTC" : "not all free"}"></i>`; }).join("")}</div>`;
+  const free = days.filter(d => per[iso(d)]?.common.length && iso(d) >= todayISO()).length;
+  return `<div class="hrfriends"><div class="hrfhead"><b>With friends</b><span class="hint" style="margin:0">${free ? `${free} day${free === 1 ? "" : "s"} you are all free this month` : "No day you are all free this month"}</span></div>` +
+    `<div class="hcwrap"><div class="hcgrid" style="--days:${nd}">${h}</div></div><div class="row-actions" style="margin:8px 0 0">${add}<a href="#" data-go="crewbase">Open Crew Base</a></div></div>`;
+}
 function homeRosterHTML(){
   const days = cb().me.days || {}, dates = Object.keys(days).sort(); if (!dates.length || user?.id === "sample") return "";
   const months = [...new Set(dates.map(d => d.slice(0, 7)))], now = todayISO().slice(0, 7);
@@ -1904,7 +1929,7 @@ function homeRosterHTML(){
   return `<div class="card hcard" id="homeRoster"><div class="hrhead"><h3>My roster</h3><div class="hrnav"><button class="btn ghost small" type="button" data-hrmon="-1"${mi > 0 ? "" : " disabled"} aria-label="Previous month">‹</button><b>${new Date(Y, M - 1, 1).toLocaleDateString("en-GB", { month: "long", year: "numeric" })}</b><button class="btn ghost small" type="button" data-hrmon="1"${mi < months.length - 1 ? "" : " disabled"} aria-label="Next month">›</button></div></div>` +
     `<div class="hrcal">${g}</div>${sel}` +
     `<div class="legend" style="margin-top:10px"><span><i class="sw free"></i>off</span><span><i class="sw part"></i>free part of the day</span><span><i class="sw duty"></i>duty / away</span><span><i class="sw sby"></i>standby</span></div>` +
-    `<div class="row-actions" style="margin:10px 0 0"><button class="btn ghost small" type="button" data-go="crewbase">Crew Base: compare with friends</button></div></div>`;
+    homeCrewHTML() + `</div>`;
 }
 document.addEventListener("click", e => {
   const m = e.target.closest("[data-hrmon]"), d = e.target.closest("[data-hrday]"); if (!m && !d) return;
@@ -2004,7 +2029,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "31 Oct 2026 · 37";
+const APP_VERSION = "31 Oct 2026 · 38";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
@@ -2125,6 +2150,7 @@ function profSave(){
   const why = codeProblem(P.base, P.airline); if (why) Object.assign(P, was);
   const fn = $("#n_flightNo"); if (fn && !fn.value && P.airline) fn.value = P.airline;   // an open "add a flight" form gets the code too
   if (!save()) return;
+  if (Object.keys(cb().me.days || {}).length) { cbKeepMe(); save(); clearTimeout(profSave._cb); profSave._cb = setTimeout(() => cbPush(), 2000); }   // friends see the new name
   $("#profSaved").innerHTML = why ? `<span style="color:var(--bad)">${esc(why)}</span>` : '<span class="ok-msg">✓ Saved</span>';
   clearTimeout(profSave._log); profSave._log = setTimeout(() => logEvent("profile_saved", { name: !!P.name, licence: !!P.lic }), 4000);
 }
@@ -5290,6 +5316,7 @@ function renderCrewBase(){
   $("#cbNoAcct").classList.toggle("hidden", !isLocal());
   if (cbPulledFor !== user.id && cbOnline()) { cbPulledFor = user.id; cbSync(); }
   const C = cb();
+  cbKeepMe(); $("#cbWho").innerHTML = `Friends see you as <b>${esc(data.profile.name || user.email)}</b>${C.me.base ? ` · base ${esc(C.me.base)}` : ""} (${esc(user.email)}). <a href="#" data-go="profile">Change in Profile</a>`;
   if (document.activeElement !== $("#cbName")) $("#cbName").value = C.me.name || data.profile.name || "";
   if (document.activeElement !== $("#cbBase")) $("#cbBase").value = C.me.base || data.profile.base || "";
   const n = Object.keys(C.me.days).length, ds = Object.keys(C.me.days).sort();
@@ -5390,14 +5417,15 @@ async function cbSync(pull = true){
     for (const f of F) {
       const x = got.get((f.email || "").toLowerCase());
       f.shared = !!x;
-      if (x) { f.days = x.days || {}; if (x.base) f.base = x.base; if (!f.name && x.name) f.name = x.name; f.updated = x.updated_at; }
+      if (x) { f.days = x.days || {}; if (x.base) f.base = x.base; if (x.name && (!f.name || f.name === f.email.split("@")[0])) f.name = x.name; f.updated = x.updated_at; }
     }
     save(); renderCrewBase();
   } catch (e) { fail(e); }
 }
 $("#cbFRows").addEventListener("change", e => { const i = e.target.dataset.sh; if (i === undefined) return; cb().friends[+i].show = e.target.checked; save(); renderCrewBase(); });
 $("#cbFRows").addEventListener("click", e => { const b = e.target.closest("[data-del]"); if (!b) return; if (b.textContent !== "Sure?") { b.textContent = "Sure?"; return; } cb().friends.splice(+b.dataset.del, 1); save(); cbPush(); renderCrewBase(); });
-const cbKeepMe = () => { const C = cb(); C.me.name = $("#cbName").value.trim(); C.me.base = $("#cbBase").value.trim().toUpperCase(); };
+// friends see the name and base from the profile (a roster that prints its own base keeps that one)
+const cbKeepMe = () => { const C = cb(); C.me.name = data.profile.name || ""; if (data.profile.base && !C.me.baseFromRoster) C.me.base = data.profile.base; };
 ["cbName", "cbBase"].forEach(id => $("#" + id).addEventListener("input", () => {
   cbKeepMe(); if (!save()) return; cbMsg("#cbMsg", "✓ Saved");
   clearTimeout(cbKeepMe._t); cbKeepMe._t = setTimeout(() => cbPush(), 2000);
@@ -5434,7 +5462,7 @@ const cbTakeMine = (f, why = "", done, ask) => { if (!f) return; busy("Reading y
   return cbTakeMine0(f, why, (...a) => { busy(null, "roster"); done?.(...a); }, () => { busy(null, "roster"); ask?.(); }); };
 const cbTakeMine0 = (f, why = "", done, ask) => cbReadFile(f, (days0, meta) => { if (!Object.keys(days0).length) { done?.(0, meta); return cbMsg("#cbMsg", cbWhy(meta), true); } if (meta.utc === false) ask?.(); cbAskTz(days0, meta, days => { const n = Object.keys(days).length; cbKeepMe();
   // the base printed on the roster (e.g. JFK-CP-789) is the one that counts
-  const C = cb(); if (meta.base) { C.me.base = String(meta.base).toUpperCase(); $("#cbBase").value = C.me.base; } Object.assign(C.me.days, days); if (save()) { cbPush(); cbMsg("#cbMsg", `${why}Read ${n} days from ${f.name}${meta.utc === false ? ", converted to UTC" : ""}.`);
+  const C = cb(); if (meta.base) { C.me.base = String(meta.base).toUpperCase(); C.me.baseFromRoster = true; $("#cbBase").value = C.me.base; } Object.assign(C.me.days, days); if (save()) { cbPush(); cbMsg("#cbMsg", `${why}Read ${n} days from ${f.name}${meta.utc === false ? ", converted to UTC" : ""}.`);
     // dropped where logbooks go: say so at the top, and show the roster's first month
     if (why) { const d = Object.keys(days).sort(); cbMonth = d.find(x => x >= todayISO())?.slice(0, 7) || d[0]?.slice(0, 7) || cbMonth;
       $("#cbNote").innerHTML = `<b>✓ Your roster is in Crew Base:</b> ${n} days from ${esc(f.name)}${meta.utc === false ? ", converted to UTC" : ""}. It's a roster, so it didn't go into your logbook. Flights you fly from it show on the home screen, ready to log.`;
@@ -5451,7 +5479,7 @@ $("#cbFAdd").addEventListener("click", () => {
   const email = $("#cbFEmail").value.trim().toLowerCase(), F = cb().friends;
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return cbMsg("#cbFMsg", "That doesn't look like an email address.", true);
   if (F.some(f => f.email === email)) return cbMsg("#cbFMsg", "That friend is already on your list.", true);
-  F.push({ email, name: $("#cbFName").value.trim() || email.split("@")[0], base: "", days: {}, show: true }); logEvent("friend_added", { friends: F.length });
+  F.push({ email, name: $("#cbFName").value.trim(), base: "", days: {}, show: true }); logEvent("friend_added", { friends: F.length });
   if (save()) { $("#cbFEmail").value = ""; $("#cbFName").value = ""; cbMsg("#cbFMsg", cbOnline() ? "Added. Their roster appears once they have added your email too." : "Added. Load the roster file they send you."); renderCrewBase(); cbSync(); }
 });
 $("#cbFLoadBtn").addEventListener("click", () => $("#cbFLoad").click());
