@@ -1985,8 +1985,14 @@ function homeCrewHTML(){
     const days = Array.from({ length: nd }, (_, i) => i + 1);
     let h = `<div class="hcrow"><span></span>${days.map(d => `<span class="hcn">${d}</span>`).join("")}</div>`;
     R.forEach((r, ri) => { h += `<div class="hcrow"><span class="hcnm">${esc(ri ? r.name : "Me")}</span>${days.map(d => { const p = per[iso(d)]; return `<i class="d ${p ? cbState(p.row[ri], r.days[iso(d)]) : "none"}" title="${esc(r.name)} · ${d}: ${esc(r.days[iso(d)]?.code || "no roster")}"></i>`; }).join("")}</div>`; });
-    h += `<div class="hcrow hctog"><span class="hcnm">Together</span>${days.map(d => { const p = per[iso(d)]; const st = !p ? "none" : p.common.length ? (p.common.reduce((s, w) => s + w[1] - w[0], 0) >= CB_DAY - 1 ? "free" : "part") : p.row.some(f => f.windows.length) ? "some" : "duty";
-      return `<i class="d ${st}" title="${d}: ${p?.common.length ? "all free " + p.common.map(w => cbClock(w[0]) + "–" + cbClock(w[1])).join(", ") + " UTC" : "not all free"}"></i>`; }).join("")}</div>`;
+    // Together: free (all day or part) when everyone is free at base at once; amber when nobody is on duty but someone is on standby;
+    // otherwise duty. Hover: each person's day (flight, destination, standby)
+    h += `<div class="hcrow hctog"><span class="hcnm">Together</span>${days.map(d => { const p = per[iso(d)], i0 = iso(d);
+      const sts = p ? R.map((r, ri) => cbState(p.row[ri], r.days[i0])) : [];
+      const st = !p ? "none" : p.common.length && !sts.includes("sby") ? (p.common.reduce((s, w) => s + w[1] - w[0], 0) >= CB_DAY - 1 ? "free" : "part")
+        : sts.includes("sby") && sts.every(x => x === "sby" || x === "free" || x === "part") ? "sby" : p.row.some(f => f.windows.length) ? "some" : "duty";
+      const who = R.map((r, ri) => `${ri ? r.name : "Me"}: ${r.days[i0]?.code || "no roster"}`).join("\n");
+      return `<i class="d ${st}" title="${esc(`${d}${p?.common.length && !sts.includes("sby") ? " · all free " + p.common.map(w => cbClock(w[0]) + "–" + cbClock(w[1])).join(", ") + " UTC" : ""}\n${who}`)}"></i>`; }).join("")}</div>`;
     const free = days.filter(d => per[iso(d)]?.common.length && iso(d) >= todayISO()).length;
     rows = `<div class="hrfhead"><b>With friends</b><span class="hint" style="margin:0">${free ? `${free} day${free === 1 ? "" : "s"} you are all free this month` : "No day you are all free this month"}</span></div>` +
       `<div class="hcwrap"><div class="hcgrid" style="--days:${nd}">${h}</div></div>`;
@@ -2131,7 +2137,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "31 Oct 2026 · 49";
+const APP_VERSION = "31 Oct 2026 · 50";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
