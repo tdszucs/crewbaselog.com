@@ -458,6 +458,13 @@ td.r,th.r{text-align:right}
 .jobcard .jobhd{display:flex;justify-content:space-between;gap:10px;align-items:baseline;font-size:16px}.jobfit{display:flex;flex-wrap:wrap;gap:6px}
 .adjob{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
 @media (max-width:700px){.adjob{grid-template-columns:1fr auto}.adjob .fl-btns{grid-column:1 / -1}}
+.jobopen{border:1.5px solid var(--brand)}.jo-head{display:flex;justify-content:space-between;gap:14px;align-items:center}
+.jo-promise{margin:12px 0 0;padding:10px 12px;border-radius:10px;background:var(--bg);font-size:13.5px;line-height:1.5}
+.switch{position:relative;display:inline-block;width:52px;height:30px;flex:none;margin:0}.switch input{opacity:0;width:0;height:0}
+.switch span{position:absolute;inset:0;border-radius:99px;background:var(--line);transition:.2s;cursor:pointer}.switch span::before{content:"";position:absolute;width:24px;height:24px;left:3px;top:3px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:.2s}
+.switch input:checked+span{background:var(--ok)}.switch input:checked+span::before{transform:translateX(22px)}.switch input:disabled+span{opacity:.5}
+.joshare{display:grid;gap:8px}.joshare .tick{margin:0;gap:8px}.joshare .tick .btn{margin-left:auto}
+.adcand{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:start;padding:12px 0;border-bottom:1px solid var(--line)}.adsum{white-space:pre-wrap;font-size:12px;background:var(--bg);padding:10px;border-radius:8px;margin:8px 0 0}
 .repcard{border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:0 0 12px;background:var(--bg)}
 .rephd{display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap;word-break:break-all}
 .repctl{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;margin-top:8px}
@@ -998,6 +1005,33 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
     <div data-p="jobs" class="hidden">
       <h2>Pilot jobs</h2>
       <p class="lead">Vacancies from airlines and flight schools. Each one shows whether your logbook meets its minimums.</p>
+      <div class="card jobopen" id="jobOpen">
+        <div class="jo-head"><div><h3 style="margin:0 0 2px">Looking for a job?</h3><div class="hint" style="margin:0">Let CrewBase Log put you forward to airlines that are hiring.</div></div>
+          <label class="switch" title="Open to job offers"><input type="checkbox" id="joOn" aria-label="I'm open to job offers"><span></span></label></div>
+        <div class="jo-promise"><b>You are in control.</b> Nobody connected with CrewBase Log will ever contact you about a job unless this is switched on. Only what you choose below is shared, only with CrewBase Log, and never shown publicly. Switch it off and everything you shared is deleted straight away.</div>
+        <div id="joBody" class="hidden">
+          <div class="hql" style="margin-top:14px">What are you looking for?</div>
+          <div class="grid2"><div class="field"><label for="joPos">Position</label><input id="joPos" list="jbPositions" placeholder="e.g. Captain"></div>
+            <div class="field"><label for="joAc">Aircraft</label><input id="joAc" placeholder="e.g. A320, B787" style="text-transform:uppercase"></div>
+            <div class="field"><label for="joWhere">Where</label><input id="joWhere" placeholder="e.g. Europe, Dubai, anywhere"></div>
+            <div class="field"><label for="joWhen">Available from</label><input id="joWhen" placeholder="e.g. now, March 2027"></div></div>
+          <div class="field"><label for="joNote">A few words (optional)</label><textarea id="joNote" rows="2" placeholder="e.g. Type-rated, happy to relocate"></textarea></div>
+          <div class="hql">What CrewBase Log may share with airlines that are hiring</div>
+          <div class="joshare">
+            <label class="tick"><input type="checkbox" data-jo="profile"> <span><b>Profile</b> <span class="hint">name, licence, base, airline and the aircraft you fly</span></span></label>
+            <label class="tick"><input type="checkbox" data-jo="email"> <span><b>Email address</b> <span class="hint" id="joEmail"></span></span></label>
+            <label class="tick"><input type="checkbox" data-jo="summary"> <span><b>Hours summary</b> <span class="hint">totals, hours by aircraft type and recent flying, kept up to date</span></span></label>
+            <label class="tick"><input type="checkbox" data-jo="logbook"> <span><b>Complete logbook</b> <span class="hint">every flight, as it is in your account</span></span></label>
+            <div class="tick" style="align-items:center"><input type="checkbox" data-jo="cv"> <span><b>CV</b> <span class="hint" id="joCvName">PDF or Word, up to 5 MB</span></span>
+              <button class="btn ghost small" type="button" id="joCvBtn">Upload CV</button><button class="btn ghost small hidden" type="button" id="joCvDel">Remove</button><input type="file" id="joCvFile" accept=".pdf,.doc,.docx,application/pdf" class="hidden"></div>
+          </div>
+          <div class="hint" id="joMsg" style="margin:10px 0 0"></div>
+          <details class="hqhow"><summary>How your data is used</summary><div class="hint" style="font-size:13.5px;line-height:1.55">
+            <p>What you share is kept in your CrewBase Log account and can be seen only by the CrewBase Log team, to match you with vacancies. It is never published, never sold, and never sent to an airline without asking you first.</p>
+            <p>You can untick anything at any time: it stops being shared straight away. Switching <b>Looking for a job?</b> off deletes everything you shared here, including your CV, from our server. Your logbook itself stays yours, as before.</p>
+            <p>While this is off, nobody connected with CrewBase Log will contact you about jobs.</p></div></details>
+        </div>
+      </div>
       <div class="jobfilters" id="jobFilters"><select id="jobAc" aria-label="Aircraft"><option value="">Any aircraft</option></select><select id="jobBase" aria-label="Base"><option value="">Any base</option></select>
         <label class="tick" style="margin:0"><input type="checkbox" id="jobMine"> <span>Only jobs I qualify for</span></label></div>
       <div id="jobList"></div>
@@ -1055,6 +1089,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
             <div class="row-actions" style="margin:0"><button class="btn" type="submit">Post vacancy</button><span class="err" id="jbErr" style="margin:0"></span></div>
           </form></div>
         <div class="card"><h3>Vacancies</h3><div id="adJobs"></div></div>
+        <div class="card"><h3>Pilots open to offers</h3><p class="hint" style="margin:0 0 10px;font-size:13.5px">Only what each pilot chose to share. Contact a pilot only about jobs, and ask before sending anything to an airline.</p><div id="adCands"></div></div>
       </section>
       <section data-ad="tools" class="hidden">
       <!-- the site owner's account only: back to a brand-new account, for testing -->
@@ -1519,7 +1554,7 @@ const AD_EV = {
   import: d => `Imported ${d.files} file${d.files === 1 ? "" : "s"} (${d.types}) · ${d.added} added${d.updated ? `, ${d.updated} updated` : ""}${d.problems ? ` · ${d.problems} not readable` : ""} · now ${d.flights} flights`,
   restore_backup: d => `Restored a backup · ${d.lines} lines${d.ok ? "" : " · did not fully match"}${d.gaps ? ` · ${d.gaps} gap(s)` : ""}`,
   download_pdf: d => `Downloaded PDF logbook · ${d.format}, ${{ all: "full logbook", last10: "last 10 pages", dates: "between dates" }[d.range] || d.range} · ${d.kb} KB`,
-  download_csv: d => `Downloaded CSV · ${d.flights} flights`, download_summary: () => "Downloaded the PDF hours summary", job_apply: d => `Opened a job's apply link (vacancy ${d.id})`, download_backup: d => `Downloaded full backup · ${d.flights} flights`,
+  download_csv: d => `Downloaded CSV · ${d.flights} flights`, download_summary: () => "Downloaded the PDF hours summary", job_apply: d => `Opened a job's apply link (vacancy ${d.id})`, job_open: () => "Switched on Looking for a job", cand_logbook: () => "Downloaded a shared logbook (jobs)", download_backup: d => `Downloaded full backup · ${d.flights} flights`,
   add_flight: () => "Added a flight by hand", add_sim: () => "Added a simulator session by hand", edit_flight: d => `Edited a flight (${d.where})`,
   fix: d => `Troubleshooting · ${FIX_CHECKS.find(c => c.id === d.check)?.title || d.check} · ${{ mod: "fixed", del: "deleted", move: "moved to previous experience", ok: "marked correct" }[d.action] || d.action}`,
   start_over: () => "Cleared the logbook (start over)", roster_saved: d => `Saved Crew Base roster · ${d.days} days`, friend_added: d => `Added a Crew Base friend · ${d.friends} in total`,
@@ -1595,7 +1630,7 @@ function renderAdLog(){
     : '<p class="hint" style="margin:0">No actions match.</p>';
   $("#adMore").textContent = L.length > 500 ? `Showing the latest 500 of ${L.length.toLocaleString()}.` : log.length >= 2000 ? "The latest 2,000 actions are loaded." : "";
 }
-function adTab(t){ if (t === "jobs") renderAdJobs(); $$("[data-adt]").forEach(b => b.classList.toggle("on", b.dataset.adt === t)); $$("[data-ad]").forEach(x => x.classList.toggle("hidden", x.dataset.ad !== t)); try { sessionStorage.setItem("cbl_adtab", t); } catch {} }
+function adTab(t){ if (t === "jobs") { renderAdJobs(); renderAdCands(); } $$("[data-adt]").forEach(b => b.classList.toggle("on", b.dataset.adt === t)); $$("[data-ad]").forEach(x => x.classList.toggle("hidden", x.dataset.ad !== t)); try { sessionStorage.setItem("cbl_adtab", t); } catch {} }
 document.addEventListener("click", e => { const b = e.target.closest("[data-adt], [data-adgo]"); if (b) adTab(b.dataset.adt || b.dataset.adgo); });
 // an email to the pilot, ready in the site owner's mail app: the file works now (or why it can't)
 async function repMail(r){
@@ -1722,6 +1757,7 @@ function enterApp(){
   if (fresh) usage("start");
   const month = todayISO().slice(0, 7); if (user.id !== "sample" && data.usageMonth !== month) { data.usageMonth = month; save(); usage("active"); }
   setTimeout(() => loadJobs().then(J => J && jobsDot(J)), 2500);   // a dot on Jobs for a new vacancy
+  if (data.jobOpen?.on && data.jobOpen.pushed !== todayISO()) setTimeout(() => joSave(true), 4000);   // what is shared follows the logbook, once a day
   logEvent("open", { ...nLines(), phone: matchMedia("(max-width:640px)").matches, prev: !!hasPrev() });
   navigator.storage?.persist?.().catch(() => {});   // ask the browser to keep this site's data
 }
@@ -2079,7 +2115,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "31 Oct 2026 · 40";
+const APP_VERSION = "31 Oct 2026 · 41";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
@@ -3354,11 +3390,11 @@ const LOG_COLS = [["date","Date"],["flightNo","Flight no"],["from","From"],["to"
   ["acType","Aircraft type"],["reg","Registration"],["picName","PIC name"],["total","Total time"],["pic","PIC time"],["copilot","Co-pilot time"],["dual","Dual time"],
   ["instructor","Instructor time"],["night","Night time"],["ifr","IFR time"],["ldgDay","Landings day"],["ldgNight","Landings night"],["remarks","Remarks"],["remarkSig","Remarks signature"],["fstdType","FSTD type"],["fstdTime","FSTD time"]];
 const LOG_DUR = new Set(["total","pic","copilot","dual","instructor","night","ifr","fstdTime"]);
-function logbookCSV(){
+function logbookCSV(d = data){
   const cell = v => /[",\r\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
   const val = (f, k) => LOG_DUR.has(k) ? (f[k] ? fmtMin(f[k]) : "") : k.startsWith("ldg") ? (f[k] ? String(f[k]) : "") : String(f[k] ?? "");
-  const P = data.prev, bf = hasPrev() ? [{ flightNo: "Brought forward", ...P, fstdTime: P.fstd, remarks: `SE ${fmtMin(P.se)}; ME ${fmtMin(P.me)}; MP ${fmtMin(P.mp)}` }] : [];
-  return [LOG_COLS.map(c => c[1]), ...[...bf, ...data.flights].map(f => LOG_COLS.map(([k]) => val(f, k)))].map(r => r.map(cell).join(",")).join("\r\n") + "\r\n";
+  const P = d.prev, bf = P && Object.values(P).some(v => +v) ? [{ flightNo: "Brought forward", ...P, fstdTime: P.fstd, remarks: `SE ${fmtMin(P.se)}; ME ${fmtMin(P.me)}; MP ${fmtMin(P.mp)}` }] : [];
+  return [LOG_COLS.map(c => c[1]), ...[...bf, ...(d.flights || [])].map(f => LOG_COLS.map(([k]) => val(f, k)))].map(r => r.map(cell).join(",")).join("\r\n") + "\r\n";
 }
 document.addEventListener("click", e => {
   if (!e.target.closest("[data-csv]")) return; e.preventDefault();
@@ -4730,6 +4766,7 @@ function jobsDot(J){
   $$('[data-t="jobs"]').forEach(b => b.classList.toggle("due", n > 0)); expBadge();
 }
 async function renderJobs(){
+  joRender();
   const box = $("#jobList"); box.innerHTML = '<p class="hint">Loading vacancies…</p>';
   const J = await loadJobs(true);
   if (J === null) { box.innerHTML = '<div class="card"><p class="hint" style="margin:0">Vacancies couldn\'t load. Check your connection and try again.</p></div>'; return; }
@@ -4751,6 +4788,73 @@ async function renderJobs(){
 }
 ["#jobAc", "#jobBase", "#jobMine"].forEach(id => $(id).addEventListener("change", renderJobs));
 document.addEventListener("click", e => { const a = e.target.closest("[data-jobapply]"); if (a) logEvent("job_apply", { id: +a.dataset.jobapply }); });
+/* Looking for a job? (supabase/candidates.sql): the pilot switches it on and ticks what CrewBase Log may share; the choices live in
+   data.jobOpen and, while on, in the candidates table (only the pilot and the site owner can read it). Off deletes the row and the CV */
+const JO = () => (data.jobOpen ||= { on: false, share: {} });
+function joProfile(){ const P = data.profile, by = {}; for (const f of data.flights) if (!isSim(f) && f.acType) by[f.acType] = (by[f.acType] || 0) + (f.total || 0);
+  return { name: P.name || "", licence: [P.type, P.lic].filter(Boolean).join(" "), base: P.base || "", airline: P.airline || "", role: P.role || "",
+    types: Object.entries(by).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([t, m]) => `${t} ${fmtHrs(m)}`) }; }
+function joSummary(){ const T = withPrev(statTotals(data.flights)); return { text: statSummary(), total: T.total, pic: T.pic, copilot: T.copilot, mp: T.mp, last: data.flights.reduce((m, f) => f.date > m ? f.date : m, "") }; }
+function joRender(){
+  const J = JO(), local = isLocal() || user?.id === "sample";
+  $("#joOn").checked = !!J.on; $("#joBody").classList.toggle("hidden", !J.on); $("#joOn").disabled = local;
+  if (local) $("#joMsg").textContent = "This needs a free account.";
+  for (const [id, k] of [["joPos", "positions"], ["joAc", "aircraft"], ["joWhere", "regions"], ["joWhen", "available"], ["joNote", "note"]]) if (document.activeElement !== $("#" + id)) $("#" + id).value = J[k] || "";
+  $$("[data-jo]").forEach(c => c.checked = !!J.share[c.dataset.jo]); $("#joEmail").textContent = user?.email || "";
+  $("#joCvName").textContent = J.cvName ? J.cvName : "PDF or Word, up to 5 MB"; $("#joCvDel").classList.toggle("hidden", !J.cvName); $("#joCvBtn").textContent = J.cvName ? "Replace" : "Upload CV";
+}
+let joT = 0;
+async function joSave(quiet){
+  const J = JO(), db = Auth.db(), msg = t => { if (!quiet) $("#joMsg").textContent = t; }; if (!db || isLocal()) return;
+  try {
+    if (!J.on) { if (J.cvPath) await db.storage.from("cvs").remove([J.cvPath]); const { error } = await db.from("candidates").delete().eq("user_id", user.id); if (error) throw error;
+      J.cvPath = J.cvName = ""; J.pushed = ""; save(); return msg("Switched off: nothing is shared, and what was shared has been deleted."); }
+    const S = J.share, row = { user_id: user.id, email: S.email ? user.email : null, share_profile: !!S.profile, share_email: !!S.email, share_summary: !!S.summary, share_logbook: !!S.logbook, share_cv: !!(S.cv && J.cvPath),
+      positions: J.positions || null, aircraft: (J.aircraft || "").toUpperCase() || null, regions: J.regions || null, available: J.available || null, note: J.note || null,
+      profile: S.profile ? joProfile() : null, summary: S.summary ? joSummary() : null, cv_path: S.cv ? J.cvPath || null : null, cv_name: S.cv ? J.cvName || null : null, updated_at: new Date().toISOString() };
+    const { error } = await db.from("candidates").upsert(row, { onConflict: "user_id" }); if (error) throw error;
+    J.pushed = todayISO(); save(); msg("✓ Saved. " + (Object.values(S).some(Boolean) ? "Only what is ticked is shared." : "Tick what CrewBase Log may share."));
+  } catch (e) { const why = `${e?.code || ""} ${e?.message || e}`; msg(/42P01|PGRST20|does not exist|schema cache/i.test(why) ? "This isn't switched on yet on our side. Please try again later." : "Couldn't save it (no connection?). Try again."); }
+}
+$("#joOn").addEventListener("change", e => { const J = JO(); J.on = e.target.checked; if (J.on && !Object.values(J.share).some(Boolean)) J.share = { profile: true, summary: true }; save(); joRender(); joSave(); if (J.on) logEvent("job_open", {}); });
+$("#jobOpen").addEventListener("change", e => { const c = e.target.closest("[data-jo]"); if (!c) return; JO().share[c.dataset.jo] = c.checked; if (c.dataset.jo === "cv" && c.checked && !JO().cvPath) $("#joCvFile").click(); save(); joSave(); });
+$("#jobOpen").addEventListener("input", e => { const k = { joPos: "positions", joAc: "aircraft", joWhere: "regions", joWhen: "available", joNote: "note" }[e.target.id]; if (!k) return; JO()[k] = e.target.value.trim(); save(); clearTimeout(joT); joT = setTimeout(joSave, 900); });
+$("#joCvBtn").addEventListener("click", () => $("#joCvFile").click());
+$("#joCvFile").addEventListener("change", async e => {
+  const f = e.target.files[0]; e.target.value = ""; if (!f) return; const J = JO(), db = Auth.db();
+  if (f.size > 5 * 1024 * 1024) return $("#joMsg").textContent = "That file is over 5 MB.";
+  if (!/\.(pdf|docx?)$/i.test(f.name)) return $("#joMsg").textContent = "Upload your CV as a PDF or Word file.";
+  $("#joMsg").textContent = "Uploading…";
+  const path = `${user.id}/cv-${Date.now()}.${f.name.split(".").pop().toLowerCase()}`, up = await db.storage.from("cvs").upload(path, f, { contentType: f.type || "application/octet-stream" });
+  if (up.error) return $("#joMsg").textContent = /not found|bucket/i.test(up.error.message) ? "This isn't switched on yet on our side. Please try again later." : "Couldn't upload it: " + up.error.message;
+  if (J.cvPath) await db.storage.from("cvs").remove([J.cvPath]);
+  J.cvPath = path; J.cvName = f.name; J.share.cv = true; save(); joRender(); joSave();
+});
+$("#joCvDel").addEventListener("click", async () => { const J = JO(); if (J.cvPath) await Auth.db()?.storage.from("cvs").remove([J.cvPath]); J.cvPath = J.cvName = ""; J.share.cv = false; save(); joRender(); joSave(); });
+// Admin: the pilots who are open to offers, with what each shared
+async function renderAdCands(){
+  const box = $("#adCands"); box.innerHTML = '<p class="hint" style="margin:0">Loading…</p>';
+  const { data: C, error } = await Auth.db().from("candidates").select("*").order("updated_at", { ascending: false });
+  if (error) { box.innerHTML = '<p class="hint" style="margin:0">Couldn\'t load. Has supabase/candidates.sql been run in Supabase (SQL Editor)?</p>'; return; }
+  adCands = C || [];
+  box.innerHTML = adCands.length ? adCands.map((c, i) => { const P = c.profile || {}, S = c.summary;
+    return `<div class="adcand"><div><b>${esc(P.name || (c.share_profile ? "No name in profile" : "Name not shared"))}</b>${c.email ? ` · <a href="mailto:${esc(c.email)}">${esc(c.email)}</a>` : ""}` +
+      `<div class="hint" style="margin:2px 0 0">${[c.positions, c.aircraft, c.regions, c.available && "from " + c.available].filter(Boolean).map(esc).join(" · ") || "No preferences given"}</div>` +
+      (c.share_profile ? `<div class="hint" style="margin:2px 0 0">${[P.licence, P.base && "base " + P.base, P.airline, (P.types || []).slice(0, 4).join(", ")].filter(Boolean).map(esc).join(" · ")}</div>` : "") +
+      (S ? `<div style="margin:4px 0 0;font-size:13.5px">Total <b>${fmtHrs(S.total)}</b> · PIC ${fmtHrs(S.pic)} · multi-pilot ${fmtHrs(S.mp)}${S.last ? ` · last flight ${fmtDate(S.last)}` : ""}</div>` : "") +
+      (c.note ? `<div style="margin:4px 0 0;font-size:13.5px">“${esc(c.note)}”</div>` : "") + `<pre class="adsum hidden" id="adsum${i}">${esc(S?.text || "")}</pre></div>` +
+      `<span class="fl-btns" style="margin:0">${S ? `<button class="rowbtn" type="button" data-cand-sum="${i}">Summary</button>` : ""}${c.share_cv && c.cv_path ? `<button class="rowbtn" type="button" data-cand-cv="${i}">CV</button>` : ""}${c.share_logbook ? `<button class="rowbtn" type="button" data-cand-log="${i}">Logbook CSV</button>` : ""}</span></div>`; }).join("")
+    : '<p class="hint" style="margin:0">No pilot is open to offers yet.</p>';
+}
+let adCands = [];
+$("#adCands").addEventListener("click", async e => {
+  const b = e.target.closest("[data-cand-sum],[data-cand-cv],[data-cand-log]"); if (!b) return; const db = Auth.db();
+  if (b.dataset.candSum !== undefined) return $("#adsum" + b.dataset.candSum).classList.toggle("hidden");
+  const c = adCands[+(b.dataset.candCv ?? b.dataset.candLog)]; if (!c) return;
+  if (b.dataset.candCv !== undefined) { const r = await db.storage.from("cvs").createSignedUrl(c.cv_path, 120, { download: c.cv_name || "cv" }); if (r.error) return alert("Couldn't open the CV: " + r.error.message); location.href = r.data.signedUrl; return; }
+  const r = await db.from("logbooks").select("data").eq("user_id", c.user_id).maybeSingle(); if (r.error || !r.data) return alert("Couldn't load the logbook" + (r.error ? ": " + r.error.message : " (nothing saved in the account yet)."));
+  download(`logbook-${(c.profile?.name || c.email || "pilot").toLowerCase().replace(/\W+/g, "-")}-${todayISO()}.csv`, "text/csv", "\ufeff" + logbookCSV(r.data.data)); logEvent("cand_logbook", {});
+});
 // Admin → Jobs: post, close / reopen, delete
 async function renderAdJobs(){
   const box = $("#adJobs"); box.innerHTML = '<p class="hint" style="margin:0">Loading…</p>'; const J = await loadJobs(true);
