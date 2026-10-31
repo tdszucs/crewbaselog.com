@@ -686,7 +686,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
           <details class="wd"><summary><b>Your past logbook</b><span class="hint">From another app, an EASA PDF logbook, a spreadsheet, or your last CrewBase Log CSV</span></summary>
             <div class="wdbody"><div class="field" style="max-width:360px;margin:0 0 10px"><label for="appPick">Where is your logbook now?</label><select id="appPick">
               <option value="">Choose your logbook app…</option><option value="logten">LogTen Pro</option><option value="crewlounge">CrewLounge PILOTLOG (mccPILOTLOG)</option>
-              <option value="safelog">Safelog</option><option value="foreflight">ForeFlight</option><option value="logbookpro">Logbook Pro</option><option value="wader">Wader Pilot Logbook</option><option value="flylog">Flylog</option>
+              <option value="safelog">Safelog</option><option value="foreflight">ForeFlight</option><option value="myflightbook">MyFlightbook</option><option value="logbookpro">Logbook Pro</option><option value="wader">Wader Pilot Logbook</option><option value="flylog">Flylog</option>
               <option value="crewbase">CrewBase Log (my last CSV)</option><option value="sheet">A spreadsheet or another app</option></select></div>
               <div class="notice hidden" id="appGuide" style="margin:0 0 10px"></div>
               <label style="display:flex;gap:8px;align-items:center;font-weight:400;margin:0 0 6px;font-size:14px"><input type="checkbox" id="impManual" autocomplete="off" style="width:auto"> Let me match the columns myself</label>
@@ -2225,7 +2225,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "31 Oct 2026 · 58";
+const APP_VERSION = "31 Oct 2026 · 60";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
@@ -2600,6 +2600,23 @@ function safelogFlights(headers, rows){
     flights.push(f);
   }
   return { flights, classes };
+}
+/* MyFlightbook CSV ("Logbook → Download → CSV File"): Date, Tail Number, Model, Landings, FS Night / Day Landings, Night, IMC,
+   Ground Simulator, Dual Received, CFI, SIC, PIC, Total Flight Time (decimal hours, or h:mm), Route (airports separated by spaces), Comments */
+function myflightbookFlights(headers, rows){
+  const at = Object.fromEntries(headers.map((h, i) => [String(h).trim(), i]));
+  if (["Tail Number", "Model", "Total Flight Time", "Route", "Approaches"].some(c => at[c] === undefined)) return null;
+  const g = (r, c) => String(r[at[c]] ?? "").trim(), hrs = (r, c) => { const v = g(r, c); return /:/.test(v) ? parseDur(v) : Math.round(parseFloat(v.replace(",", ".")) * 60) || 0; }, n = (r, c) => parseInt(g(r, c)) || 0;
+  const flights = [];
+  for (const r of rows) {
+    const date = parseDate(g(r, "Date"), "YMD"), route = g(r, "Route").toUpperCase().split(/[\s,;>-]+/).filter(x => /^[A-Z0-9]{3,4}$/.test(x)), total = hrs(r, "Total Flight Time"), sim = hrs(r, "Ground Simulator");
+    if (!date) continue;
+    if (sim && !total) { flights.push({ date, flightNo: "", from: "", to: "", out: "", off: "", on: "", in: "", acType: "", reg: "", picName: "", total: 0, pic: 0, copilot: 0, dual: 0, instructor: 0, night: 0, ifr: 0, ldgDay: 0, ldgNight: 0, fstdTime: sim, fstdType: g(r, "Model").toUpperCase(), remarks: g(r, "Comments") }); continue; }
+    const night = n(r, "FS Night Landings"), day = n(r, "FS Day Landings") || (night ? 0 : n(r, "Landings"));
+    flights.push({ date, flightNo: "", from: route[0] || "", to: route.length > 1 ? route[route.length - 1] : route[0] || "", out: "", off: "", on: "", in: "", acType: acTypeName(g(r, "Model")), reg: g(r, "Tail Number").toUpperCase(), picName: "",
+      total, pic: hrs(r, "PIC"), copilot: hrs(r, "SIC"), dual: hrs(r, "Dual Received"), instructor: hrs(r, "CFI"), night: hrs(r, "Night"), ifr: hrs(r, "IMC"), ldgDay: day, ldgNight: night, remarks: g(r, "Comments") });
+  }
+  return { flights, classes: {} };
 }
 /* LogTen Pro "Export Flights (Tab)": one flight per line, columns named flight_flightDate, flight_from, flight_totalTime ...
    and aircraft_aircraftID, aircraftType_type. Simulator sessions have flight_simulator time and no total time.
@@ -3383,12 +3400,12 @@ async function handleFile(f){
   // the pilot asked to match the columns: no format detection, straight to the matching screen
   if ($("#impManual").checked) {
     // a format CrewBase Log reads by itself: say so, matching it by hand loses what it adds up (day + night columns ...)
-    const known = flylogFlights(headers, body) ? "Flylog" : crewloungeFlights(headers, body) ? "CrewLounge PILOTLOG" : safelogFlights(headers, body) ? "Safelog" : logtenFlights(headers, body) ? "LogTen Pro" : ecrewListMap(headers) || ecrewMap(headers) ? "eCrew" : "";
+    const known = flylogFlights(headers, body) ? "Flylog" : crewloungeFlights(headers, body) ? "CrewLounge PILOTLOG" : safelogFlights(headers, body) ? "Safelog" : myflightbookFlights(headers, body) ? "MyFlightbook" : logtenFlights(headers, body) ? "LogTen Pro" : ecrewListMap(headers) || ecrewMap(headers) ? "eCrew" : "";
     imp = { headers, rows: body, map: guessMap(headers, body), sig, name: f.name, manual: true, known }; renderMapping(); return;
   }
   const app = flylogFlights(headers, body) || crewloungeFlights(headers, body);
   if (app) { imp = { name: f.name, flights: app.flights, classes: app.classes, appPrev: app.prev, note: app.note, auto: true }; return; }
-  const sl = safelogFlights(headers, body) || logtenFlights(headers, body);
+  const sl = safelogFlights(headers, body) || myflightbookFlights(headers, body) || logtenFlights(headers, body);
   if (sl) { imp = { name: f.name, flights: sl.flights, classes: sl.classes, auto: true }; return; }
   const ecl = ecrewListMap(headers);
   if (ecl) { imp = { headers, rows: body, map: ecl, sig, name: f.name, auto: true, fmt: "DMY", kind: "airline" }; return; }
@@ -3892,9 +3909,10 @@ const APP_GUIDES = {
     "Drop the .txt file here. The logbook PDF in the EASA or SACAA layout works too."], "logten"],
   crewlounge: ["CrewLounge PILOTLOG", ["Check that PILOTLOG records your times in <b>UTC</b>.",
     "Open your logbook, tap <b>Query</b>, leave the date range empty (the whole logbook) and choose <b>Export Data</b>, then <b>CSV</b>.",
-    "Drop the CSV here. The logbook PDF works too. A database backup (.mdb or JSON) can't be read."], "crewlounge"],
+    "The CSV is saved on your desktop. Drop it here. The logbook PDF works too. A database backup (.mdb or JSON) can't be read."], "crewlounge"],
   safelog: ["Safelog", ["Set your Safelog time zone to <b>UTC</b> first, so the times come out right.", "On the Safelog website (safelogweb.com) open <b>Other Tools</b> → <b>Data Import and Export</b> and choose <b>Click here to create an export of your key logbook data</b>.",
     "Keep <b>Comma</b> as the separator, tick the first-row field names and leave the <b>Text Qualifier</b> filled in (a quote mark), or remarks with commas break the file. Press Export and download the CSV.", "Drop the CSV here (not a Safelog server backup)."], "safelog"],
+  myflightbook: ["MyFlightbook", ["On myflightbook.com open <b>Logbook</b> → <b>Download</b> and choose <b>CSV File</b> (not the Excel link or the zip of images). It downloads to your computer.", "Drop that CSV here."], ""],
   foreflight: ["ForeFlight", ["Sign in to <b>ForeFlight on the web</b> (plan.foreflight.com), open <b>Logbook</b>, then the <b>Export</b> tab, and press the blue <b>Export</b> button. You get one CSV file.", "Drop that CSV here. If it doesn't read, send it to us with <b>Help us read it</b>."], ""],
   logbookpro: ["Logbook Pro (NC Software)", ["In Logbook Pro on a computer, export your data as a <b>.BAK</b> file (a .LBK also exists, .BAK works best). Leave it unencrypted.", "We can't read these files directly yet. Send the .BAK (zipped) with <b>Help us read it</b> and we'll look at it; or export your flights as CSV or a PDF logbook instead and drop that."], ""],
   wader: ["Wader Pilot Logbook", ["Export your logbook from Wader as the <b>EASA logbook PDF</b>, the one with Date, Departure, Arrival … on the left page.", "Drop the PDF here."], "wader"],
