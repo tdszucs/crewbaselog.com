@@ -416,6 +416,12 @@ td.r,th.r{text-align:right}
   #adUsers td:first-child{display:block;font-size:14px;padding-bottom:3px;white-space:normal;word-break:break-all}
   #adUsers td[data-l]::before{content:attr(data-l) " ";color:var(--muted)}#adUsers td:empty{display:none}
 }
+.busy{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(24px + env(safe-area-inset-bottom));z-index:110;display:flex;gap:10px;align-items:center;max-width:calc(100vw - 32px);background:var(--ink);color:var(--bg);padding:11px 18px;border-radius:99px;font-size:14px;box-shadow:0 12px 30px -10px rgba(0,0,0,.45)}
+.busy .t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.spin{flex:none;width:16px;height:16px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (max-width:700px){.busy{bottom:calc(84px + env(safe-area-inset-bottom))}}
+.drop.reading{pointer-events:none;opacity:.75}.drop .rd{display:none;align-items:center;justify-content:center;gap:10px;font-weight:600}.drop.reading .rd{display:flex}.drop.reading .rdhide{display:none}
 .repcard{border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:0 0 12px;background:var(--bg)}
 .rephd{display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap;word-break:break-all}
 .repctl{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;margin-top:8px}
@@ -612,7 +618,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
       <div class="card" id="allCard">
         <div class="notice hidden" id="nextDrop" style="margin:0 0 12px"><b>✓ Your profile is set up.</b> Next, your logbook: drop your past logbook, your airline export or your roster here. Not sure which file? Open What can I drop here? below. No logbook yet? <a href="#" data-go="add">Add your first flight</a>.</div>
         <h3>Drop your files</h3>
-        <div class="drop" id="dropAll"><b>Drop your files here</b><br><span class="hint">or tap to choose · several at once is fine. We work out what each one is.</span>
+        <div class="drop" id="dropAll"><span class="rdhide"><b>Drop your files here</b><br><span class="hint">or tap to choose · several at once is fine. We work out what each one is.</span></span><span class="rd"><i class="spin"></i><span id="dropRd">Reading…</span></span>
           <input type="file" id="allFile" accept=".csv,.txt,.tsv,.xlsx,.xls,.pdf,.json,.zip" multiple class="hidden"></div>
         <div class="found hidden" id="dropFound" aria-live="polite"></div>
         <p class="hint hidden" id="bkNote" style="margin:12px 0 0;font-size:14px"></p>
@@ -1013,6 +1019,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
   <p class="lead" id="delPendTxt"></p>
   <div class="row-actions"><button class="btn" type="button" id="delPendKeep">Keep my account</button><button class="btn ghost" type="button" id="delPendOut">Log out</button><span class="err" id="delPendErr" style="margin:0"></span></div>
 </div></div>
+<div class="busy hidden" id="busyPill" role="status" aria-live="polite"><i class="spin"></i><span class="t"></span></div>
 <div id="signSheet" class="signsheet hidden" role="dialog" aria-modal="true" aria-labelledby="signTitle">
   <div class="sspanel">
     <div class="sshead"><b id="signTitle">Sign</b><button class="btn ghost small" type="button" id="signCancel">Cancel</button></div>
@@ -1928,7 +1935,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "31 Oct 2026 · 14";
+const APP_VERSION = "31 Oct 2026 · 15";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
@@ -2857,7 +2864,7 @@ async function readLogbookPDF(f){
 
 /* several files in one go (e.g. last time's CrewBase Log CSV + a new eCrew export):
    our own CSV imports straight away, other files go through the column check one by one */
-let impQueue = [], impLog = [], impErrs = 0, impBatch = null;
+let impQueue = [], impLog = [], impErrs = 0, impBatch = null, impTotal = 0;
 /* one drop zone for every file (backups are restored, everything else imported: handleFiles tells them apart),
    and on a computer a file dropped anywhere on Your data */
 const dropAll = $("#dropAll");
@@ -2875,8 +2882,23 @@ function found(name, kind, html){
   const box = $("#dropFound"), [label, c] = FOUND[kind] || FOUND.unknown; box.classList.remove("hidden");
   box.insertAdjacentHTML("beforeend", `<div class="fnd"><span class="chip ${c}">${label}</span><div><b>${esc(name)}</b><div class="hint">${html}</div></div></div>`);
 }
+/* reading a file can take a few seconds (a big PDF most): a spinner with what is happening, at the bottom of the screen and
+   in the drop zone. busy(text) shows it (and waits a moment so it is on screen before the work starts), busy(null) hides it */
+let busyKind = "", busyT = 0;
+function busy(msg, kind = "import"){
+  const el = $("#busyPill"); clearTimeout(busyT);
+  if (!msg) { if (kind !== "any" && busyKind && kind !== busyKind) return; busyKind = ""; el.classList.add("hidden"); dropAll.classList.remove("reading"); return; }
+  busyKind = kind; el.querySelector(".t").textContent = msg; el.classList.remove("hidden");
+  if (kind === "import") { dropAll.classList.add("reading"); $("#dropRd").textContent = msg; }
+  busyT = setTimeout(() => busy(null, "any"), 90000);   // never left spinning
+  return new Promise(r => requestAnimationFrame(() => setTimeout(r, 30)));
+}
 async function handleFiles(list){
   let files = [...(list || [])]; if (!files.length) return;
+  await busy(files.length > 1 ? `Reading ${files.length} files…` : `Reading ${files[0].name}…`);
+  try { await handleFiles2(files); } catch (e) { busy(null); throw e; }
+}
+async function handleFiles2(files){
   $("#dropFound").innerHTML = ""; $("#dropFound").classList.add("hidden"); $("#nextDrop")?.classList.add("hidden");
   // a CrewBase Log full backup dropped here: restore it instead of importing
   for (const f of files.filter(f => /\.json$/i.test(f.name) && f.size < 50e6)) {
@@ -2885,8 +2907,9 @@ async function handleFiles(list){
       found(f.name, ok ? "backup" : "skipped", ok ? `Restored: ${data.flights.length.toLocaleString()} line${data.flights.length === 1 ? "" : "s"}, your profile and settings are back.` : "Not restored."); }
   }
   // an AIMS Personal Crew Schedule (the roster, days still to come) belongs in Crew Base, not in the logbook
-  for (const f of files.filter(f => /\.pdf$/i.test(f.name) || f.type === "application/pdf")) if (await isRosterPDF(f)) { files = files.filter(x => x !== f); takeRoster(f); }
-  if (!files.length) return;
+  for (const f of files.filter(f => /\.pdf$/i.test(f.name) || f.type === "application/pdf")) if (await isRosterPDF(f)) { files = files.filter(x => x !== f); busy(null); takeRoster(f); }
+  if (!files.length) return busy(null);
+  impTotal = files.length;
   // our own CSV first, so a new export's duplicates are counted against it
   impQueue = files.sort((a, b) => (/crewbaselog/i.test(b.name) ? 1 : 0) - (/crewbaselog/i.test(a.name) ? 1 : 0));
   impLog = []; impErrs = 0; $("#impErr").textContent = ""; $("#impDone").classList.add("hidden");
@@ -2896,13 +2919,16 @@ async function handleFiles(list){
 }
 async function nextFile(){
   while (impQueue.length) {
-    const f = impQueue.shift(), err = await handleFile(f);
+    const f = impQueue.shift(), k = impTotal - impQueue.length;
+    await busy(`Reading ${f.name}…${impTotal > 1 ? ` (${k} of ${impTotal})` : ""}`);
+    let err; try { err = await handleFile(f); } catch (e) { busy(null); throw e; }
     if (err) { const k = "f" + failedFiles.size; failedFiles.set(k, { file: f, error: err });
       found(f.name, "unknown", `${/can't read this file yet/.test(err) ? "We couldn't read it." : esc(err)} Would you like to share it with us, so CrewBase Log can read files like it in the future? <button class="rowbtn sug" type="button" data-report="${k}">Share it with us</button>`);
       impLog.push(`<b>${esc(f.name)}</b>: <span style="color:var(--bad)">${esc(err)}</span> <button class="rowbtn sug" type="button" data-report="${k}">Help us read it</button>`); impErrs++; continue; }
-    if (imp?.own || imp?.auto) { doImport(); imp = null; continue; }
-    if (imp) return; // waiting for the column check
+    if (imp?.own || imp?.auto) { await busy(`Adding the flights from ${f.name}…`); doImport(); imp = null; continue; }
+    if (imp) return busy(null); // waiting for the column check
   }
+  busy(null);
   $("#impManual").checked = false;
   if (!impLog.length) return;
   // nothing read: the setup shows why; Your data has it in What we found
@@ -4686,7 +4712,7 @@ const cbMin = t => { const [h, m] = t.split(":").map(Number); return h*60 + m; }
 const cbClock = m => String(Math.floor(m/60)).padStart(2,"0") + ":" + String(Math.round(m%60)).padStart(2,"0");
 const cbNice = iso => new Date(iso + "T00:00:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
 const cbDur = m => `${Math.floor(m/60)}h${m%60 ? String(m%60).padStart(2,"0") : ""}`;
-const cbMsg = (id, s, bad) => { const e = $(id); e.textContent = s; e.style.color = bad ? "var(--bad)" : "var(--ok)"; };
+const cbMsg = (id, s, bad) => { if (id === "#cbMsg") busy(null, "roster"); const e = $(id); e.textContent = s; e.style.color = bad ? "var(--bad)" : "var(--ok)"; };
 let cbMonth = null, cbSel = null;
 
 /* AIMS "Personal Crew Schedule Report" PDF (used by many airlines): one column per date, each holding that day's
@@ -5015,7 +5041,10 @@ function takeRoster(f){
   cbTakeMine(f, "", (n, meta) => found(f.name, n ? "roster" : "unknown", n ? `${n} days added to Crew Base. <a href="#" data-go="crewbase">Open Crew Base</a>` : esc(cbWhy(meta))),
     () => { found(f.name, "roster", "Printed in local time: choose its time difference on Crew Base."); tab("crewbase"); });
 }
-const cbTakeMine = (f, why = "", done, ask) => cbReadFile(f, (days0, meta) => { if (!Object.keys(days0).length) { done?.(0, meta); return cbMsg("#cbMsg", cbWhy(meta), true); } if (meta.utc === false) ask?.(); cbAskTz(days0, meta, days => { const n = Object.keys(days).length; cbKeepMe();
+// the roster: a spinner while it is read, gone when it is in (or asks for its time difference, or can't be read)
+const cbTakeMine = (f, why = "", done, ask) => { if (!f) return; busy("Reading your roster…", "roster");
+  return cbTakeMine0(f, why, (...a) => { busy(null, "roster"); done?.(...a); }, () => { busy(null, "roster"); ask?.(); }); };
+const cbTakeMine0 = (f, why = "", done, ask) => cbReadFile(f, (days0, meta) => { if (!Object.keys(days0).length) { done?.(0, meta); return cbMsg("#cbMsg", cbWhy(meta), true); } if (meta.utc === false) ask?.(); cbAskTz(days0, meta, days => { const n = Object.keys(days).length; cbKeepMe();
   // the base printed on the roster (e.g. JFK-CP-789) is the one that counts
   const C = cb(); if (meta.base) { C.me.base = String(meta.base).toUpperCase(); $("#cbBase").value = C.me.base; } Object.assign(C.me.days, days); if (save()) { cbPush(); cbMsg("#cbMsg", `${why}Read ${n} days from ${f.name}${meta.utc === false ? ", converted to UTC" : ""}.`);
     // dropped where logbooks go: say so at the top, and show the roster's first month
