@@ -1004,9 +1004,9 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
     <!-- jobs -->
     <div data-p="jobs" class="hidden">
       <h2>Pilot jobs</h2>
-      <p class="lead">Vacancies from airlines and flight schools. Each one shows whether your logbook meets its minimums.</p>
+      <p class="lead">Vacancies from airlines, crewing agencies and flight schools. Each one shows whether your logbook meets its minimums.</p>
       <div class="card jobopen" id="jobOpen">
-        <div class="jo-head"><div><h3 style="margin:0 0 2px">Looking for a job?</h3><div class="hint" style="margin:0">Let CrewBase Log put you forward to airlines that are hiring.</div></div>
+        <div class="jo-head"><div><h3 style="margin:0 0 2px">Looking for a job?</h3><div class="hint" style="margin:0">Let CrewBase Log put you forward to airlines and crewing agencies that are hiring.</div></div>
           <label class="switch" title="Open to job offers"><input type="checkbox" id="joOn" aria-label="I'm open to job offers"><span></span></label></div>
         <div class="jo-promise"><b>You are in control.</b> Nobody connected with CrewBase Log will ever contact you about a job unless this is switched on. Only what you choose below is shared, only with CrewBase Log, and never shown publicly. Switch it off and everything you shared is deleted straight away.</div>
         <div id="joBody" class="hidden">
@@ -1016,7 +1016,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
             <div class="field"><label for="joWhere">Where</label><input id="joWhere" placeholder="e.g. Europe, Dubai, anywhere"></div>
             <div class="field"><label for="joWhen">Available from</label><input id="joWhen" placeholder="e.g. now, March 2027"></div></div>
           <div class="field"><label for="joNote">A few words (optional)</label><textarea id="joNote" rows="2" placeholder="e.g. Type-rated, happy to relocate"></textarea></div>
-          <div class="hql">What CrewBase Log may share with airlines that are hiring</div>
+          <div class="hql">What CrewBase Log may share with airlines and agencies that are hiring</div>
           <div class="joshare">
             <label class="tick"><input type="checkbox" data-jo="profile"> <span><b>Profile</b> <span class="hint">name, licence, base, airline and the aircraft you fly</span></span></label>
             <label class="tick"><input type="checkbox" data-jo="email"> <span><b>Email address</b> <span class="hint" id="joEmail"></span></span></label>
@@ -1027,7 +1027,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
           </div>
           <div class="hint" id="joMsg" style="margin:10px 0 0"></div>
           <details class="hqhow"><summary>How your data is used</summary><div class="hint" style="font-size:13.5px;line-height:1.55">
-            <p>What you share is kept in your CrewBase Log account and can be seen only by the CrewBase Log team, to match you with vacancies. It is never published, never sold, and never sent to an airline without asking you first.</p>
+            <p>What you share is kept in your CrewBase Log account and can be seen only by the CrewBase Log team, to match you with vacancies. It is never published, never sold, and never sent to an airline or agency without asking you first.</p>
             <p>You can untick anything at any time: it stops being shared straight away. Switching <b>Looking for a job?</b> off deletes everything you shared here, including your CV, from our server. Your logbook itself stays yours, as before.</p>
             <p>While this is off, nobody connected with CrewBase Log will contact you about jobs.</p></div></details>
         </div>
@@ -1036,7 +1036,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
         <label class="tick" style="margin:0"><input type="checkbox" id="jobMine"> <span>Only jobs I qualify for</span></label></div>
       <div id="jobList"></div>
       <div class="card"><h3>Support CrewBase Log</h3><p class="hint" style="margin:0 0 12px;font-size:14px">Entirely optional: nothing is locked and nobody has to pay. If CrewBase Log helps you, a coffee helps us keep it running.</p><a class="btn ghost" href="https://ko-fi.com/tamas25712" target="_blank" rel="noopener" data-kofi>Buy us a coffee</a></div>
-      <div class="notice">Hiring pilots? <a href="mailto:hello@crewbaselog.com?subject=Job%20listing%20on%20CrewBase%20Log">Get in touch</a> to list a vacancy.</div>
+      <div class="notice">Hiring pilots, as an airline, operator or crewing agency? <a href="mailto:hello@crewbaselog.com?subject=Job%20listing%20on%20CrewBase%20Log">Get in touch</a> to list a vacancy.</div>
     </div>
     <!-- admin: only for the site owner; the database only answers the owner's account -->
     <div data-p="admin" class="hidden">
@@ -1075,7 +1075,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
       <section data-ad="jobs" class="hidden">
         <div class="card"><h3>Add a vacancy</h3>
           <form id="jbForm" novalidate>
-            <div class="grid2"><div class="field"><label for="jbAirline">Airline or school</label><input id="jbAirline" required placeholder="e.g. Lufthansa"></div>
+            <div class="grid2"><div class="field"><label for="jbAirline">Airline, agency or school</label><input id="jbAirline" required placeholder="e.g. Lufthansa"></div>
               <div class="field"><label for="jbPosition">Position</label><input id="jbPosition" list="jbPositions" required placeholder="e.g. First Officer"><datalist id="jbPositions"><option>Captain</option><option>First Officer</option><option>Second Officer</option><option>Direct Entry Captain</option><option>Cadet</option><option>Flight Instructor</option><option>Type Rating Instructor</option></datalist></div>
               <div class="field"><label for="jbAircraft">Aircraft</label><input id="jbAircraft" placeholder="e.g. A320 or B787" style="text-transform:uppercase"></div>
               <div class="field"><label for="jbBase">Base</label><input id="jbBase" placeholder="e.g. Frankfurt"></div>
@@ -1089,7 +1089,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
             <div class="row-actions" style="margin:0"><button class="btn" type="submit">Post vacancy</button><span class="err" id="jbErr" style="margin:0"></span></div>
           </form></div>
         <div class="card"><h3>Vacancies</h3><div id="adJobs"></div></div>
-        <div class="card"><h3>Pilots open to offers</h3><p class="hint" style="margin:0 0 10px;font-size:13.5px">Only what each pilot chose to share. Contact a pilot only about jobs, and ask before sending anything to an airline.</p><div id="adCands"></div></div>
+        <div class="card"><h3>Pilots open to offers</h3><p class="hint" style="margin:0 0 10px;font-size:13.5px">Only what each pilot chose to share. Contact a pilot only about jobs, and ask before sending anything to an airline or agency.</p><div id="adCands"></div></div>
       </section>
       <section data-ad="tools" class="hidden">
       <!-- the site owner's account only: back to a brand-new account, for testing -->
@@ -2115,7 +2115,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "31 Oct 2026 · 41";
+const APP_VERSION = "31 Oct 2026 · 42";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
