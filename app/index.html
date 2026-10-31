@@ -420,6 +420,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
     <h1 id="authTitle">Log in</h1>
     <p class="sub" id="authSub">Welcome back. One tap with Google, or your email.</p>
     <div class="notice hidden" id="localNote" style="margin:0 0 16px"></div>
+    <div class="notice hidden" id="delNote" style="margin:0 0 16px"></div>
     <div id="gisBtn" class="hidden" style="display:flex;justify-content:center;min-height:44px"></div>
     <button class="btn google block" id="btnGoogle" type="button">
       <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>
@@ -887,6 +888,23 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
         <div class="field"><label for="fbEmail">Your email (optional, if you'd like a reply)</label><input id="fbEmail" type="email"></div>
         <div class="row-actions"><button class="btn" id="fbSend" type="submit">Send feedback</button><span id="fbStatus" class="ok-msg"></span></div>
       </form>
+      <div class="card" id="delCard" style="margin-top:22px">
+        <h3>Delete your account</h3>
+        <p class="hint" style="margin:0 0 12px">Your logbook, profile, Crew Base roster and account.</p>
+        <button class="btn danger small" type="button" id="delOpen">Delete my account…</button>
+        <div class="hidden" id="delBox">
+          <ul class="hint" style="margin:0 0 12px;padding-left:18px;line-height:1.6">
+            <li>Your logbook is removed from this device at once and you are logged out.</li>
+            <li>Crew Base sharing stops at once: friends no longer see your roster.</li>
+            <li>The server keeps your logbook for <b>30 days</b>. Log in before then and you can keep your account.</li>
+            <li>After 30 days your logbook, profile, roster and account are deleted for good. Nobody can bring them back.</li>
+            <li>Other phones or computers where you are logged in keep their own copy until you log out there.</li>
+          </ul>
+          <div class="row-actions" style="margin:0 0 12px"><button class="btn ghost small" type="button" data-backup>Download a backup first</button></div>
+          <label class="tick" style="margin:0 0 12px"><input type="checkbox" id="delSure"> <span>I understand that after 30 days my logbook is deleted for good.</span></label>
+          <div class="row-actions" style="margin:0"><button class="btn danger" type="button" id="delGo" disabled>Delete my account</button><button class="btn ghost" type="button" id="delKeep">Keep it</button><span class="err" id="delErr" style="margin:0"></span></div>
+        </div>
+      </div>
     </div>
 
     <!-- jobs -->
@@ -944,6 +962,11 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
   <iframe title="Support CrewBase Log on Ko-fi"></iframe>
   <p class="kofi-ft">Optional, and nothing is locked. Payments are handled by Ko-fi (card or PayPal); we never see your card details. <a href="https://ko-fi.com/tamas25712" target="_blank" rel="noopener">Open Ko-fi in a new tab</a></p>
 </dialog>
+<div class="setup hidden" id="delPending" role="dialog" aria-label="Your account is being deleted"><div class="setupin" style="max-width:520px;margin:12vh auto 0">
+  <h2 style="margin:0 0 10px">Your account is being deleted</h2>
+  <p class="lead" id="delPendTxt"></p>
+  <div class="row-actions"><button class="btn" type="button" id="delPendKeep">Keep my account</button><button class="btn ghost" type="button" id="delPendOut">Log out</button><span class="err" id="delPendErr" style="margin:0"></span></div>
+</div></div>
 <div id="signSheet" class="signsheet hidden" role="dialog" aria-modal="true" aria-labelledby="signTitle">
   <div class="sspanel">
     <div class="sshead"><b id="signTitle">Sign</b><button class="btn ghost small" type="button" id="signCancel">Cancel</button></div>
@@ -1099,7 +1122,9 @@ function save(){ const ok = store.set(key(), data); if (ok) syncDirty(); return 
 /* ---------- the logbook in the pilot's account (Supabase table logbooks, one row per account, only their own log-in can
    read it). The device keeps working copy; each save goes up a moment later. rev counts the saves: a device writes only
    over the rev it last saw, so two devices never overwrite each other unseen; if both changed, the pilot chooses. */
-const syncOn = () => !!(Auth.live && hasAccount());
+// delHold: while the account's deletion is pending (or being checked) nothing goes up or comes down
+let delHold = false;
+const syncOn = () => !!(Auth.live && hasAccount() && !delHold);
 const syncKey = () => "cbl_sync_" + user.id;
 let SY = null, syncTimer = 0, syncBusy = false, syncState = "";
 function syncMeta(){ return SY ||= store.get(syncKey(), null) || { rev: 0, seq: 0, done: 0 }; }
@@ -1449,8 +1474,40 @@ function usage(kind){
   try { Auth.db().from("usage_events").insert({ kind, ...usageFacts(), account: hasAccount() }).then(() => {}, () => {}); } catch {}
 }
 const nLines = () => ({ flights: data.flights.filter(f => !isSim(f)).length, sims: data.flights.filter(isSim).length });
+/* ---------- delete my account (Help; supabase/account_deletion.sql): the server keeps the logbook 30 days, then deletes the account ---------- */
+async function delCheck(){
+  try { const { data: r, error } = await Auth.db().from("account_deletions").select("delete_after").maybeSingle(); if (error || !r) return false;
+    $("#delPendTxt").innerHTML = `You asked to delete this account. It goes for good on <b>${esc(fmtDate(r.delete_after.slice(0, 10)))}</b>, with its logbook. Keep it, and your logbook comes back to this device.`;
+    $("#delPendErr").textContent = ""; $("#delPending").classList.remove("hidden"); return true;
+  } catch { return false; }
+}
+$("#delPendKeep").addEventListener("click", async () => {
+  const b = $("#delPendKeep"); b.disabled = true;
+  try { const { error } = await Auth.db().rpc("account_delete_cancel"); if (error) throw error; }
+  catch (e) { $("#delPendErr").textContent = "Couldn't reach the server. Try again."; b.disabled = false; return; }
+  b.disabled = false; $("#delPending").classList.add("hidden"); logEvent("account_kept", {});
+  delHold = false; SY = null; syncSeen = Date.now(); syncPull();
+});
+$("#delPendOut").addEventListener("click", () => { $("#delPending").classList.add("hidden"); Auth.signOut(); });
+$("#delOpen").addEventListener("click", () => { $("#delBox").classList.remove("hidden"); $("#delOpen").classList.add("hidden"); });
+$("#delKeep").addEventListener("click", () => { $("#delBox").classList.add("hidden"); $("#delOpen").classList.remove("hidden"); $("#delSure").checked = false; $("#delGo").disabled = true; $("#delErr").textContent = ""; });
+$("#delSure").addEventListener("change", e => $("#delGo").disabled = !e.target.checked);
+$("#delGo").addEventListener("click", async () => {
+  const b = $("#delGo"); if (!$("#delSure").checked || isLocal()) return; b.disabled = true; b.textContent = "Deleting…"; $("#delErr").textContent = "";
+  let until;
+  try { const { data: t, error } = await Auth.db().rpc("account_delete_request"); if (error) throw error; until = String(t || "").slice(0, 10); }
+  catch (e) { const why = `${e?.code || ""} ${e?.message || e || ""}`;
+    $("#delErr").textContent = /PGRST202|42883|schema cache|does not exist/i.test(why) ? "Deleting accounts isn't switched on yet. Please try again later, or email us." : "Couldn't reach the server, nothing was deleted. Try again.";
+    b.disabled = false; b.textContent = "Delete my account"; return; }
+  logEvent("account_delete", nLines());
+  // this device: everything kept for this account goes (logbook, sync state, drafts, unfinished flights, the copy kept before sync)
+  delHold = true; clearTimeout(syncTimer);
+  try { for (const k of Object.keys(localStorage)) if (k.includes(user.id)) localStorage.removeItem(k); sessionStorage.setItem("cbl_deleted", until); } catch {}
+  b.disabled = false; b.textContent = "Delete my account";
+  await Auth.signOut();
+});
 function enterApp(){
-  SY = null; clearTimeout(syncTimer);
+  SY = null; clearTimeout(syncTimer); try { sessionStorage.removeItem("cbl_deleted"); } catch {}
   const moved = adoptLocal(), fresh = user.id !== "sample" && !store.get(key(), null);
   // the page that was open before a reload, else the overview
   const was = location.hash.slice(1), pages = $$("#tabs button").map(b => b.dataset.t).filter(t => t !== "admin" || isAdmin());
@@ -1458,7 +1515,8 @@ function enterApp(){
   // a reload on another page (a flight half entered, the phone switching apps) goes back there, not into the setup
   if (!data.onboarded && !data.flights.length && user.id !== "sample" && !(pages.includes(was) && was !== "overview")) openSetup();
   if (was === "logbook") resumeEdit();
-  SY = null; syncShow(""); if (syncOn()) { syncSeen = Date.now(); syncPull(); }
+  SY = null; syncShow(""); delHold = false;
+  if (syncOn()) { delHold = true; delCheck().then(pending => { if (pending) return; delHold = false; syncSeen = Date.now(); syncPull(); }); }
   // ask the browser to keep this site's data for good (Safari otherwise clears it after 7 days without a visit)
   navigator.storage?.persist?.().catch(() => {});
   $("#whoEmail").textContent = isLocal() ? "On this device only" : user.email;
@@ -1739,6 +1797,7 @@ function renderHomeTop(){
 document.addEventListener("click", e => { if (!e.target.closest("[data-finish]")) return; const m = setupItems().find(x => !x.done); openSetup(m ? m.step : 1); });
 function renderHelp(){
   renderMyReports();
+  $("#delCard").classList.toggle("hidden", isLocal() || user?.id === "sample"); $("#delKeep").click();
   const fe = $("#fbEmail"); if (!fe.value || fe.value === fe.dataset.auto) fe.value = fe.dataset.auto = user.id === "sample" ? "" : user.email || "";
 }
 function renderOverview(){
@@ -1762,7 +1821,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "31 Oct 2026 · 9";
+const APP_VERSION = "31 Oct 2026 · 10";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
@@ -4771,7 +4830,7 @@ function cbRenderFriends(){
 }
 /* Sharing through accounts (Supabase, see supabase/crew_base_sharing.sql): my roster and friends list are saved
    to my account; a friend's roster comes back only if that friend has added my email. Logbook data never leaves the device. */
-const cbOnline = () => !!(Auth.live && Auth.db() && hasAccount());
+const cbOnline = () => !!(Auth.live && Auth.db() && hasAccount() && !delHold);
 let cbSyncMsg = "", cbPushT = null, cbPulledFor = null;
 function cbPush(){ if (!cbOnline()) return; clearTimeout(cbPushT); cbPushT = setTimeout(() => cbSync(false), 600); }
 async function cbSync(pull = true){
@@ -5457,7 +5516,11 @@ function authTraceSend(){
   try { const t = JSON.parse(localStorage.getItem("cbl_authtrace") || "[]");
     if (t.some(x => /log-in page.*saved sign-in/.test(x))) { logEvent("auth_trace", { trace: t.join(" | ").slice(-1800), ua: navigator.userAgent.slice(0, 160), standalone: matchMedia("(display-mode: standalone)").matches }); localStorage.setItem("cbl_authtrace", "[]"); } } catch {}
 }
-function showLogin(why){ authTrace("log-in page: " + why + (savedSignIn() ? " (a saved sign-in was there)" : "")); setMode(/^#(signup|start)$/.test(location.hash) ? "signup" : "login"); localLabel(); show("#vAuth"); }
+function showLogin(why){ authTrace("log-in page: " + why + (savedSignIn() ? " (a saved sign-in was there)" : "")); setMode(/^#(signup|start)$/.test(location.hash) ? "signup" : "login"); localLabel(); show("#vAuth");
+  // just deleted: when it goes for good, and that logging in before then keeps it
+  let d = ""; try { d = sessionStorage.getItem("cbl_deleted") || ""; } catch {}   // cleared at the next log-in
+  $("#delNote").innerHTML = d ? `<b>Your account will be deleted on ${esc(fmtDate(d))}.</b> Your logbook is gone from this device. Changed your mind? Log in before then to keep it.` : "";
+  $("#delNote").classList.toggle("hidden", !d); }
 
 /* ================= BOOT ================= */
 (async () => {
