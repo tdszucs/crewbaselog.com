@@ -454,6 +454,10 @@ td.r,th.r{text-align:right}
 .hfadd{margin-top:14px}.hflist{display:grid;gap:2px;margin:6px 0 0}.hfrow{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line);font-size:14px}
 .hfrow>span:first-child{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}.hfx{border:0;background:none;color:var(--muted);font-size:18px;cursor:pointer;padding:0 6px}.hfx.sure{color:var(--bad);font-size:12px;font-weight:700}
 .hfform{display:flex;gap:8px;margin:10px 0 0}.hfform input{flex:1;min-width:0}
+.jobfilters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 0 14px}.jobfilters select{width:auto}
+.jobcard .jobhd{display:flex;justify-content:space-between;gap:10px;align-items:baseline;font-size:16px}.jobfit{display:flex;flex-wrap:wrap;gap:6px}
+.adjob{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
+@media (max-width:700px){.adjob{grid-template-columns:1fr auto}.adjob .fl-btns{grid-column:1 / -1}}
 .repcard{border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:0 0 12px;background:var(--bg)}
 .rephd{display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap;word-break:break-all}
 .repctl{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;margin-top:8px}
@@ -993,11 +997,13 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
     <!-- jobs -->
     <div data-p="jobs" class="hidden">
       <h2>Pilot jobs</h2>
-      <div class="card"><p style="margin:0;font-size:17px;line-height:1.6">CrewBase Log is free for pilots, and we want to keep it that way.<br>Our support will come from airlines looking for pilots, who will post their vacancies here, and from pilots who choose to chip in.</p></div>
+      <p class="lead">Vacancies from airlines and flight schools. Each one shows whether your logbook meets its minimums.</p>
+      <div class="jobfilters" id="jobFilters"><select id="jobAc" aria-label="Aircraft"><option value="">Any aircraft</option></select><select id="jobBase" aria-label="Base"><option value="">Any base</option></select>
+        <label class="tick" style="margin:0"><input type="checkbox" id="jobMine"> <span>Only jobs I qualify for</span></label></div>
+      <div id="jobList"></div>
       <div class="card"><h3>Support CrewBase Log</h3><p class="hint" style="margin:0 0 12px;font-size:14px">Entirely optional: nothing is locked and nobody has to pay. If CrewBase Log helps you, a coffee helps us keep it running.</p><a class="btn ghost" href="https://ko-fi.com/tamas25712" target="_blank" rel="noopener" data-kofi>Buy us a coffee</a></div>
       <div class="notice">Hiring pilots? <a href="mailto:hello@crewbaselog.com?subject=Job%20listing%20on%20CrewBase%20Log">Get in touch</a> to list a vacancy.</div>
     </div>
-
     <!-- admin: only for the site owner; the database only answers the owner's account -->
     <div data-p="admin" class="hidden">
       <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-end;flex-wrap:wrap">
@@ -1005,7 +1011,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
         <div style="display:flex;gap:10px;align-items:center"><span class="hint" id="adWhen" style="margin:0"></span><button class="btn ghost small" type="button" id="adRefresh">Refresh</button></div>
       </div>
       <p class="err" id="adErr"></p>
-      <div class="adtabs" role="tablist"><button type="button" data-adt="sum" class="on">Overview</button><button type="button" data-adt="pilots">Pilots <span class="adn" id="adNPilots"></span></button><button type="button" data-adt="act">Activity</button><button type="button" data-adt="files">Files <span class="adn" id="adNFiles"></span></button><button type="button" data-adt="tools">Tools</button></div>
+      <div class="adtabs" role="tablist"><button type="button" data-adt="sum" class="on">Overview</button><button type="button" data-adt="pilots">Pilots <span class="adn" id="adNPilots"></span></button><button type="button" data-adt="act">Activity</button><button type="button" data-adt="files">Files <span class="adn" id="adNFiles"></span></button><button type="button" data-adt="jobs">Jobs</button><button type="button" data-adt="tools">Tools</button></div>
       <section data-ad="sum">
         <div class="stats" id="adTiles"></div>
         <div class="card"><div style="display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap"><h3 style="margin:0">Sign-ups</h3><span class="hint" id="adSignTot" style="margin:0"></span></div><div id="adSignups"></div></div>
@@ -1031,6 +1037,24 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
       </section>
       <section data-ad="files" class="hidden">
       <div class="card"><h3>Files sent for help</h3><p class="hint" style="margin:0 0 12px;font-size:14px">Files pilots sent because the app couldn't read them. Claude checks new ones every 8 hours, fixes the reader, marks them <b>Works now</b> and deletes them. Any file still here after 30 days is deleted automatically. A file also turns to Works now by itself when its pilot imports it successfully. Then press <b>Email the pilot</b>: your email app opens with the message ready.</p><div id="adReps"></div></div>
+      </section>
+      <section data-ad="jobs" class="hidden">
+        <div class="card"><h3>Add a vacancy</h3>
+          <form id="jbForm" novalidate>
+            <div class="grid2"><div class="field"><label for="jbAirline">Airline or school</label><input id="jbAirline" required placeholder="e.g. Lufthansa"></div>
+              <div class="field"><label for="jbPosition">Position</label><input id="jbPosition" list="jbPositions" required placeholder="e.g. First Officer"><datalist id="jbPositions"><option>Captain</option><option>First Officer</option><option>Second Officer</option><option>Direct Entry Captain</option><option>Cadet</option><option>Flight Instructor</option><option>Type Rating Instructor</option></datalist></div>
+              <div class="field"><label for="jbAircraft">Aircraft</label><input id="jbAircraft" placeholder="e.g. A320 or B787" style="text-transform:uppercase"></div>
+              <div class="field"><label for="jbBase">Base</label><input id="jbBase" placeholder="e.g. Frankfurt"></div>
+              <div class="field"><label for="jbMinTotal">Minimum total time (h)</label><input id="jbMinTotal" type="number" inputmode="numeric" min="0"></div>
+              <div class="field"><label for="jbMinType">Minimum on the type (h)</label><input id="jbMinType" type="number" inputmode="numeric" min="0"></div>
+              <div class="field"><label for="jbMinPic">Minimum PIC (h)</label><input id="jbMinPic" type="number" inputmode="numeric" min="0"></div>
+              <div class="field"><label for="jbLicence">Licence</label><select id="jbLicence"><option value="">Any</option><option>ATPL</option><option>CPL</option><option>MPL</option></select></div>
+              <div class="field"><label for="jbApply">Apply at (link or email)</label><input id="jbApply" required placeholder="https://… or jobs@…"></div>
+              <div class="field"><label for="jbCloses">Closes</label><input id="jbCloses" type="date"></div></div>
+            <div class="field"><label for="jbDetails">Details</label><textarea id="jbDetails" rows="3" placeholder="What the job offers and asks, a few lines"></textarea></div>
+            <div class="row-actions" style="margin:0"><button class="btn" type="submit">Post vacancy</button><span class="err" id="jbErr" style="margin:0"></span></div>
+          </form></div>
+        <div class="card"><h3>Vacancies</h3><div id="adJobs"></div></div>
       </section>
       <section data-ad="tools" class="hidden">
       <!-- the site owner's account only: back to a brand-new account, for testing -->
@@ -1445,7 +1469,7 @@ function tab(t){
   $$("[data-p]").forEach(p => p.classList.toggle("hidden", p.dataset.p !== t));
   // the page is kept in the address, so a reload (an iPhone switching apps) opens it again
   try { if (location.hash !== "#" + t) history.replaceState(null, "", "#" + t); } catch {}
-  ({ overview: renderOverview, profile: () => { renderProfile(); renderSignature(); renderExpiries(); }, logbook: renderLogbook, add: openAddForm, import: renderYourData, stats: renderStats, crewbase: renderCrewBase, admin: renderAdmin, help: renderHelp })[t]?.();
+  ({ overview: renderOverview, profile: () => { renderProfile(); renderSignature(); renderExpiries(); }, logbook: renderLogbook, add: openAddForm, import: renderYourData, stats: renderStats, crewbase: renderCrewBase, admin: renderAdmin, help: renderHelp, jobs: renderJobs })[t]?.();
   window.scrollTo(0,0);
 }
 $("#tabs").addEventListener("click", e => { const b = e.target.closest("button[data-t]"); if (b) tab(b.dataset.t); });
@@ -1495,7 +1519,7 @@ const AD_EV = {
   import: d => `Imported ${d.files} file${d.files === 1 ? "" : "s"} (${d.types}) · ${d.added} added${d.updated ? `, ${d.updated} updated` : ""}${d.problems ? ` · ${d.problems} not readable` : ""} · now ${d.flights} flights`,
   restore_backup: d => `Restored a backup · ${d.lines} lines${d.ok ? "" : " · did not fully match"}${d.gaps ? ` · ${d.gaps} gap(s)` : ""}`,
   download_pdf: d => `Downloaded PDF logbook · ${d.format}, ${{ all: "full logbook", last10: "last 10 pages", dates: "between dates" }[d.range] || d.range} · ${d.kb} KB`,
-  download_csv: d => `Downloaded CSV · ${d.flights} flights`, download_summary: () => "Downloaded the PDF hours summary", download_backup: d => `Downloaded full backup · ${d.flights} flights`,
+  download_csv: d => `Downloaded CSV · ${d.flights} flights`, download_summary: () => "Downloaded the PDF hours summary", job_apply: d => `Opened a job's apply link (vacancy ${d.id})`, download_backup: d => `Downloaded full backup · ${d.flights} flights`,
   add_flight: () => "Added a flight by hand", add_sim: () => "Added a simulator session by hand", edit_flight: d => `Edited a flight (${d.where})`,
   fix: d => `Troubleshooting · ${FIX_CHECKS.find(c => c.id === d.check)?.title || d.check} · ${{ mod: "fixed", del: "deleted", move: "moved to previous experience", ok: "marked correct" }[d.action] || d.action}`,
   start_over: () => "Cleared the logbook (start over)", roster_saved: d => `Saved Crew Base roster · ${d.days} days`, friend_added: d => `Added a Crew Base friend · ${d.friends} in total`,
@@ -1571,7 +1595,7 @@ function renderAdLog(){
     : '<p class="hint" style="margin:0">No actions match.</p>';
   $("#adMore").textContent = L.length > 500 ? `Showing the latest 500 of ${L.length.toLocaleString()}.` : log.length >= 2000 ? "The latest 2,000 actions are loaded." : "";
 }
-function adTab(t){ $$("[data-adt]").forEach(b => b.classList.toggle("on", b.dataset.adt === t)); $$("[data-ad]").forEach(x => x.classList.toggle("hidden", x.dataset.ad !== t)); try { sessionStorage.setItem("cbl_adtab", t); } catch {} }
+function adTab(t){ if (t === "jobs") renderAdJobs(); $$("[data-adt]").forEach(b => b.classList.toggle("on", b.dataset.adt === t)); $$("[data-ad]").forEach(x => x.classList.toggle("hidden", x.dataset.ad !== t)); try { sessionStorage.setItem("cbl_adtab", t); } catch {} }
 document.addEventListener("click", e => { const b = e.target.closest("[data-adt], [data-adgo]"); if (b) adTab(b.dataset.adt || b.dataset.adgo); });
 // an email to the pilot, ready in the site owner's mail app: the file works now (or why it can't)
 async function repMail(r){
@@ -1697,6 +1721,7 @@ function enterApp(){
   // once a month per device: "active" (the month is remembered in this logbook only)
   if (fresh) usage("start");
   const month = todayISO().slice(0, 7); if (user.id !== "sample" && data.usageMonth !== month) { data.usageMonth = month; save(); usage("active"); }
+  setTimeout(() => loadJobs().then(J => J && jobsDot(J)), 2500);   // a dot on Jobs for a new vacancy
   logEvent("open", { ...nLines(), phone: matchMedia("(max-width:640px)").matches, prev: !!hasPrev() });
   navigator.storage?.persist?.().catch(() => {});   // ask the browser to keep this site's data
 }
@@ -2008,7 +2033,7 @@ function renderHome(){
 function expBadge(){
   const n = data.expiries.filter(e => e.date && expStatus(e.date).c !== "ok").length;
   $$('[data-t="profile"]').forEach(b => b.classList.toggle("due", !!n));
-  $$("[data-more]").forEach(x => x.classList.toggle("due", !!n || !!$('#moreMenu [data-t="help"].due')));
+  $$("[data-more]").forEach(x => x.classList.toggle("due", !!n || !!$('#moreMenu [data-t="help"].due') || !!$('#moreMenu [data-t="jobs"].due')));
 }
 /* how complete the pilot's set-up is: each item and the setup page that asks for it */
 function setupItems(){
@@ -2054,7 +2079,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "31 Oct 2026 · 39";
+const APP_VERSION = "31 Oct 2026 · 40";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
@@ -3810,7 +3835,7 @@ async function renderMyReports(justSent){
   // a file that works now (or can't be read): said at the top of Help, with a dot on Help in the menu, until OK
   const seen = new Set(data.repSeen || []), news = r.data.filter(x => (x.status === "done" || x.status === "cannot") && !seen.has(x.id));
   $("#repNews")?.remove(); $$('[data-t="help"]').forEach(b => b.classList.toggle("due", !!news.length));
-  $$("[data-more]").forEach(x => x.classList.toggle("due", !!news.length || data.expiries.some(e => e.date && expStatus(e.date).c !== "ok")));
+  $$("[data-more]").forEach(x => x.classList.toggle("due", !!news.length || data.expiries.some(e => e.date && expStatus(e.date).c !== "ok") || !!$('#moreMenu [data-t="jobs"].due')));
   if (news.length) {
     $('[data-p="help"] h2').insertAdjacentHTML("afterend", `<div class="notice" id="repNews" style="margin:0 0 16px">${news.map(n => n.status === "done"
       ? `<div><b style="color:var(--ok)">✓ ${esc(n.file_name)} works now.</b> <a href="#" data-go="import">Drop it again on Your data</a>.</div>`
@@ -4679,6 +4704,76 @@ $("#rmYear").addEventListener("change", e => { if (e.target.value) { rRange = e.
 $("#rmLines").addEventListener("change", renderRouteMap);
 ["#rmFrom", "#rmTo"].forEach(id => $(id).addEventListener("change", () => { rFrom = $("#rmFrom").value; rTo = $("#rmTo").value;
   $("#rmDateErr").textContent = rFrom && rTo && rFrom > rTo ? "The From date is after the To date." : ""; if (!$("#rmDateErr").textContent) renderRouteMap(); }));
+/* Pilot jobs (supabase/jobs.sql): vacancies the site owner posts in Admin → Jobs; the Jobs page lists the open ones and checks
+   each against the pilot's logbook (total, PIC, hours on the type, licence). A dot on Jobs when a vacancy is new since the last look */
+let jobsCache = null;
+async function loadJobs(force){
+  if (jobsCache && !force) return jobsCache;
+  if (!Auth.live || !Auth.db()) return jobsCache = [];
+  try { const { data: r, error } = await Auth.db().from("jobs").select("*").order("created_at", { ascending: false }); if (error) throw error; return jobsCache = r || []; }
+  catch (e) { console.warn("jobs", e); return null; }
+}
+const jobOpen = j => j.active && (!j.closes || j.closes >= todayISO());
+// the pilot's figures against a vacancy's minimums: [{ label, need, have, ok }]
+function jobFit(j){
+  const F = data.flights, T = withPrev(statTotals(F)), out = [], H = m => Math.floor(m / 60);
+  if (j.min_total) out.push({ label: "Total time", need: j.min_total, have: H(T.total), ok: T.total >= j.min_total * 60 });
+  if (j.min_pic) out.push({ label: "PIC", need: j.min_pic, have: H(T.pic), ok: T.pic >= j.min_pic * 60 });
+  if (j.min_type && j.aircraft) { const fam = acFamily(j.aircraft.toUpperCase()) || j.aircraft.toUpperCase(), on = F.filter(f => !isSim(f) && f.acType && (acFamily(f.acType) === fam || f.acType.toUpperCase().startsWith(j.aircraft.toUpperCase())));
+    const m = on.reduce((s, f) => s + (f.total || 0), 0); out.push({ label: `On ${j.aircraft.toUpperCase()}`, need: j.min_type, have: H(m), ok: m >= j.min_type * 60 }); }
+  if (j.licence) { const have = String(data.profile.type || "").toUpperCase(), ok = have.includes(j.licence.toUpperCase()) || (j.licence === "CPL" && /ATPL/.test(have)); out.push({ label: "Licence", need: j.licence, have: have.match(/ATPL|CPL|MPL|PPL|LAPL/)?.[0] || "not set", ok, lic: true }); }
+  return out;
+}
+const jobApply = u => /^https?:\/\//i.test(u) ? u : /@/.test(u) ? "mailto:" + u : "https://" + u;
+function jobsDot(J){
+  const open = (J || []).filter(jobOpen), seen = data.jobsSeen || "", n = open.filter(j => j.created_at > seen).length;
+  $$('[data-t="jobs"]').forEach(b => b.classList.toggle("due", n > 0)); expBadge();
+}
+async function renderJobs(){
+  const box = $("#jobList"); box.innerHTML = '<p class="hint">Loading vacancies…</p>';
+  const J = await loadJobs(true);
+  if (J === null) { box.innerHTML = '<div class="card"><p class="hint" style="margin:0">Vacancies couldn\'t load. Check your connection and try again.</p></div>'; return; }
+  const open = J.filter(jobOpen), opts = (sel, vals, any) => { const v = sel.value; sel.innerHTML = `<option value="">${any}</option>` + [...new Set(vals.filter(Boolean))].sort().map(x => `<option>${esc(x)}</option>`).join(""); sel.value = v; };
+  opts($("#jobAc"), open.map(j => (j.aircraft || "").toUpperCase()), "Any aircraft"); opts($("#jobBase"), open.map(j => j.base), "Any base");
+  $("#jobFilters").classList.toggle("hidden", open.length < 2);
+  const ac = $("#jobAc").value, base = $("#jobBase").value, mine = $("#jobMine").checked, hasLog = data.flights.length || hasPrev();
+  const L = open.filter(j => (!ac || (j.aircraft || "").toUpperCase() === ac) && (!base || j.base === base) && (!mine || jobFit(j).every(x => x.ok)));
+  box.innerHTML = !open.length ? '<div class="card"><p style="margin:0">No vacancies right now.</p><p class="hint" style="margin:6px 0 0">New ones show here, with a dot on Jobs when one arrives.</p></div>'
+    : !L.length ? '<div class="card"><p class="hint" style="margin:0">No vacancy matches these filters.</p></div>'
+    : L.map(j => { const fit = jobFit(j), all = fit.every(x => x.ok);
+      return `<div class="card jobcard"><div class="jobhd"><div><b>${esc(j.position)}</b> · ${esc(j.airline)}</div>${j.aircraft ? `<span class="tag">${esc(j.aircraft.toUpperCase())}</span>` : ""}</div>` +
+        `<div class="hint" style="margin:2px 0 8px">${[j.base && esc(j.base), j.closes && "closes " + fmtDate(j.closes), "posted " + fmtDate(j.created_at.slice(0, 10))].filter(Boolean).join(" · ")}</div>` +
+        (j.details ? `<p style="margin:0 0 10px;white-space:pre-line">${esc(j.details)}</p>` : "") +
+        (fit.length ? `<div class="jobfit">${fit.map(x => `<span class="chip ${!hasLog && !x.lic ? "none" : x.ok ? "ok" : "bad"}">${x.ok ? "✓" : hasLog || x.lic ? "✗" : "·"} ${esc(x.label)} ${x.lic ? esc(x.need) : x.need.toLocaleString() + " h"}${hasLog || x.lic ? ` · you ${x.lic ? esc(x.have) : x.have.toLocaleString() + " h"}` : ""}</span>`).join("")}</div>` +
+          `<div class="hint" style="margin:6px 0 10px">${!hasLog ? "Add your logbook to see whether you meet the minimums." : all ? "<b style='color:var(--ok)'>You meet the minimums.</b>" : "From your logbook."}</div>` : "") +
+        `<a class="btn small" href="${esc(jobApply(j.apply_url))}" target="_blank" rel="noopener" data-jobapply="${j.id}">Apply</a></div>`; }).join("");
+  if (open[0]) { data.jobsSeen = open.reduce((m, j) => j.created_at > m ? j.created_at : m, data.jobsSeen || ""); save(); } jobsDot(open);
+}
+["#jobAc", "#jobBase", "#jobMine"].forEach(id => $(id).addEventListener("change", renderJobs));
+document.addEventListener("click", e => { const a = e.target.closest("[data-jobapply]"); if (a) logEvent("job_apply", { id: +a.dataset.jobapply }); });
+// Admin → Jobs: post, close / reopen, delete
+async function renderAdJobs(){
+  const box = $("#adJobs"); box.innerHTML = '<p class="hint" style="margin:0">Loading…</p>'; const J = await loadJobs(true);
+  if (J === null) { box.innerHTML = '<p class="hint" style="margin:0">Couldn\'t load. Has supabase/jobs.sql been run in Supabase (SQL Editor)?</p>'; return; }
+  box.innerHTML = J.length ? J.map(j => `<div class="adjob"><div><b>${esc(j.position)} · ${esc(j.airline)}</b><div class="hint" style="margin:0">${[j.aircraft, j.base, j.closes && "closes " + fmtDate(j.closes)].filter(Boolean).map(esc).join(" · ")}</div></div>` +
+    `<span class="tag" style="color:${jobOpen(j) ? "var(--ok)" : "var(--muted)"}">${jobOpen(j) ? "open" : j.active ? "closed (date passed)" : "closed"}</span>` +
+    `<span class="fl-btns" style="margin:0"><button class="rowbtn" type="button" data-jbtoggle="${j.id}">${j.active ? "Close" : "Reopen"}</button><button class="rowbtn del" type="button" data-jbdel="${j.id}">Delete</button></span></div>`).join("")
+    : '<p class="hint" style="margin:0">No vacancies yet.</p>';
+}
+$("#jbForm").addEventListener("submit", async e => {
+  e.preventDefault(); const g = id => $("#" + id).value.trim(), n = id => g(id) ? Math.max(0, parseInt(g(id))) : null, err = $("#jbErr"); err.textContent = "";
+  const row = { airline: g("jbAirline"), position: g("jbPosition"), aircraft: g("jbAircraft").toUpperCase() || null, base: g("jbBase") || null, min_total: n("jbMinTotal"), min_type: n("jbMinType"), min_pic: n("jbMinPic"),
+    licence: g("jbLicence") || null, details: g("jbDetails") || null, apply_url: g("jbApply"), closes: g("jbCloses") || null, active: true };
+  if (!row.airline || !row.position || !row.apply_url) return err.textContent = "Airline, position and where to apply are needed.";
+  const { error } = await Auth.db().from("jobs").insert(row); if (error) return err.textContent = "Couldn't post it: " + error.message;
+  $("#jbForm").reset(); err.innerHTML = '<span style="color:var(--ok)">✓ Posted</span>'; renderAdJobs();
+});
+$("#adJobs").addEventListener("click", async e => {
+  const t = e.target.closest("[data-jbtoggle]"), d = e.target.closest("[data-jbdel]"); if (!t && !d) return; const db = Auth.db();
+  if (t) { const j = jobsCache?.find(x => x.id === +t.dataset.jbtoggle); await db.from("jobs").update({ active: !j?.active }).eq("id", +t.dataset.jbtoggle); }
+  if (d) { if (d.textContent !== "Sure?") { d.textContent = "Sure?"; return; } await db.from("jobs").delete().eq("id", +d.dataset.jbdel); }
+  renderAdJobs();
+});
 /* The hours summary to paste or share (job applications): a plain list, most asked-for first, that reads well in a mail,
    a note or a message. Totals, then each aircraft type (most hours first), then recent flying; lines with nothing are left out */
 function statSummary(){
