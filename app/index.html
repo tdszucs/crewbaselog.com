@@ -385,7 +385,9 @@ td.r,th.r{text-align:right}
   .exp .name{grid-area:n}.exp .date{grid-area:d}.exp .note{grid-area:t}.exp .st{grid-area:s;text-align:right}.exp .del{grid-area:x}
   .exp-head{display:none!important}
 }
-@media (max-width:520px){ .who span:not(.syncst){display:none} }
+.whostack{display:flex;align-items:center;gap:10px;min-width:0;flex-direction:row-reverse}
+@media (max-width:520px){ .whostack{flex-direction:column;align-items:flex-end;gap:0;line-height:1.25}.whostack{flex:0 1 auto;max-width:62vw}.who #whoEmail{font-size:12px;max-width:100%;color:var(--ink)}.who #btnOut{white-space:nowrap}.top .logo{font-size:15px;gap:8px;min-width:0;white-space:nowrap}.who .syncst{font-size:11.5px}.who{gap:8px} }
+@media (max-width:440px){ .top .logotx{display:none} }
 .ugrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 24px}
 @media (max-width:640px){ .ugrid{grid-template-columns:1fr} }
 .ubar{display:grid;grid-template-columns:minmax(0,9em) 1fr auto;gap:8px;align-items:center;font-size:13px;margin:3px 0}
@@ -470,8 +472,8 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
 <section id="vApp" class="hidden">
   <div class="top">
     <div class="in">
-      <a class="logo" href="/"><svg viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#0b3d5c"/><path d="M12 38l40-14-10 22-8-6-6 8v-10z" fill="#f2b544"/></svg>CrewBase Log</a>
-      <div class="who"><span id="syncState" class="syncst" role="status"></span><span id="whoEmail"></span><button class="btn ghost small" id="btnOut">Log out</button></div>
+      <a class="logo" href="/"><svg viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#0b3d5c"/><path d="M12 38l40-14-10 22-8-6-6 8v-10z" fill="#f2b544"/></svg><span class="logotx">CrewBase Log</span></a>
+      <div class="who"><span class="whostack"><span id="whoEmail"></span><span id="syncState" class="syncst" role="status"></span></span><button class="btn ghost small" id="btnOut">Log out</button></div>
     </div>
     <nav class="tabs" id="tabs">
       <button data-t="overview" class="on">Overview</button>
@@ -1760,7 +1762,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "31 Oct 2026 · 8";
+const APP_VERSION = "31 Oct 2026 · 9";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
@@ -4196,7 +4198,7 @@ function renderLogbook(){
   $("#lbTable").innerHTML = !F.length ? '<p class="hint" style="padding:16px;margin:0">No flights yet. <a href="#" data-go="import">Import some</a>.</p>' :
     !hits.length ? '<p class="hint" style="padding:16px;margin:0">No flights match your search.</p>' : lbCards(rows, hits) +
     `<table class="lbwide"><thead><tr><th>Date</th><th>Flight</th><th>From</th><th>To</th><th>Out</th><th>In</th><th>Type</th><th>Reg</th><th>PIC</th><th class="r">Total</th><th class="r">Night</th><th class="r">Ldg</th><th></th></tr></thead><tbody>` +
-    rows.map(({ f, i }) => `<tr><td>${fmtDate(f.date)}</td><td>${isSim(f) ? `<span class="tag">FSTD</span> ${esc(f.fstdType || "")}` : esc(f.flightNo)}</td><td>${esc(f.from)}</td><td>${esc(f.to)}</td><td>${f.out}</td><td>${f.in}</td><td>${esc(f.acType)}</td><td>${esc(f.reg)}</td><td>${esc(f.picName)}${f.remarkSig ? ' <span title="Signed by instructor">✍</span>' : ""}</td><td class="r">${fmtMin(isSim(f) ? f.fstdTime : f.total)}</td><td class="r">${f.night?fmtMin(f.night):""}</td><td class="r">${(f.ldgDay+f.ldgNight)||""}</td><td class="r" style="white-space:nowrap"><button class="rowbtn" type="button" data-edit="${i}">Edit</button><button class="rowbtn del" type="button" data-fdel="${i}" title="Delete this flight">Delete</button></td></tr>`).join("") + "</tbody></table>";
+    rows.map(({ f, i }) => `<tr><td>${fmtDate(f.date)}</td><td>${isSim(f) ? `<span class="tag">FSTD</span> ${esc(f.fstdType || "")}` : esc(f.flightNo)}</td><td>${esc(f.from)}</td><td>${esc(f.to)}</td><td>${f.out}</td><td>${f.in}</td><td>${esc(f.acType)}</td><td>${esc(f.reg)}</td><td>${esc(f.picName)}${f.remarkSig ? ' <span title="Signed">✍</span>' : ""}</td><td class="r">${fmtMin(isSim(f) ? f.fstdTime : f.total)}</td><td class="r">${f.night?fmtMin(f.night):""}</td><td class="r">${(f.ldgDay+f.ldgNight)||""}</td><td class="r" style="white-space:nowrap"><button class="rowbtn" type="button" data-edit="${i}">Edit</button><button class="rowbtn del" type="button" data-fdel="${i}" title="Delete this flight">Delete</button></td></tr>`).join("") + "</tbody></table>";
   $("#lbMore").textContent = hits.length > 100 ? `Showing the latest 100 of ${hits.length.toLocaleString()} ${q ? "matching " : ""}flights.${q ? "" : " Search to find older ones."}` : "";
 }
 /* one flight at a time: edit or delete */
@@ -4235,7 +4237,7 @@ function flightFieldsHTML(pre, f = {}){
 }
 let addSig = "";
 const addSigHTML = () => addSig ? `<img src="${addSig}" alt="Signature" class="sigthumb"><span class="hint" style="margin:0">signed</span><button class="btn ghost small" type="button" data-addsign>Sign again</button><button class="btn ghost small" type="button" data-addsigdel>Remove</button>`
-  : `<button class="btn ghost small" type="button" data-addsign>✍ Signature</button><span class="hint" style="margin:0">the PIC or instructor signs this line</span>`;
+  : `<button class="btn ghost small" type="button" data-addsign>✍ Signature</button><span class="hint" style="margin:0">printed in the remarks of this line</span>`;
 /* above Remarks: PICUS (a tick: PIC time, "(PICUS)" in the remarks), a signature for any flight and the crew on board (+ to add a name) */
 function extrasHTML(pre, f){
   // a new flight of a first officer: SELF is the SIC from the start
@@ -4274,7 +4276,7 @@ document.addEventListener("input", e => { if (!e.target.classList?.contains("cre
 document.addEventListener("click", e => {
   if (e.target.closest("[data-addsigdel]")) { addSig = ""; $("#n_sigLine").innerHTML = addSigHTML(); return; }
   if (!e.target.closest("[data-addsign]")) return;
-  openSign("Signature", "The PIC or instructor signs the remarks of this flight.", async cv => { addSig = await smallSigPNG(cv); $("#n_sigLine").innerHTML = addSigHTML(); });
+  openSign("Signature", "Signs the remarks of this flight.", async cv => { addSig = await smallSigPNG(cv); $("#n_sigLine").innerHTML = addSigHTML(); });
 });
 document.addEventListener("change", e => {
   const m = (e.target.id || "").match(/^(n_|e_)picus$/); if (!m) return; const pre = m[1], on = e.target.checked, rem = $("#" + pre + "remarks");
@@ -4329,12 +4331,12 @@ let lbSigDrop = false, lbSigNew = "";
 // instructor signature of the flight being edited: a button opens the signing sheet; the one saved shows, with Remove
 function lbShowSig(){
   const sig = lbSigNew || (lbEditing?.remarkSig && !lbSigDrop ? lbEditing.remarkSig : "");
-  $("#lbSigCur").innerHTML = sig ? `<img src="${sig}" alt="Instructor signature" class="sigthumb"><span class="hint" style="margin:0">signed${lbSigNew ? " (save the flight to keep it)" : ""}</span><button class="btn ghost small" type="button" id="lbSigOpen">Sign again</button><button class="btn danger small" type="button" id="lbSigDel">Remove signature</button>`
-    : `<button class="btn ghost small" type="button" id="lbSigOpen">✍ Instructor signature</button><span class="hint" style="margin:0">printed in the remarks column of this line</span>`;
+  $("#lbSigCur").innerHTML = sig ? `<img src="${sig}" alt="Signature" class="sigthumb"><span class="hint" style="margin:0">signed${lbSigNew ? " (save the flight to keep it)" : ""}</span><button class="btn ghost small" type="button" id="lbSigOpen">Sign again</button><button class="btn danger small" type="button" id="lbSigDel">Remove signature</button>`
+    : `<button class="btn ghost small" type="button" id="lbSigOpen">✍ Signature</button><span class="hint" style="margin:0">printed in the remarks column of this line</span>`;
 }
 $("#lbSigCur").addEventListener("click", e => {
   if (e.target.id === "lbSigDel") { lbSigDrop = true; lbSigNew = ""; lbShowSig(); }
-  if (e.target.id === "lbSigOpen") openSign("Instructor signature", "The instructor or PIC signs the remarks of this flight.", async cv => { lbSigNew = await smallSigPNG(cv); lbSigDrop = false; lbShowSig(); });
+  if (e.target.id === "lbSigOpen") openSign("Signature", "Signs the remarks of this flight.", async cv => { lbSigNew = await smallSigPNG(cv); lbSigDrop = false; lbShowSig(); });
 });
 function lbOpenEdit(i){
   const f = data.flights[i]; if (!f) return; lbEditing = f; lbSigDrop = false; lbSigNew = "";   // a signature drawn for another flight never carries over
@@ -4415,7 +4417,7 @@ function lbShow(i, card){
   (card || $(`#lbTable .lbcard[data-edit="${i}"]`))?.classList.add("open");
   (card || $(`#lbTable .lbcard[data-edit="${i}"]`))?.insertAdjacentHTML("afterend", `<div class="lbdetail" data-i="${i}">
     <div class="ldhead"><b>${esc(flightLabel(f))}</b><button type="button" class="ldx" data-dclose aria-label="Close">×</button></div>
-    <dl>${rows.map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(String(v))}</dd></div>`).join("")}</dl>${f.remarkSig ? `<div class="ldsig"><span class="hint">Instructor signature</span><img src="${f.remarkSig}" alt="Instructor signature"></div>` : ""}
+    <dl>${rows.map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(String(v))}</dd></div>`).join("")}</dl>${f.remarkSig ? `<div class="ldsig"><span class="hint">Signature</span><img src="${f.remarkSig}" alt="Signature"></div>` : ""}
     <div class="fl-btns" style="margin-top:10px"><button class="btn small" type="button" data-doedit="${i}">Edit flight</button><button class="btn ghost small" type="button" data-dpage="${i}">Logbook page preview</button></div>
     <div class="ldpage hidden"></div></div>`);
 }
