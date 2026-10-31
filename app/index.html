@@ -686,7 +686,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
           <details class="wd"><summary><b>Your past logbook</b><span class="hint">From another app, an EASA PDF logbook, a spreadsheet, or your last CrewBase Log CSV</span></summary>
             <div class="wdbody"><div class="field" style="max-width:360px;margin:0 0 10px"><label for="appPick">Where is your logbook now?</label><select id="appPick">
               <option value="">Choose your logbook app…</option><option value="logten">LogTen Pro</option><option value="crewlounge">CrewLounge PILOTLOG (mccPILOTLOG)</option>
-              <option value="safelog">Safelog</option><option value="wader">Wader Pilot Logbook</option><option value="flylog">Flylog</option>
+              <option value="safelog">Safelog</option><option value="foreflight">ForeFlight</option><option value="logbookpro">Logbook Pro</option><option value="wader">Wader Pilot Logbook</option><option value="flylog">Flylog</option>
               <option value="crewbase">CrewBase Log (my last CSV)</option><option value="sheet">A spreadsheet or another app</option></select></div>
               <div class="notice hidden" id="appGuide" style="margin:0 0 10px"></div>
               <label style="display:flex;gap:8px;align-items:center;font-weight:400;margin:0 0 6px;font-size:14px"><input type="checkbox" id="impManual" autocomplete="off" style="width:auto"> Let me match the columns myself</label>
@@ -2225,7 +2225,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "31 Oct 2026 · 57";
+const APP_VERSION = "31 Oct 2026 · 58";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
@@ -3893,9 +3893,12 @@ const APP_GUIDES = {
   crewlounge: ["CrewLounge PILOTLOG", ["Check that PILOTLOG records your times in <b>UTC</b>.",
     "Open your logbook, tap <b>Query</b>, leave the date range empty (the whole logbook) and choose <b>Export Data</b>, then <b>CSV</b>.",
     "Drop the CSV here. The logbook PDF works too. A database backup (.mdb or JSON) can't be read."], "crewlounge"],
-  safelog: ["Safelog", ["Use Safelog's export to save your flights as a <b>CSV</b> file (not a Safelog backup).", "Drop the CSV here."], "safelog"],
+  safelog: ["Safelog", ["Set your Safelog time zone to <b>UTC</b> first, so the times come out right.", "On the Safelog website (safelogweb.com) open <b>Other Tools</b> → <b>Data Import and Export</b> and choose <b>Click here to create an export of your key logbook data</b>.",
+    "Keep <b>Comma</b> as the separator, tick the first-row field names and leave the <b>Text Qualifier</b> filled in (a quote mark), or remarks with commas break the file. Press Export and download the CSV.", "Drop the CSV here (not a Safelog server backup)."], "safelog"],
+  foreflight: ["ForeFlight", ["Sign in to <b>ForeFlight on the web</b> (plan.foreflight.com), open <b>Logbook</b>, then the <b>Export</b> tab, and press the blue <b>Export</b> button. You get one CSV file.", "Drop that CSV here. If it doesn't read, send it to us with <b>Help us read it</b>."], ""],
+  logbookpro: ["Logbook Pro (NC Software)", ["In Logbook Pro on a computer, export your data as a <b>.BAK</b> file (a .LBK also exists, .BAK works best). Leave it unencrypted.", "We can't read these files directly yet. Send the .BAK (zipped) with <b>Help us read it</b> and we'll look at it; or export your flights as CSV or a PDF logbook instead and drop that."], ""],
   wader: ["Wader Pilot Logbook", ["Export your logbook from Wader as the <b>EASA logbook PDF</b>, the one with Date, Departure, Arrival … on the left page.", "Drop the PDF here."], "wader"],
-  flylog: ["Flylog", ["In Flylog's sync settings connect <b>Dropbox</b> and choose the <b>CSV export</b>. The file, exportCSV.csv, appears in your Dropbox.",
+  flylog: ["Flylog", ["In Flylog open <b>SYNC → Dropbox</b>, sign in to your account and press <b>Export CSV</b>. The file <b>exportCSV.csv</b> lands in your Dropbox folder.",
     "Drop it here. The EASA or JAR logbook PDF from Flylog works too."], "flylog"],
   ecrew: ["eCrew / AIMS", ["In eCrew open <b>Reports</b>, then <b>Pilot LogBook report</b>. Set the period (up to 2 years at a time), press Go, then <b>Export</b> as CSV, Excel or PDF.",
     "Drop it on Your data. For more than 2 years, drop one file per 2 years."], "/ecrew-logbook-export.html"],
