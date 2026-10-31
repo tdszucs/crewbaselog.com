@@ -1981,7 +1981,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "31 Oct 2026 · 22";
+const APP_VERSION = "31 Oct 2026 · 23";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
@@ -4486,7 +4486,7 @@ async function renderRouteMap(){
   $("#rmNote").textContent = (longest ? `Longest: ${longest.f.from}–${longest.f.to}, ${n0(longest.k)} km (great circle). ` : "") + (unknown ? `${unknown} flight${unknown === 1 ? "" : "s"} with an airport we don't know ${unknown === 1 ? "is" : "are"} not on the map or in the distance. ` : "") +
     "Distances are great-circle, airport to airport. Around the Earth: 40,075 km; the Moon: 384,400 km away.";
   if (!F.length && !rMap) { box.innerHTML = `<p class="hint" style="padding:16px;margin:0">No flights in this period.</p>`; }
-  const css = getComputedStyle(document.documentElement), brand = css.getPropertyValue("--brand").trim() || "#0b3d5c", acc = css.getPropertyValue("--accent").trim() || "#d9961c";
+  const css = getComputedStyle(document.documentElement), brand = css.getPropertyValue("--brand").trim() || "#0b3d5c", acc = "#e6007e";   // routes in magenta
   const A = [...apts.values()], Ls = $("#rmLines").checked ? [...legs.values()] : [];
   const label = a => `${a.c}${aptName(a.c) || aptName(aptAlt()[a.c]) ? " · " + (aptName(a.c) || aptName(aptAlt()[a.c])) : ""} · ${a.n} visit${a.n === 1 ? "" : "s"}`;
   // small dots (a little bigger for the airports used most) and thin lines, thicker only for routes flown often
