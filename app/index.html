@@ -470,6 +470,8 @@ td.r,th.r{text-align:right}
 .sfwhere{font-size:13px;color:var(--muted);text-align:center}.sfx{border:0;background:none;color:var(--muted);font-size:20px;cursor:pointer;padding:0}
 @media (max-width:700px){.sfrow{grid-template-columns:78px 1fr 28px;padding:8px 0;border-bottom:1px solid var(--line)}.sfrow>[data-sf="o"]{grid-column:2}.sfrow>[data-sf="v"]{grid-column:2 / 4}.sfrow>[data-sf="o"]{grid-row:2}.sfrow>[data-sf="v"]{grid-row:3}}
 .rfpanel{margin:0 0 12px;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--bg)}
+#sfToggle.on{background:var(--brand);border-color:var(--brand);color:#fff}
+.sfbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:14px 0 14px;padding:10px 14px;border-radius:10px;background:var(--bg);border:1px solid var(--brand);font-size:14px}.sfbar span{flex:1}
 .repcard{border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:0 0 12px;background:var(--bg)}
 .rephd{display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap;word-break:break-all}
 .repctl{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;margin-top:8px}
@@ -852,23 +854,22 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
     <div data-p="stats" class="hidden">
       <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-end;flex-wrap:wrap">
         <div><h2>Statistics</h2><p class="lead" style="margin-bottom:0">The hours airlines ask for in a job application, from your logbook. <span id="stInfo"></span></p></div>
-        <div class="row-actions" style="margin:0"><button class="btn small" type="button" id="stPdf">PDF summary</button><button class="btn ghost small" type="button" id="stShare">Share summary</button><button class="btn ghost small" type="button" id="stCopy">Copy summary</button></div>
+        <div class="row-actions" style="margin:0"><button class="btn ghost small" type="button" id="sfToggle" aria-expanded="false">Filter</button><button class="btn small" type="button" id="stPdf">PDF summary</button><button class="btn ghost small" type="button" id="stShare">Share summary</button><button class="btn ghost small" type="button" id="stCopy">Copy summary</button></div>
       </div>
       <p class="hint" id="stTypesNote" style="margin:16px 0 0;font-size:14px"></p>
       <div class="card hidden" id="stEmpty"><p class="hint" style="margin:0">No flights yet. <a href="#" data-go="import">Import or add your flights</a>.</p></div>
-      <div class="card sfcard" id="sfCard"><div class="sfhead"><h3 style="margin:0">Filter flights</h3><span class="hint" id="sfCount" style="margin:0"></span></div>
+      <div class="sfbar hidden" id="sfBar"><span id="sfBarTxt"></span><button class="linkbtn" type="button" id="sfBarEdit">Change</button><button class="linkbtn" type="button" id="sfBarClear">Clear</button></div>
+      <div class="card sfcard hidden" id="sfCard"><div class="sfhead"><h3 style="margin:0">Filter flights</h3><span class="hint" id="sfCount" style="margin:0"></span></div>
         <div id="sfRows"></div>
         <div class="row-actions" style="margin:10px 0 0"><button class="btn ghost small" type="button" id="sfAdd">+ Add condition</button><button class="btn ghost small hidden" type="button" id="sfClear">Clear filter</button></div>
         <details class="hqhow"><summary>How filters combine</summary><div class="hint" style="font-size:13.5px;line-height:1.55"><p><b>And</b> means both must be true; <b>Or</b> starts another set: a flight counts if it matches every condition of at least one set. For <b>not</b>, choose “is not” or “doesn't contain”.</p>
-          <p>For example: Aircraft is A320 <b>and</b> Night time more than 0:00 <b>or</b> Remarks contain “check” gives every A320 night flight, plus every flight with “check” in its remarks. Everything on this page follows the filter (the route map has a filter of its own); brought-forward hours count only when there is no filter.</p></div></details></div>
+          <p>For example: Aircraft is A320 <b>and</b> Night time more than 0:00 <b>or</b> Remarks contain “check” gives every A320 night flight, plus every flight with “check” in its remarks. Everything on this page follows the filter: the hours, the tables and the route map with its distances. Brought-forward hours count only when there is no filter.</p></div></details></div>
       <div id="stBody">
         <div class="stats" id="stTiles"></div>
         <div class="card" id="rmCard">
           <div class="rmhead"><h3 style="margin:0">Routes flown</h3>
-            <div class="rmctl"><div class="rmseg" role="group" aria-label="Period"><button type="button" data-rm="all" class="on">All flights</button><select id="rmYear" aria-label="Year"></select><button type="button" data-rm="dates">Dates…</button><button type="button" id="rfToggle" class="rffilt">Filter</button></div>
+            <div class="rmctl"><div class="rmseg" role="group" aria-label="Period"><button type="button" data-rm="all" class="on">All flights</button><select id="rmYear" aria-label="Year"></select><button type="button" data-rm="dates">Dates…</button></div>
               <label class="tick" style="margin:0"><input type="checkbox" id="rmLines" checked> <span>Connect with lines</span></label></div></div>
-          <div class="hidden rfpanel" id="rfCard"><div class="sfhead"><b>Filter routes</b><span class="hint" id="rfCount" style="margin:0"></span></div><div id="rfRows"></div>
-            <div class="row-actions" style="margin:8px 0 0"><button class="btn ghost small" type="button" id="rfAdd">+ Add condition</button><button class="btn ghost small hidden" type="button" id="rfClear">Clear filter</button></div></div>
           <div class="rmdates hidden" id="rmDates"><label for="rmFrom">From</label><input type="date" id="rmFrom"><label for="rmTo">to</label><input type="date" id="rmTo"><span class="err" id="rmDateErr" style="margin:0"></span></div>
           <div class="rmstats" id="rmStats"></div>
           <div id="routeMap" class="routemap"><p class="hint" style="padding:16px;margin:0">Loading the map…</p></div>
@@ -2127,7 +2128,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "31 Oct 2026 · 44";
+const APP_VERSION = "31 Oct 2026 · 45";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
@@ -4610,7 +4611,7 @@ const SF_OPS = { text: [["is", "is"], ["not", "is not"], ["has", "contains"], ["
   date: [["after", "on or after"], ["before", "on or before"]], dur: [["gt", "more than"], ["lt", "less than"]], num: [["gt", "more than"], ["lt", "less than"], ["is", "exactly"]] };
 const SF_CHOICES = { fn: [["pic", "PIC"], ["picus", "PICUS"], ["copilot", "Co-pilot"], ["dual", "Dual received"], ["instructor", "Instructor"]],
   cls: [["MP", "Multi-pilot"], ["SPSE", "Single-pilot, single-engine"], ["SPME", "Single-pilot, multi-engine"]], kind: [["flight", "Flight"], ["sim", "Simulator session"]] };
-// a filter's rows by its key in the logbook data: statFilter (Stats), routeFilter (the route map)
+// the filter's rows, kept with the logbook (statFilter): one filter for everything on Stats, the route map too
 const sfRows = (key = "statFilter") => (data[key] ||= []);
 const sfActive = (key = "statFilter") => sfRows(key).some(r => r.v !== "" && r.v != null);
 // brought-forward hours belong to no flight: they count only without a filter
@@ -4636,8 +4637,8 @@ function statFlights(key = "statFilter"){
 function sfValues(k){ const g = SF_FIELDS[k]?.[2], c = new Map(); if (!g) return [];
   for (const f of data.flights) for (const x of [].concat(g(f) || [])) if (x && String(x).length < 40) c.set(String(x), (c.get(String(x)) || 0) + 1);
   return [...c.entries()].sort((a, b) => b[1] - a[1]).slice(0, 150).map(([x]) => x); }
-/* one filter box: "sf" on Stats (statFilter), "rf" on the route map (routeFilter); its rows, its count, its Clear button */
-const SF_INST = { sf: { key: "statFilter", redraw: () => renderStats() }, rf: { key: "routeFilter", redraw: () => renderRouteMap() } };
+/* the filter box ("sf" on Stats, statFilter): its rows, its count, its Clear button */
+const SF_INST = { sf: { key: "statFilter", redraw: () => renderStats() } };
 function sfRender(id = "sf"){
   const I = SF_INST[id], R = sfRows(I.key), box = $("#" + id + "Rows"); if (!box) return;
   const valBox = (r, i) => { const kind = SF_FIELDS[r.k][1];
@@ -4653,7 +4654,14 @@ function sfRender(id = "sf"){
     `<button class="sfx" type="button" data-sfdel="${i}" aria-label="Remove condition">×</button></div>`).join("");
   const n = statFlights(I.key).length; $("#" + id + "Count").textContent = sfActive(I.key) ? `${n.toLocaleString()} of ${data.flights.length.toLocaleString()} lines match` : "";
   $("#" + id + "Clear").classList.toggle("hidden", !R.length); $("#" + id + "Card")?.classList.toggle("on", sfActive(I.key));
+  if (id === "sf") { const on = sfActive(), open = !$("#sfCard").classList.contains("hidden"), k = sfRows().filter(r => r.v !== "" && r.v != null).length;
+    $("#sfToggle").textContent = on ? `Filter ✓ ${k}` : "Filter"; $("#sfToggle").classList.toggle("on", on); $("#sfToggle").setAttribute("aria-expanded", open);
+    $("#sfBar").classList.toggle("hidden", !on || open); $("#sfBarTxt").innerHTML = on ? `<b>Filtered:</b> ${n.toLocaleString()} of ${data.flights.length.toLocaleString()} lines` : ""; }
 }
+function sfOpen(open){ $("#sfCard").classList.toggle("hidden", !open); if (open && !sfRows().length) sfRows().push({ j: "and", k: "type", o: "is", v: "" }); sfRender(); if (open) $("#sfCard").scrollIntoView({ behavior: "smooth", block: "nearest" }); }
+$("#sfToggle").addEventListener("click", () => sfOpen($("#sfCard").classList.contains("hidden")));
+$("#sfBarEdit").addEventListener("click", () => sfOpen(true));
+$("#sfBarClear").addEventListener("click", () => { data.statFilter = []; sfApply("sf", true); });
 const sfT = {};
 const sfApply = (id, redraw) => { save(); if (redraw) sfRender(id); clearTimeout(sfT[id]); sfT[id] = setTimeout(() => { sfRender(id); SF_INST[id].redraw(); }, 250); };
 for (const id of Object.keys(SF_INST)) {
@@ -4667,6 +4675,7 @@ for (const id of Object.keys(SF_INST)) {
     clearTimeout(sfT[id]); sfT[id] = setTimeout(() => { const c = $("#" + id + "Count"), n = statFlights(I.key).length; if (c) c.textContent = sfActive(I.key) ? `${n.toLocaleString()} of ${data.flights.length.toLocaleString()} lines match` : ""; I.redraw(); }, 450); });
 }
 function renderStats(){
+  delete data.routeFilter;   // the route map once had a filter of its own
   sfRender(); const F = statFlights(), T0 = acTypesFlown();
   $("#stTypesNote").innerHTML = "";
   const any = F.length || hasPrev();
@@ -4725,13 +4734,12 @@ function gcPath(A, B, n = 48){
   return out;
 }
 function routeFlights(){
-  const F = statFlights("routeFilter").filter(f => !isSim(f) && f.from && f.to), t = todayISO();
+  const F = statFlights().filter(f => !isSim(f) && f.from && f.to), t = todayISO();
   return rRange === "30" ? F.filter(f => f.date >= isoDaysAgo(29)) : rRange === "ytd" ? F.filter(f => f.date >= t.slice(0, 4) + "-01-01") : rRange === "all" ? F
     : rRange === "dates" ? F.filter(f => (!rFrom || f.date >= rFrom) && (!rTo || f.date <= rTo)) : F.filter(f => f.date.startsWith(rRange));
 }
 async function renderRouteMap(){
   const box = $("#routeMap"); if (!box) return;
-  $("#rfToggle").classList.toggle("on", sfActive("routeFilter")); $("#rfToggle").textContent = sfActive("routeFilter") ? "Filter ✓" : "Filter";
   const years = [...new Set(data.flights.filter(f => !isSim(f)).map(f => f.date.slice(0, 4)))].sort().reverse(), ys = $("#rmYear");
   ys.innerHTML = '<option value="">Year…</option>' + years.map(y => `<option${rRange === y ? " selected" : ""}>${y}</option>`).join(""); ys.classList.toggle("on", /^\d{4}$/.test(rRange));
   $$("[data-rm]").forEach(b => b.classList.toggle("on", b.dataset.rm === rRange)); $("#rmDates").classList.toggle("hidden", rRange !== "dates");
@@ -4822,7 +4830,6 @@ function drawGoogle(box, A, Ls, o){
 document.addEventListener("click", e => { const b = e.target.closest("[data-rm]"); if (!b) return; rRange = b.dataset.rm; $("#rmYear").value = ""; renderRouteMap(); });
 $("#rmYear").addEventListener("change", e => { if (e.target.value) { rRange = e.target.value; renderRouteMap(); } });
 $("#rmLines").addEventListener("change", renderRouteMap);
-$("#rfToggle").addEventListener("click", () => { const p = $("#rfCard"), open = p.classList.toggle("hidden") === false; if (open) { if (!sfRows("routeFilter").length) sfRows("routeFilter").push({ j: "and", k: "type", o: "is", v: "" }); sfRender("rf"); } });
 ["#rmFrom", "#rmTo"].forEach(id => $(id).addEventListener("change", () => { rFrom = $("#rmFrom").value; rTo = $("#rmTo").value;
   $("#rmDateErr").textContent = rFrom && rTo && rFrom > rTo ? "The From date is after the To date." : ""; if (!$("#rmDateErr").textContent) renderRouteMap(); }));
 /* Pilot jobs (supabase/jobs.sql): vacancies the site owner posts in Admin → Jobs; the Jobs page lists the open ones and checks
