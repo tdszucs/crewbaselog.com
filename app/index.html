@@ -2064,6 +2064,11 @@ document.addEventListener("click", e => {
   save(); limEditing = false; renderHome();
 });
 function renderHome(){
+  // a refresh in the background (friends' rosters arriving) must not wipe a box being typed in
+  const ae = document.activeElement, keep = ae && $("#homeDash")?.contains(ae) && ae.id && /^(INPUT|TEXTAREA)$/.test(ae.tagName) ? { id: ae.id, v: ae.value, at: ae.selectionStart } : null;
+  renderHome0(); if (keep) { const e = $("#" + keep.id); if (e) { e.value = keep.v; e.focus(); try { e.setSelectionRange(keep.at, keep.at); } catch {} } }
+}
+function renderHome0(){
   const box = $("#homeDash"); if (!box || !data?.flights) return; const F = data.flights;
   if (cbPulledFor !== user?.id && cbOnline()) { cbPulledFor = user.id; cbSync()?.then?.(() => renderHome()); }   // friends' rosters, once per sign-in
   // roster legs and logbook lines compare by airport (FCO and LIRF are the same): the airport list first
@@ -2126,7 +2131,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "31 Oct 2026 · 47";
+const APP_VERSION = "31 Oct 2026 · 48";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
@@ -4644,6 +4649,7 @@ function sfValues(k){ const g = SF_FIELDS[k]?.[2], c = new Map(); if (!g) return
 const SF_INST = { sf: { key: "statFilter", redraw: () => renderStats() } };
 function sfRender(id = "sf"){
   const I = SF_INST[id], R = sfRows(I.key), box = $("#" + id + "Rows"); if (!box) return;
+  const typing = box.contains(document.activeElement) && /^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName);   // rows stay while a value is being typed
   const valBox = (r, i) => { const kind = SF_FIELDS[r.k][1];
     if (SF_CHOICES[kind]) return `<select data-sf="v" data-i="${i}"><option value="">Choose…</option>${SF_CHOICES[kind].map(([v, l]) => `<option value="${v}"${r.v === v ? " selected" : ""}>${l}</option>`).join("")}</select>`;
     if (kind === "year") { const Y = [...new Set(data.flights.map(f => f.date.slice(0, 4)))].sort().reverse(); return `<select data-sf="v" data-i="${i}"><option value="">Choose…</option>${Y.map(y => `<option${r.v === y ? " selected" : ""}>${y}</option>`).join("")}</select>`; }
@@ -4651,7 +4657,7 @@ function sfRender(id = "sf"){
     if (kind === "dur") return `<input data-sf="v" data-i="${i}" inputmode="numeric" placeholder="h:mm" value="${esc(r.v || "")}">`;
     if (kind === "num") return `<input type="number" data-sf="v" data-i="${i}" min="0" value="${esc(r.v || "")}">`;
     return `<input data-sf="v" data-i="${i}" list="${id}List${i}" autocomplete="off" placeholder="Type or choose" value="${esc(r.v || "")}"><datalist id="${id}List${i}">${sfValues(r.k).map(x => `<option value="${esc(x)}">`).join("")}</datalist>`; };
-  box.innerHTML = R.map((r, i) => `<div class="sfrow">${i ? `<select class="sfj" data-sf="j" data-i="${i}"><option value="and"${r.j !== "or" ? " selected" : ""}>And</option><option value="or"${r.j === "or" ? " selected" : ""}>Or</option></select>` : `<span class="sfj sfwhere">Where</span>`}` +
+  if (!typing) box.innerHTML = R.map((r, i) => `<div class="sfrow">${i ? `<select class="sfj" data-sf="j" data-i="${i}"><option value="and"${r.j !== "or" ? " selected" : ""}>And</option><option value="or"${r.j === "or" ? " selected" : ""}>Or</option></select>` : `<span class="sfj sfwhere">Where</span>`}` +
     `<select data-sf="k" data-i="${i}">${Object.entries(SF_FIELDS).map(([k, [l]]) => `<option value="${k}"${r.k === k ? " selected" : ""}>${l}</option>`).join("")}</select>` +
     `<select data-sf="o" data-i="${i}">${SF_OPS[SF_FIELDS[r.k][1]].map(([o, l]) => `<option value="${o}"${r.o === o ? " selected" : ""}>${l}</option>`).join("")}</select>${valBox(r, i)}` +
     `<button class="sfx" type="button" data-sfdel="${i}" aria-label="Remove condition">×</button></div>`).join("");
