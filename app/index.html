@@ -272,12 +272,13 @@ input.clash,select.clash{border-color:var(--bad);box-shadow:0 0 0 1px var(--bad)
 .signsheet{position:fixed;inset:0;z-index:120;background:rgba(6,16,26,.6);display:flex;align-items:center;justify-content:center;padding:24px;overscroll-behavior:contain;touch-action:none}
 .sspanel{background:var(--surface);color:var(--ink);border-radius:16px;width:min(960px,100%);display:flex;flex-direction:column;gap:10px;padding:16px 18px;box-shadow:0 24px 60px -16px rgba(0,0,0,.5)}
 .sshead{display:flex;align-items:center;gap:10px}.sshead b{font-size:17px;flex:1}.sshint{font-size:13px;color:var(--muted);margin:-4px 0 0}
-.sswrap{position:relative;height:min(400px,58vh)}
-#signCanvas{width:100%;height:100%;background:#fff;border:1.5px dashed #b9c4cf;border-radius:12px;touch-action:none;display:block;cursor:crosshair}
+.sswrap{position:relative;height:min(400px,58vh);min-height:0}
+#signCanvas{position:absolute;inset:0;width:100%;height:100%;box-sizing:border-box;background:#fff;border:1.5px dashed #b9c4cf;border-radius:12px;touch-action:none;display:block;cursor:crosshair}
 .ssline{position:absolute;left:7%;right:7%;bottom:26%;border-bottom:1.5px solid #d3dbe3;pointer-events:none}.ssx{position:absolute;left:7%;bottom:calc(26% + 4px);font:600 18px Inter,sans-serif;color:#b9c4cf;pointer-events:none}
 .ssfoot{display:flex;gap:10px;align-items:center}.ssfoot .err{margin:0;flex:1}.ssfoot .btn:last-child{margin-left:auto;min-width:110px}
 html.noscroll,html.noscroll body{overflow:hidden}
-@media (max-width:700px),(max-height:520px){.signsheet{padding:0}.sspanel{width:100%;height:100%;border-radius:0;padding:max(12px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left))}.sswrap{flex:1;height:auto}}
+@media (max-width:700px),(max-height:520px){.signsheet{padding:0}.sspanel{width:100%;height:100%;border-radius:0;padding:max(12px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left))}.sswrap{flex:1 1 0;height:auto}}
+@media (max-height:520px){.sshint{display:none}.sspanel{gap:8px}.sshead b{font-size:15px}.ssfoot .btn,.sshead .btn{padding-top:6px;padding-bottom:6px}}
 .sigline{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .sigpad{width:100%;height:200px;border:1.5px dashed var(--line);border-radius:12px;background:#fff;touch-action:none;cursor:crosshair;display:block}
 .sigshow{background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px;max-width:360px}
@@ -1759,7 +1760,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "31 Oct 2026 · 5";
+const APP_VERSION = "31 Oct 2026 · 6";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
