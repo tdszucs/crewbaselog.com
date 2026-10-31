@@ -854,7 +854,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
     <div data-p="stats" class="hidden">
       <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-end;flex-wrap:wrap">
         <div><h2>Statistics</h2><p class="lead" style="margin-bottom:0">The hours airlines ask for in a job application, from your logbook. <span id="stInfo"></span></p></div>
-        <div class="row-actions" style="margin:0"><button class="btn ghost small" type="button" id="sfToggle" aria-expanded="false">Filter</button><button class="btn small" type="button" id="stPdf">PDF summary</button><button class="btn ghost small" type="button" id="stShare">Share summary</button><button class="btn ghost small" type="button" id="stCopy">Copy summary</button></div>
+        <div class="row-actions" style="margin:0"><button class="btn ghost small" type="button" id="sfToggle" aria-expanded="false">Filter</button><button class="btn ghost small" type="button" id="stShare">Share summary</button><button class="btn ghost small" type="button" id="stCopy">Copy summary</button><button class="btn small" type="button" id="stPdf">PDF summary</button></div>
       </div>
       <p class="hint" id="stTypesNote" style="margin:16px 0 0;font-size:14px"></p>
       <div class="card hidden" id="stEmpty"><p class="hint" style="margin:0">No flights yet. <a href="#" data-go="import">Import or add your flights</a>.</p></div>
@@ -2126,7 +2126,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "31 Oct 2026 · 46";
+const APP_VERSION = "31 Oct 2026 · 47";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
@@ -4626,6 +4626,11 @@ function sfTest(f, r){
   const m = { is: () => vals.some(x => alt.includes(x)), has: () => vals.some(x => x.includes(q)), starts: () => vals.some(x => x.startsWith(q)) };
   return r.o === "not" ? !m.is() : r.o === "hasnt" ? !m.has() : (m[r.o] || m.is)();
 }
+// the filter in words: "Aircraft type is B787-9 and Night time more than 0:00"
+function sfText(){
+  return sfRows().filter(r => r.v !== "" && r.v != null).map((r, i) => { const [label, kind] = SF_FIELDS[r.k], op = (SF_OPS[kind].find(o => o[0] === r.o) || [])[1] || "",
+    val = SF_CHOICES[kind]?.find(c => c[0] === r.v)?.[1] || (kind === "date" ? fmtDate(r.v) : r.v); return `${i ? (r.j === "or" ? "or " : "and ") : ""}${label} ${op} ${val}`; }).join(" ");
+}
 function statFlights(key = "statFilter"){
   const R = sfRows(key).filter(r => r.v !== "" && r.v != null); if (!R.length) return data.flights;
   const sets = [[]]; R.forEach((r, i) => { if (i && r.j === "or") sets.push([]); sets[sets.length - 1].push(r); });
@@ -4987,7 +4992,7 @@ function statSummary(){
 async function statSummaryPdf(){
   if (!window.PDFLib) await loadScript("https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js");
   const { PDFDocument, rgb } = PDFLib, doc = await PDFDocument.create(), { font, bold, uni } = await logbookFonts(doc);
-  const W = 595.28, H = 841.89, M = 40, CW = W - 2 * M, h = fmtHrs, P = data.profile, F = data.flights, T = withPrev(statTotals(F));
+  const W = 595.28, H = 841.89, M = 40, CW = W - 2 * M, h = fmtHrs, P = data.profile, F = statFlights(), T = sfPrev(statTotals(F));   // with a filter on: only the lines it shows
   const C = { ink: rgb(0.06, 0.11, 0.15), muted: rgb(0.38, 0.44, 0.49), line: rgb(0.86, 0.89, 0.92), band: rgb(0.043, 0.239, 0.361), zebra: rgb(0.965, 0.973, 0.98), head: rgb(0.925, 0.945, 0.96), acc: rgb(0.85, 0.59, 0.11), white: rgb(1, 1, 1) };
   const clean = t => uni ? String(t) : String(t).replace(/[^\x20-\x7e]/g, c => ({ "·": "-", "–": "-", "’": "'", "…": "..." })[c] || "");
   const tw = (t, f, z) => f.widthOfTextAtSize(clean(t), z);
@@ -5008,6 +5013,8 @@ async function statSummaryPdf(){
   if (first) text(`Logbook ${fmtDate(first)} to ${fmtDate(last)}`, W - M, H - 74, font, 10, rgb(0.85, 0.9, 0.95), "r");
   if (P.base || P.airline) text([P.base && "Base " + P.base, P.airline && "Airline " + P.airline].filter(Boolean).join("  ·  "), M, H - 94, font, 9.5, rgb(0.75, 0.82, 0.88));
   y = H - 112 - 14;
+  // a filtered summary says so at the top
+  if (sfActive()) { const t = `Filtered: ${sfText()}`; pg.drawRectangle({ x: M, y: y - 24, width: CW, height: 22, color: rgb(0.99, 0.95, 0.87) }); text(t, M + 8, y - 16, bold, 9, C.ink, "l", CW - 16); y -= 30; }
   // totals as tiles, four to a row
   section("Totals");
   const tiles = [["Total time", h(T.total)], ["Multi-pilot", h(T.mp)], ["PIC", h(T.pic)], ...(T.picus ? [["of which PICUS", h(T.picus)]] : []), ["Co-pilot", h(T.copilot)], ["IFR", h(T.ifr)], ["Night", h(T.night)],
@@ -5043,7 +5050,7 @@ async function statSummaryPdf(){
   table([["Period", 1.6], ["Total", 1, "r"], ["PIC", 1, "r"], ["Co-pilot", 1, "r"], ["Multi-pilot", 1, "r"], ["IFR", 1, "r"], ["Night", 1, "r"], ["Sectors", 0.8, "r"], ["Landings", 0.8, "r"]],
     per.map(([k, o]) => [k, h(o.total), h(o.pic), h(o.copilot), h(o.mp), h(o.ifr), h(o.night), o.n.toLocaleString(), o.ldg.toLocaleString()]), { bold: r => r[0] === "All time" });
   // notes
-  const notes = [hasPrev() && `All-time figures include ${h(data.prev.total)} brought forward from earlier logbooks.`, T.picus && "PICUS time is logged as PIC and shown on its own as well.",
+  const notes = [sfActive() && `Filtered: ${sfText()} (${F.length.toLocaleString()} of ${data.flights.length.toLocaleString()} lines).`, hasPrev() && !sfActive() && `All-time figures include ${h(data.prev.total)} brought forward from earlier logbooks.`, T.picus && "PICUS time is logged as PIC and shown on its own as well.",
     "Simulator (FSTD) time is not included in total time."].filter(Boolean);
   need(notes.length * 13 + 4, 30); y -= 2;
   for (const n of notes) { text("– " + n, M, y - 10, font, 8.5, C.muted); y -= 13; }
