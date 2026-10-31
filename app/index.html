@@ -269,6 +269,16 @@ input.clash,select.clash{border-color:var(--bad);box-shadow:0 0 0 1px var(--bad)
 .x:hover{color:var(--bad)}
 
 /* signature */
+.signsheet{position:fixed;inset:0;z-index:120;background:rgba(6,16,26,.6);display:flex;align-items:center;justify-content:center;padding:24px;overscroll-behavior:contain;touch-action:none}
+.sspanel{background:var(--surface);color:var(--ink);border-radius:16px;width:min(960px,100%);display:flex;flex-direction:column;gap:10px;padding:16px 18px;box-shadow:0 24px 60px -16px rgba(0,0,0,.5)}
+.sshead{display:flex;align-items:center;gap:10px}.sshead b{font-size:17px;flex:1}.sshint{font-size:13px;color:var(--muted);margin:-4px 0 0}
+.sswrap{position:relative;height:min(400px,58vh)}
+#signCanvas{width:100%;height:100%;background:#fff;border:1.5px dashed #b9c4cf;border-radius:12px;touch-action:none;display:block;cursor:crosshair}
+.ssline{position:absolute;left:7%;right:7%;bottom:26%;border-bottom:1.5px solid #d3dbe3;pointer-events:none}.ssx{position:absolute;left:7%;bottom:calc(26% + 4px);font:600 18px Inter,sans-serif;color:#b9c4cf;pointer-events:none}
+.ssfoot{display:flex;gap:10px;align-items:center}.ssfoot .err{margin:0;flex:1}.ssfoot .btn:last-child{margin-left:auto;min-width:110px}
+html.noscroll,html.noscroll body{overflow:hidden}
+@media (max-width:700px),(max-height:520px){.signsheet{padding:0}.sspanel{width:100%;height:100%;border-radius:0;padding:max(12px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left))}.sswrap{flex:1;height:auto}}
+.sigline{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .sigpad{width:100%;height:200px;border:1.5px dashed var(--line);border-radius:12px;background:#fff;touch-action:none;cursor:crosshair;display:block}
 .sigshow{background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px;max-width:360px}
 .sigshow img{width:100%;display:block}
@@ -528,11 +538,9 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
       <div class="grid2" style="gap:18px">
         <div class="card">
           <h3>Draw your signature</h3>
-          <p class="hint" style="margin:0 0 12px">Sign inside the box.</p>
-          <canvas id="sigPad" class="sigpad"></canvas>
+          <p class="hint" style="margin:0 0 12px">Opens a signing pad: the whole screen on a phone, a large box on a tablet or computer.</p>
           <div class="row-actions" style="margin-top:12px">
-            <button class="btn" id="sigSave" type="button">Save signature</button>
-            <button class="btn ghost" id="sigClear" type="button">Clear</button>
+            <button class="btn" id="sigDraw" type="button">✍ Draw signature</button>
             <label class="btn ghost" style="margin:0">Upload image<input type="file" id="sigFile" accept="image/*" class="hidden"></label>
           </div>
           <p class="err" id="sigErr"></p>
@@ -736,12 +744,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
           <div class="lbgrid" id="lbEditFields"></div>
           <p class="hint" style="margin:0 0 10px">Change the date, airports or block times and night time is worked out again (total, PIC/co-pilot and IFR follow the block time too). A value you change yourself is kept.</p>
           <div class="field">
-            <div class="fl-btns" style="margin:0"><button class="btn ghost small" type="button" id="lbSigOpen">✍ Instructor signature</button><span class="hint" id="lbSigState"></span></div>
-            <div class="hidden" id="lbSigBox" style="margin-top:10px"><div class="hint" style="margin:0 0 8px">Printed in the remarks column of this line.</div>
-            <div id="lbSigCur" class="hidden" style="display:flex;align-items:center;gap:12px;margin:0 0 8px"></div>
-            <canvas id="lbSigPad" class="sigpad" style="height:130px;max-width:520px"></canvas>
-            <div class="row-actions" style="margin:6px 0 0"><button class="btn ghost small" type="button" id="lbSigClear">Clear pad</button><span class="hint">The instructor signs here with a finger, pen or mouse.</span></div>
-            </div>
+            <div class="sigline" id="lbSigCur"></div>
           </div>
           <div class="row-actions" style="margin:4px 0 0"><button class="btn small" type="submit">Save flight</button><button class="btn ghost small" type="button" id="lbEditCancel">Cancel</button><button class="btn danger small" type="button" id="lbEditDel">Delete flight</button><span class="err" id="lbEditErr" style="margin:0"></span></div>
         </form>
@@ -938,6 +941,14 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
   <iframe title="Support CrewBase Log on Ko-fi"></iframe>
   <p class="kofi-ft">Optional, and nothing is locked. Payments are handled by Ko-fi (card or PayPal); we never see your card details. <a href="https://ko-fi.com/tamas25712" target="_blank" rel="noopener">Open Ko-fi in a new tab</a></p>
 </dialog>
+<div id="signSheet" class="signsheet hidden" role="dialog" aria-modal="true" aria-labelledby="signTitle">
+  <div class="sspanel">
+    <div class="sshead"><b id="signTitle">Sign</b><button class="btn ghost small" type="button" id="signCancel">Cancel</button></div>
+    <p class="sshint" id="signHint"></p>
+    <div class="sswrap"><canvas id="signCanvas" aria-label="Signing pad"></canvas><span class="ssx">✕</span><div class="ssline"></div></div>
+    <div class="ssfoot"><button class="btn ghost" type="button" id="signClear">Clear</button><span class="err" id="signErr"></span><button class="btn" type="button" id="signDone">Done</button></div>
+  </div>
+</div>
 <script>
 /* Ko-fi donation panel, built in: loaded only when someone opens it */
 (() => {
@@ -1573,7 +1584,7 @@ document.addEventListener("click", async e => {
 /* First run: a full-screen assistant about the pilot, one screen each, everything skippable: 1 name, 2 base / airline /
    role / registrations, 3 licence and its dates, 4 signature. Then it is done, and Your data opens for the next step:
    dropping the logbook. Skip setup or any page change closes it */
-let suStep = 1, suPad = null;
+let suStep = 1;
 const SU_LAST = 4;
 function openSetup(step = 1){ suStep = step; renderSetup(); $("#setup").classList.remove("hidden"); document.body.classList.add("insetup"); }
 function closeSetup(done = true){ if ($("#setup").classList.contains("hidden")) return; $("#setup").classList.add("hidden"); document.body.classList.remove("insetup"); if (done) { data.onboarded = true; save(); } }
@@ -1599,15 +1610,13 @@ function renderSetup(){
     <div class="field"><label for="suLicExp">Licence expires <span class="hint" style="font-weight:400">optional</span></label><input id="suLicExp" type="date" value="${esc(lic?.date || "")}"></div></div>` +
     nav(true, '<button class="btn" type="button" data-su="next">Next ›</button>');
   if (suStep === 4) h = `<h2>Your signature</h2><p class="lead">It signs the pages of your PDF logbook. Draw it with your finger or mouse, or skip it for now.</p>
-    ${data.signature ? `<p class="hint" style="margin:0 0 8px">Now: <img src="${data.signature}" alt="Your signature" style="height:40px;vertical-align:middle;background:#fff;border:1px solid var(--line);border-radius:6px;padding:2px 6px"> · draw below to replace it.</p>` : ""}
-    <canvas id="suSig" class="sigpad" style="width:100%;height:150px"></canvas>
-    <div class="row-actions" style="margin:8px 0 0"><button class="btn ghost small" type="button" id="suSigClear">Clear</button></div>` +
+    <div class="sigline" style="margin:4px 0 8px">${data.signature ? `<img src="${data.signature}" alt="Your signature" style="height:48px;background:#fff;border:1px solid var(--line);border-radius:6px;padding:2px 6px">` : ""}<button class="btn${data.signature ? " ghost" : ""}" type="button" data-sudraw>${data.signature ? "✍ Draw it again" : "✍ Draw your signature"}</button></div>` +
     nav(true, '<button class="btn" type="button" data-su="next">Finish setup ›</button>');
   $("#setupBody").innerHTML = dots + h;
   if (suStep === 2) loadAirports();   // to check the base airport
-  if (suStep === 4) { suPad = makePad($("#suSig")); requestAnimationFrame(() => suPad.reset()); $("#suSigClear").addEventListener("click", () => suPad.reset()); }
   $("#setupBody").querySelector("input")?.focus?.();
 }
+document.addEventListener("click", e => { if (e.target.closest("[data-sudraw]")) openSign("Your signature", "Sign on the line with your finger, a stylus or the mouse.", cv => { data.signature = trimmedPNG(cv); save(); renderSetup(); }); });
 document.addEventListener("click", e => {
   const b = e.target.closest("[data-su]"); if (!b) return; const a = b.dataset.su, p = data.profile;
   if (a === "skip") { closeSetup(); return renderOverview(); }
@@ -1624,7 +1633,6 @@ document.addEventListener("click", e => {
     for (const [id, name, el] of [["med", "Medical", "#suMed"], ["lic", "Licence", "#suLicExp"]]) { const v = $(el).value; let it = data.expiries.find(e => e.id === id);
       if (!it && v) data.expiries.unshift(it = { id, name, date: "", note: "" }); if (it) it.date = v; }
   }
-  if (a === "next" && suStep === 4 && suPad?.inked()) data.signature = trimmedPNG($("#suSig"));
   if (a === "next") { save(); if (suStep >= SU_LAST) return suDone(); suStep++; return renderSetup(); }
 });
 // set-up done: the next step is the logbook itself (Your data); with one already in, back Home
@@ -1744,7 +1752,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "31 Oct 2026 · 3";
+const APP_VERSION = "31 Oct 2026 · 4";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
@@ -1900,21 +1908,6 @@ $("#btnAddExp").addEventListener("click", () => {
 function flash(sel){ const el = $(sel); el.textContent = "Saved"; clearTimeout(el._t); el._t = setTimeout(() => el.textContent = "", 1500); }
 
 /* ---------- signature ---------- */
-const pad = $("#sigPad"); let pctx, drawing = false, inked = false, last = null;
-function setupPad(){
-  const r = pad.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
-  pad.width = r.width * dpr; pad.height = r.height * dpr;
-  pctx = pad.getContext("2d"); pctx.scale(dpr, dpr);
-  pctx.lineCap = "round"; pctx.lineJoin = "round"; pctx.strokeStyle = "#0b2a4a"; pctx.lineWidth = 2.4; inked = false;
-}
-const pt = e => { const r = pad.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
-pad.addEventListener("pointerdown", e => { drawing = true; last = pt(e); pad.setPointerCapture(e.pointerId); });
-pad.addEventListener("pointermove", e => {
-  if (!drawing) return; const p = pt(e);
-  pctx.beginPath(); pctx.moveTo(last.x, last.y); pctx.lineTo(p.x, p.y); pctx.stroke(); last = p; inked = true;
-});
-["pointerup","pointercancel","pointerleave"].forEach(ev => pad.addEventListener(ev, () => drawing = false));
-$("#sigClear").addEventListener("click", setupPad);
 // pointer drawing on any canvas; returns { reset, inked }
 function makePad(canvas){
   let ctx, down = false, ink = false, prev = null;
@@ -1925,9 +1918,30 @@ function makePad(canvas){
   return {
     reset(){ const r = canvas.getBoundingClientRect(), dpr = window.devicePixelRatio || 1; canvas.width = r.width * dpr; canvas.height = r.height * dpr;
       ctx = canvas.getContext("2d"); ctx.scale(dpr, dpr); ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.strokeStyle = "#0b2a4a"; ctx.lineWidth = 2.2; ink = false; },
+    // the pad changed size (phone turned): same drawing, new size
+    resize(){ if (!ink) return this.reset(); const t = document.createElement("canvas"), dpr = window.devicePixelRatio || 1; t.width = canvas.width; t.height = canvas.height; t.getContext("2d").drawImage(canvas, 0, 0);
+      this.reset(); ctx.drawImage(t, 0, 0, t.width / dpr, t.height / dpr); ink = true; },
     inked: () => ink
   };
 }
+/* The signing sheet: one pad for every signature, the whole screen on a phone, a large box on a tablet or computer.
+   openSign(title, hint, done): done(canvas) gets the drawing when Done is pressed */
+const signCv = $("#signCanvas"), signPad = makePad(signCv); let signDone = null;
+function openSign(title, hint, done){
+  signDone = done; $("#signTitle").textContent = title; $("#signHint").textContent = (hint || "") + (innerWidth < 700 && innerHeight > innerWidth ? " Turn the phone sideways for more room." : ""); $("#signErr").textContent = "";
+  document.activeElement?.blur?.(); $("#signSheet").classList.remove("hidden"); document.documentElement.classList.add("noscroll");
+  requestAnimationFrame(() => signPad.reset());
+}
+function closeSign(){ $("#signSheet").classList.add("hidden"); document.documentElement.classList.remove("noscroll"); signDone = null; }
+$("#signCancel").addEventListener("click", closeSign);
+$("#signClear").addEventListener("click", () => { signPad.reset(); $("#signErr").textContent = ""; });
+$("#signDone").addEventListener("click", async () => {
+  if (!signPad.inked()) return $("#signErr").textContent = "Sign first, or Cancel.";
+  const cb = signDone; try { await cb?.(signCv); } finally { closeSign(); }
+});
+$("#signSheet").addEventListener("click", e => { if (e.target.id === "signSheet") closeSign(); });
+addEventListener("keydown", e => { if (e.key === "Escape" && !$("#signSheet").classList.contains("hidden")) closeSign(); });
+addEventListener("resize", () => { if (!$("#signSheet").classList.contains("hidden")) requestAnimationFrame(() => signPad.resize()); });
 // trimmed signature scaled down to fit maxW x maxH (a few KB)
 function smallSigPNG(canvas, maxW = 240, maxH = 60){
   const url = trimmedPNG(canvas); if (!url) return Promise.resolve("");
@@ -1946,22 +1960,20 @@ function trimmedPNG(canvas){
   o.getContext("2d").drawImage(canvas, x0, y0, x1-x0, y1-y0, pad2, pad2, x1-x0, y1-y0);
   return o.toDataURL("image/png");
 }
-$("#sigSave").addEventListener("click", () => {
-  if (!inked) return $("#sigErr").textContent = "Draw your signature first.";
-  data.signature = trimmedPNG(pad); $("#sigErr").textContent = ""; if (save()) { renderSigCurrent(); setupPad(); }
-});
+$("#sigDraw").addEventListener("click", () => openSign("Your signature", "Sign on the line with your finger, a stylus or the mouse.", cv => {
+  data.signature = trimmedPNG(cv); $("#sigErr").textContent = ""; if (save()) renderSignature(); }));
 $("#sigFile").addEventListener("change", e => {
   const f = e.target.files[0]; if (!f) return;
   if (f.size > 1.5e6) return $("#sigErr").textContent = "Please use an image under 1.5 MB.";
-  const r = new FileReader(); r.onload = () => { data.signature = r.result; if (save()) renderSigCurrent(); }; r.readAsDataURL(f); e.target.value = "";
+  const r = new FileReader(); r.onload = () => { data.signature = r.result; if (save()) renderSignature(); }; r.readAsDataURL(f); e.target.value = "";
 });
 function renderSigCurrent(){
   $("#sigCurrent").innerHTML = data.signature
     ? `<div class="sigshow"><img src="${data.signature}" alt="Saved signature"></div><div class="row-actions" style="margin-top:12px"><button class="btn danger small" id="sigDel" type="button">Remove</button></div>`
     : '<p class="hint">No signature saved yet.</p>';
-  $("#sigDel")?.addEventListener("click", () => { data.signature = ""; save(); renderSigCurrent(); });
+  $("#sigDel")?.addEventListener("click", () => { data.signature = ""; save(); renderSignature(); });
 }
-function renderSignature(){ requestAnimationFrame(setupPad); renderSigCurrent(); $("#sigErr").textContent = ""; }
+function renderSignature(){ renderSigCurrent(); $("#sigErr").textContent = ""; $("#sigDraw").textContent = data.signature ? "✍ Draw a new signature" : "✍ Draw signature"; }
 
 /* ================= IMPORT ================= */
 const FIELDS = [
@@ -3440,7 +3452,7 @@ $("#addForm").addEventListener("submit", async e => {
   if (!sim && !pfOf("n_")) { $("#addErr").textContent = "Choose your role: pilot flying, pilot monitoring or relief crew."; $("#n_roleField").classList.add("need", "flash"); setTimeout(() => $("#n_roleField")?.classList.remove("flash"), 1600); return $("#n_roleField").scrollIntoView({ behavior: "smooth", block: "center" }); }
   if (!sim) autoFill(f);
   if (data.flights.some(x => dupKey(x) === dupKey(f))) return $("#addErr").textContent = `That ${sim ? "session" : "flight"} is already in your logbook.`;
-  if (!sim && $("#n_picus")?.checked && addPad?.inked()) f.remarkSig = await smallSigPNG($("#n_sigPad"));
+  if (!sim && $("#n_picus")?.checked && addSig) f.remarkSig = addSig;
   data.flights.push(f); data.flights.sort((a,b) => (a.date+a.out).localeCompare(b.date+b.out));
   if (!save()) return;
   addFormReset(); dropDraft();
@@ -4213,11 +4225,14 @@ function flightFieldsHTML(pre, f = {}){
   return order.map(([k, label]) => `<div class="field${k === "remarks" ? " wide" : ""}"><label for="${pre}${k}">${label}</label>${box(k)}</div>` + (k === "to" ? times : "") +
     (k === "ldgNight" ? `<div class="field wide err hidden" id="${pre}clash" role="alert" style="margin:0"></div>` + extrasHTML(pre, f) : "")).join("");
 }
+let addSig = "";
+const addSigHTML = () => addSig ? `<img src="${addSig}" alt="PIC signature" class="sigthumb"><span class="hint" style="margin:0">signed</span><button class="btn ghost small" type="button" data-addsign>Sign again</button><button class="btn ghost small" type="button" data-addsigdel>Remove</button>`
+  : `<button class="btn small" type="button" data-addsign>✍ PIC signs</button><span class="hint" style="margin:0">opens a signing pad</span>`;
 /* above Remarks: PICUS (a tick: PIC time, "(PICUS)" in the remarks, the PIC signs) and the crew on board (+ to add a name) */
 function extrasHTML(pre, f){
   const picus = /\bPIC\s*\(?\s*US\s*\)?|\bPICUS\b/i.test(f.remarks || ""), crew = f.crew || [];
   return `<div class="field wide extras"><label class="tick"><input type="checkbox" id="${pre}picus"${picus ? " checked" : ""}> <span><b>PICUS</b> <span class="hint">pilot in command under supervision: PIC time, (PICUS) in the remarks, signed by the PIC</span></span></label>` +
-    (pre === "n_" ? `<div class="${picus ? "" : "hidden "}sigbox" id="n_sigBox"><div class="hint" style="margin:8px 0 6px">The PIC signs here</div><canvas id="n_sigPad" class="sigpad" style="height:130px;max-width:520px"></canvas><button class="btn ghost small" type="button" id="n_sigClear" style="margin-top:6px">Clear</button></div>` : "") +
+    (pre === "n_" ? (addSig = "", `<div class="${picus ? "" : "hidden "}sigbox" id="n_sigBox" style="margin:8px 0 4px"><div class="sigline" id="n_sigLine">${addSigHTML()}</div></div>`) : "") +
     `<div class="crewbox"><span class="clabel">Crew</span><span class="crewlist" id="${pre}crewList">${crew.map(n => crewChip(n)).join("")}</span><button class="btn ghost small" type="button" data-crewadd="${pre}">+ Add crew</button>
       <input type="hidden" id="${pre}crew" value="${esc(crew.join(";"))}"></div></div>`;
 }
@@ -4237,19 +4252,20 @@ document.addEventListener("click", e => {
 });
 document.addEventListener("input", e => { if (!e.target.classList?.contains("crewin")) return; const el = e.target, at = el.selectionStart; el.value = el.value.toUpperCase(); try { el.setSelectionRange(at, at); } catch {} const pre = el.closest(".crewlist").id.slice(0, 2); crewSync(pre); if (pre === "n_") saveDraft(); });
 // PICUS ticked: PIC time (the whole flight), no co-pilot time, "(PICUS)" in front of the remarks, and the PIC signs
-let addPad = null;
+document.addEventListener("click", e => {
+  if (e.target.closest("[data-addsigdel]")) { addSig = ""; $("#n_sigLine").innerHTML = addSigHTML(); return; }
+  if (!e.target.closest("[data-addsign]")) return;
+  openSign("PIC signature", "The PIC signs the remarks of this flight (PICUS).", async cv => { addSig = await smallSigPNG(cv); $("#n_sigLine").innerHTML = addSigHTML(); });
+});
 document.addEventListener("change", e => {
   const m = (e.target.id || "").match(/^(n_|e_)picus$/); if (!m) return; const pre = m[1], on = e.target.checked, rem = $("#" + pre + "remarks");
   const bare = rem.value.replace(/\s*\(?\s*PIC\s*\(?\s*US\s*\)?\s*\)?\s*/i, " ").trim();
   rem.value = on ? ("(PICUS) " + bare).trim() : bare;
   if (on) { const tot = $("#" + pre + "total").value.trim(); if (tot) $("#" + pre + "pic").value = tot; $("#" + pre + "copilot").value = "";
     if (/^self$/i.test($("#" + pre + "picName").value.trim())) $("#" + pre + "picName").value = ""; }
-  if (pre === "n_") { $("#n_sigBox").classList.toggle("hidden", !on); if (on) { addPad = makePad($("#n_sigPad")); requestAnimationFrame(() => addPad.reset()); } }
-  else if (on && $("#lbSigBox").classList.contains("hidden")) $("#lbSigOpen").click();
-  if (pre === "e_") $("#lbSigOpen").textContent = on || !$("#lbSigBox").classList.contains("hidden") ? "Close signature" : "✍ Instructor signature";
+  if (pre === "n_") $("#n_sigBox").classList.toggle("hidden", !on);
   rem.dispatchEvent(new Event("input", { bubbles: true }));
 });
-document.addEventListener("click", e => { if (e.target.id === "n_sigClear") addPad?.reset(); });
 // a simulator session: EASA FSTD columns (date, type, session time) and remarks
 function simFieldsHTML(pre, f = {}){
   if (pre === "n_" && !f.date) f = { ...f, date: logToday() };
@@ -4291,19 +4307,19 @@ function readFlightForm(pre, base = {}){
     : f.date > logToday() ? FUTURE_MSG : notFlown(f) ? NOT_YET_MSG : !valid(f) ? "A flight needs a date and a route or total time." : (pre === "n_" && newMissing(f)) || clashNew(f, pre === "e_" ? base : null)[0]?.msg || "";
   return { f, err };
 }
-const lbPad = makePad($("#lbSigPad")); let lbSigDrop = false;
+let lbSigDrop = false, lbSigNew = "";
+// instructor signature of the flight being edited: a button opens the signing sheet; the one saved shows, with Remove
 function lbShowSig(){
-  const sig = lbEditing?.remarkSig && !lbSigDrop ? lbEditing.remarkSig : "";
-  $("#lbSigCur").innerHTML = sig ? `<span class="hint" style="margin:0">Signed:</span><img src="${sig}" alt="Instructor signature" style="height:40px;background:#fff;border:1px solid var(--line);border-radius:6px;padding:2px 6px"><button class="btn danger small" type="button" id="lbSigDel">Remove signature</button>` : "";
-  $("#lbSigCur").classList.toggle("hidden", !sig);
+  const sig = lbSigNew || (lbEditing?.remarkSig && !lbSigDrop ? lbEditing.remarkSig : "");
+  $("#lbSigCur").innerHTML = sig ? `<img src="${sig}" alt="Instructor signature" class="sigthumb"><span class="hint" style="margin:0">signed${lbSigNew ? " (save the flight to keep it)" : ""}</span><button class="btn ghost small" type="button" id="lbSigOpen">Sign again</button><button class="btn danger small" type="button" id="lbSigDel">Remove signature</button>`
+    : `<button class="btn ghost small" type="button" id="lbSigOpen">✍ Instructor signature</button><span class="hint" style="margin:0">printed in the remarks column of this line</span>`;
 }
-$("#lbSigCur").addEventListener("click", e => { if (e.target.id === "lbSigDel") { lbSigDrop = true; lbShowSig(); } });
-$("#lbSigClear").addEventListener("click", () => lbPad.reset());
-// the pad shows only when asked for (it needs its size once visible)
-$("#lbSigOpen").addEventListener("click", () => { const box = $("#lbSigBox"), open = box.classList.toggle("hidden") === false;
-  $("#lbSigOpen").textContent = open ? "Close signature" : "✍ Instructor signature"; if (open) requestAnimationFrame(() => lbPad.reset()); });
+$("#lbSigCur").addEventListener("click", e => {
+  if (e.target.id === "lbSigDel") { lbSigDrop = true; lbSigNew = ""; lbShowSig(); }
+  if (e.target.id === "lbSigOpen") openSign("Instructor signature", "The instructor or PIC signs the remarks of this flight.", async cv => { lbSigNew = await smallSigPNG(cv); lbSigDrop = false; lbShowSig(); });
+});
 function lbOpenEdit(i){
-  const f = data.flights[i]; if (!f) return; lbEditing = f; lbSigDrop = false;
+  const f = data.flights[i]; if (!f) return; lbEditing = f; lbSigDrop = false; lbSigNew = "";   // a signature drawn for another flight never carries over
   $("#lbEditFields").innerHTML = isSim(f) ? simFieldsHTML("e_", f) : flightFieldsHTML("e_", f);
   // changes made earlier and not saved yet: back in the form
   let back = false;
@@ -4312,9 +4328,7 @@ function lbOpenEdit(i){
       if (d.pf) { const r = document.querySelector(`[name="e_pf"][value="${d.pf}"]`); if (r) r.checked = true; }
       back = true; } } catch {}
   if (!isSim(f)) { roleByType("e_"); timeSum("e_"); loadAirports().then(() => logBtns("e_")); Promise.all([loadAirports(), loadAptNames()]).then(() => aptFlags("e_")); }
-  lbShowSig(); $("#lbSigBox").classList.add("hidden"); $("#lbSigOpen").textContent = "✍ Instructor signature";
-  lbPad.reset();   // a fresh pad for every flight (a signature drawn for another one must not carry over)
-  $("#lbSigState").innerHTML = f.remarkSig ? `<img src="${f.remarkSig}" alt="Instructor signature" class="sigthumb"> signed` : ""; loadAirports().then(() => gsCheck("e_"));
+  lbShowSig(); loadAirports().then(() => gsCheck("e_"));
   $("#lbEditTitle").textContent = (isSim(f) ? "Edit simulator session: " : "Edit flight: ") + flightLabel(f); $("#lbEditErr").innerHTML = back ? '<span style="color:var(--warn)">Your unsaved changes to this flight are back. Save flight to keep them, or Cancel.</span>' : "";
   $("#lbEdit").classList.remove("hidden"); $("#lbEdit").scrollIntoView({ behavior: "smooth", block: "start" });   // nothing focused: no date picker or keyboard popping up
 }
@@ -4411,7 +4425,7 @@ $("#lbEdit").addEventListener("submit", async e => {
   const { f, err } = isSim(lbEditing) ? readSimForm("e_", lbEditing) : readFlightForm("e_", lbEditing); if (err) return $("#lbEditErr").textContent = err;
   if (!isSim(lbEditing)) await loadAirports();
   const notes = isSim(lbEditing) ? [] : followChanges(lbEditing, f);
-  if (lbPad.inked()) f.remarkSig = await smallSigPNG($("#lbSigPad")); else if (lbSigDrop) delete f.remarkSig;
+  if (lbSigNew) f.remarkSig = lbSigNew; else if (lbSigDrop) delete f.remarkSig;
   if (data.flights.indexOf(lbEditing) !== at) return lbCloseEdit();
   data.flights[at] = f; data.flights.sort((a,b) => (a.date+a.out).localeCompare(b.date+b.out));
   const ctx = fixEditCtx; logEvent("edit_flight", { where: ctx ? "troubleshooting" : "logbook" });
