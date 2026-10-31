@@ -425,10 +425,12 @@ td.r,th.r{text-align:right}
 .rmhead{display:flex;justify-content:space-between;gap:10px 16px;flex-wrap:wrap;align-items:center;margin:0 0 12px}.rmctl{display:flex;gap:10px 16px;flex-wrap:wrap;align-items:center}
 .rmseg{display:flex;gap:4px;flex-wrap:wrap}.rmseg button,.rmseg select{border:1px solid var(--line);background:var(--surface);color:var(--muted);border-radius:99px;padding:6px 12px;font:500 13px Inter,sans-serif;cursor:pointer;width:auto}
 .rmseg .on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
-.rmstats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin:0 0 12px}.rmstats div{background:var(--bg);border-radius:10px;padding:10px 12px}
+.rmstats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin:0 0 12px}.rmstats>div{background:var(--bg);border-radius:10px;padding:10px 12px;display:flex;gap:10px;align-items:center;min-width:0}
+.rmic{flex:none;width:38px;height:38px;border-radius:50%;display:grid;place-items:center}.rmic.dist{background:#fdf0d8;color:#b97a0e}.rmic.earth{background:#dcefff;color:#1f6fb2}.rmic.moon{background:#ebe7fb;color:#5b4bb7}.rmic.plane{background:#dff3e8;color:#1f8a4c}.rmic.apt{background:#fde3e1;color:#c0362c}
+@media (prefers-color-scheme: dark){.rmic{filter:saturate(.9)}.rmic.dist{background:#3a2c12}.rmic.earth{background:#14304a}.rmic.moon{background:#2a2450}.rmic.plane{background:#173826}.rmic.apt{background:#43201d}.rmic.dist{color:#f2b544}.rmic.earth{color:#7cc0ff}.rmic.moon{color:#b5a8ff}.rmic.plane{color:#6fd39a}.rmic.apt{color:#ff8f86}}
 .rmstats .k{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}.rmstats .v{font:500 18px "JetBrains Mono",monospace;margin-top:2px}
 .routemap{height:440px;border-radius:12px;overflow:hidden;border:1px solid var(--line);background:#aad3df;position:relative;z-index:0}
-@media (max-width:700px){.routemap{height:320px}.rmstats{grid-template-columns:1fr 1fr}.rmstats div:first-child{grid-column:1 / -1}}
+@media (max-width:700px){.routemap{height:320px}.rmstats{grid-template-columns:1fr 1fr}.rmstats>div:first-child{grid-column:1 / -1}.rmic{width:32px;height:32px}.rmstats .v{font-size:16px}}
 @media (prefers-color-scheme: dark){.routemap{background:#1b2b36}.routemap .leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness(.9) contrast(.9)}}
 .repcard{border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:0 0 12px;background:var(--bg)}
 .rephd{display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap;word-break:break-all}
@@ -1953,7 +1955,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "31 Oct 2026 · 18";
+const APP_VERSION = "31 Oct 2026 · 19";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
@@ -2775,6 +2777,7 @@ async function parseEasaLogbookPDF(buf){
     put(L, lcell, "L"); put(R, rcell, "R");
     const txt = ws => (ws || []).sort((a, b) => a.y - b.y > 2 ? 1 : b.y - a.y > 2 ? -1 : a.x - b.x).map(w => w.s).join(" ").trim();
     const date = s => { const m = s && s.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})$/); return m ? iso(+m[3], +m[2], +m[1]) : ""; };
+    const n0 = out.flights.length;
     for (const { L: a, R: b } of lines) {
       const remarks = txt(b.remarks);
       // a simulator session printed across both pages (Flylog book): on the left only its date and the instructor's name
@@ -2809,7 +2812,9 @@ async function parseEasaLogbookPDF(buf){
     if (spreads === 1) out.prev = totals(labels.prev);
     out.check = totals(labels.all) || out.check;
     // the PDF's own page totals, added up: when they agree with what we read but the last page doesn't, its running total is off
-    const th = totals(labels.this); if (th) out.pageSum = (out.pageSum || 0) + (th.total || th.se + th.me + th.mp); else out.pageSum = NaN;
+    const th = totals(labels.this), thT = th ? th.total || th.se + th.me + th.mp : NaN;
+    // each page: its printed page total against the flights read on it (pages that differ point to the line that went wrong)
+    (out.pageChk ||= []).push([i + 1, thT, out.flights.slice(n0).reduce((s, f) => s + (f.total || 0), 0)]);
   }
   if (!spreads) return null;
   for (const [t, c] of Object.entries(out.clsCount || {})) out.classes[t] = Object.entries(c).sort((a, b) => b[1] - a[1])[0][0];
@@ -2834,10 +2839,15 @@ function easaCheck(r, file){
   const off = EASA_PREV.filter(k => sum[k] !== r.check[k]);
   const simNote = r.simIfr || r.simLdg ? `<div class="hint">The PDF also counts ${[r.simIfr ? fmtMin(r.simIfr) + " of simulator IFR time" : "", r.simLdg ? r.simLdg + " simulator landing" + (r.simLdg === 1 ? "" : "s") : ""].filter(Boolean).join(" and ")} in its totals; your logbook keeps those with the simulator sessions, not as flight time.</div>` : "";
   if (!off.length) return `<div><span style="color:var(--ok)">✓ <b>Matches your PDF's own totals</b></span> · ${fmtHrs(r.check.total)} total time${simNote}</div>`;
-  // only the total and its flying columns off, and the PDF's own page totals give what we read: the PDF carried a wrong total forward
-  if (off.includes("total") && off.every(c => ["total", "se", "me", "mp"].includes(c)) && Math.abs((r.prev?.total || 0) + r.pageSum - sum.total) <= 1)
-    return `<div class="notice" style="margin:10px 0;border-color:var(--warn)"><b style="color:var(--warn)">✓ Every page read correctly, but your PDF's running total is off</b>` +
-      `<div style="margin:4px 0 0">Its pages add up to <b>${fmtHrs(sum.total)}</b> total time (with what was brought forward), the same as we read. Its last page carries <b>${fmtHrs(r.check.total)}</b>, ${fmtHrs(Math.abs(sum.total - r.check.total))} ${sum.total > r.check.total ? "less" : "more"}: a mistake in the app that printed it. Your logbook here has the right figure.</div></div>`;
+  // only the total (and its SE / ME / multi-pilot split) off, and exactly by what some pages' printed "total this page" misses
+  // of their own lines: the PDF added up wrongly, not us. Shown with a page to check
+  const pcBad = (r.pageChk || []).filter(x => x[1] === x[1] && x[1] !== x[2]), pcDiff = pcBad.reduce((s, x) => s + x[2] - x[1], 0);
+  if (off.includes("total") && off.every(c => ["total", "se", "me", "mp"].includes(c)) && pcBad.length && Math.abs(pcDiff - (sum.total - r.check.total)) <= 1) {
+    const ex = pcBad[pcBad.length - 1];
+    return `<div class="notice" style="margin:10px 0;border-color:var(--warn)"><b style="color:var(--warn)">✓ Every line read, but your PDF adds up wrongly</b>` +
+      `<div style="margin:4px 0 0">On ${pcBad.length === 1 ? "one page" : pcBad.length + " pages"} the “total this page” your PDF prints isn't the sum of the lines above it. For example page ${ex[0]}: its lines add up to <b>${fmtHrs(ex[2])}</b>, the PDF prints ${fmtHrs(ex[1])}. ` +
+      `So its last page shows ${fmtHrs(r.check.total)} total time instead of <b>${fmtHrs(sum.total)}</b>. Your logbook here has the right figure.</div></div>`;
+  }
   // what doesn't add up, as a small table, and a way to send us the file
   const k = file && "f" + failedFiles.size; if (file) failedFiles.set(k, { file, error: "Totals don't match the PDF: " + off.map(c => `${PREV_LABEL[c]} read ${v(c, sum[c])}, PDF ${v(c, r.check[c])}`).join("; ") });
   return `<div class="notice" style="margin:10px 0;border-color:var(--bad)"><b style="color:var(--bad)">⚠ Doesn't add up to your PDF</b>` +
@@ -4304,11 +4314,12 @@ const acGuess = t => AC_SPSE.test(t) ? "SPSE" : AC_SPME.test(t) ? "SPME" : AC_MP
 const acClass = t => (data.acTypes || {})[t] || acGuess(t || "") || data.profile.crew || "MP";
 const acTypesFlown = () => { const n = {}; for (const f of data.flights) if (!isSim(f) && f.acType) n[f.acType] = (n[f.acType] || 0) + 1; return n; };
 function statTotals(F){
-  const o = { n: 0, sims: 0, fstd: 0, total: 0, pic: 0, copilot: 0, dual: 0, instructor: 0, night: 0, ifr: 0, mp: 0, me: 0, se: 0, ldg: 0, ldgNight: 0, last: "" };
+  const o = { n: 0, sims: 0, fstd: 0, total: 0, pic: 0, picus: 0, copilot: 0, dual: 0, instructor: 0, night: 0, ifr: 0, mp: 0, me: 0, se: 0, ldg: 0, ldgNight: 0, last: "" };
   for (const f of F) {
     if (isSim(f)) { o.sims++; o.fstd += f.fstdTime; continue; }
     o.n++;
     for (const k of ["total","pic","copilot","dual","instructor","night","ifr"]) o[k] += f[k] || 0;
+    if (PICUS_RE.test(f.remarks || "")) o.picus += f.pic || f.total || 0;   // PICUS: logged as PIC, counted on its own too
     const crew = acClass(f.acType);
     if (crew === "MP") o.mp += f.total || 0;
     if (crew === "SPSE") o.se += f.total || 0; else o.me += f.total || 0;
@@ -4331,14 +4342,14 @@ function renderStats(){
   $("#stEmpty").classList.toggle("hidden", !!any); $("#stBody").classList.toggle("hidden", !any);
   if (!any) return;
   const T = withPrev(statTotals(F)), h = fmtHrs;
-  const tiles = [["Total time", h(T.total)], ["PIC", h(T.pic)], ["Co-pilot (SIC)", h(T.copilot)], ["Multi-crew (multi-pilot)", h(T.mp)], ["Multi-engine", h(T.me)],
+  const tiles = [["Total time", h(T.total)], ["PIC", h(T.pic)], ...(T.picus ? [["…of which PICUS", h(T.picus)]] : []), ["Co-pilot (SIC)", h(T.copilot)], ["Multi-crew (multi-pilot)", h(T.mp)], ["Multi-engine", h(T.me)],
     ["Single-engine", h(T.se)], ["IFR", h(T.ifr)], ["Night", h(T.night)], ["Instructor", h(T.instructor)], ["Dual received", h(T.dual)], ["Sectors", T.n.toLocaleString()], ["Landings", `${T.ldg.toLocaleString()}${T.ldgNight ? ` (${T.ldgNight} night)` : ""}`],
     ["Simulator (FSTD)", `${h(T.fstd)}${T.sims ? ` · ${T.sims} session${T.sims === 1 ? "" : "s"}` : ""}`]];
   $("#stTiles").innerHTML = tiles.map(([k, v]) => `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`).join("");
   const ago = d => new Date(Date.now() - d*864e5).toISOString().slice(0, 10);
   const per = [["Last 28 days", 28], ["Last 90 days", 90], ["Last 6 months", 182], ["Last 12 months", 365], ["Last 24 months", 730], ["All time", 0]]
     .map(([k, d]) => [k, d ? statTotals(F.filter(f => f.date >= ago(d))) : withPrev(statTotals(F))]);
-  const cols = [["Total","total"],["PIC","pic"],["Co-pilot","copilot"],["Multi-crew","mp"],["IFR","ifr"],["Night","night"]];
+  const cols = [["Total","total"],["PIC","pic"],...(T.picus ? [["PICUS","picus"]] : []),["Co-pilot","copilot"],["Multi-crew","mp"],["IFR","ifr"],["Night","night"]];
   $("#stPeriods").innerHTML = `<table><thead><tr><th>Period</th>${cols.map(c => `<th class="r">${c[0]}</th>`).join("")}<th class="r">Sectors</th><th class="r">Landings</th></tr></thead><tbody>` +
     per.map(([k, o]) => `<tr${k === "All time" ? ' style="font-weight:700"' : ""}><td>${k}</td>${cols.map(c => `<td class="r">${h(o[c[1]])}</td>`).join("")}<td class="r">${o.n}</td><td class="r">${o.ldg}</td></tr>`).join("") + "</tbody></table>";
   // simulator sessions have their own tile, not an aircraft type
@@ -4357,6 +4368,15 @@ function renderStats(){
 /* Route map (Stats): the airports and routes of a period on OpenStreetMap (Leaflet), with the great-circle distance flown */
 const LEAFLET = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/";
 const EARTH_KM = 40075, MOON_KM = 384400;
+// the route map figures' icons (24px line icons, coloured by their tile)
+const RM_SVG = d => `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+const RM_ICON = {
+  dist: RM_SVG('<circle cx="5" cy="18" r="2"/><circle cx="19" cy="6" r="2"/><path d="M7 18h6a3 3 0 0 0 0-6h-2a3 3 0 0 1 0-6h6" stroke-dasharray="2.2 2.2"/>'),
+  earth: RM_SVG('<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>'),
+  moon: RM_SVG('<path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5z"/><path d="M15 4.5l.6 1.4 1.4.6-1.4.6-.6 1.4-.6-1.4-1.4-.6 1.4-.6z" fill="currentColor" stroke="none"/>'),
+  plane: RM_SVG('<path d="M10.5 21l1.5-3 1.5 3M12 18V14M21 13l-9-4.5V4.5a1.5 1.5 0 0 0-3 0v4L3 12v2l6-1.5v3.5l-2 1.5V19l3.5-1"/>'),
+  apt: RM_SVG('<path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/>')
+};
 let rMap = null, rLayer = null, rRange = "30";
 function loadCss(href){ return new Promise(r => { if ($(`link[href="${href}"]`)) return r(); const l = document.createElement("link"); l.rel = "stylesheet"; l.href = href; l.onload = l.onerror = r; document.head.appendChild(l); }); }
 // an airport's [lat, lon], by the code as logged or its ICAO / IATA twin
@@ -4391,8 +4411,8 @@ async function renderRouteMap(){
     if (f.from !== f.to) { const key = [f.from, f.to].sort().join("-"), l = legs.get(key) || { A, B, n: 0, k }; l.n++; legs.set(key, l); }
   }
   const n0 = x => Math.round(x).toLocaleString(), n2 = x => x < 10 ? x.toFixed(2) : x < 100 ? x.toFixed(1) : n0(x);
-  $("#rmStats").innerHTML = [["Distance flown", `${n0(km)} km`], ["Around the Earth", `${n2(km / EARTH_KM)}×`], ["To the Moon and back", `${n2(km / (2 * MOON_KM))}×`],
-    ["Flights", F.length.toLocaleString()], ["Airports", apts.size.toLocaleString()]].map(([k, v]) => `<div><div class="k">${k}</div><div class="v">${v}</div></div>`).join("");
+  $("#rmStats").innerHTML = [["dist", "Distance flown", `${n0(km)} km`], ["earth", "Around the Earth", `${n2(km / EARTH_KM)}×`], ["moon", "To the Moon and back", `${n2(km / (2 * MOON_KM))}×`],
+    ["plane", "Flights", F.length.toLocaleString()], ["apt", "Airports", apts.size.toLocaleString()]].map(([i, k, v]) => `<div><span class="rmic ${i}" aria-hidden="true">${RM_ICON[i]}</span><div><div class="k">${k}</div><div class="v">${v}</div></div></div>`).join("");
   $("#rmNote").textContent = (longest ? `Longest: ${longest.f.from}–${longest.f.to}, ${n0(longest.k)} km (great circle). ` : "") + (unknown ? `${unknown} flight${unknown === 1 ? "" : "s"} with an airport we don't know ${unknown === 1 ? "is" : "are"} not on the map or in the distance. ` : "") +
     "Distances are great-circle, airport to airport. Around the Earth: 40,075 km; the Moon: 384,400 km away.";
   if (!F.length && !rMap) { box.innerHTML = `<p class="hint" style="padding:16px;margin:0">No flights in this period.</p>`; }
@@ -4443,7 +4463,7 @@ function statSummary(){
   const flown = F.filter(f => !isSim(f)), first = flown[0]?.date, lastF = flown.length ? flown.reduce((m, f) => f.date > m ? f.date : m, "") : "";
   const out = [`FLIGHT HOURS${P.name ? " · " + P.name : ""}`,
     [P.type, P.lic].filter(Boolean).join(" · "), `As of ${fmtDate(todayISO())}`].filter(Boolean);
-  out.push("", "TOTALS", `Total time: ${h(T.total)}`, ...nz("Multi-pilot", T.mp), ...nz("IFR", T.ifr), ...nz("PIC", T.pic), ...nz("Co-pilot", T.copilot), ...nz("Night", T.night),
+  out.push("", "TOTALS", `Total time: ${h(T.total)}`, ...nz("Multi-pilot", T.mp), ...nz("IFR", T.ifr), ...nz("PIC", T.pic, T.picus ? ` (of which PICUS ${h(T.picus)})` : ""), ...nz("Co-pilot", T.copilot), ...nz("Night", T.night),
     ...nz("Multi-engine", T.me), ...nz("Single-engine", T.se), ...nz("Instructor", T.instructor), ...nz("Dual received", T.dual),
     ...nz("Simulator (FSTD)", T.fstd, T.sims ? ` (${T.sims.toLocaleString()} session${T.sims === 1 ? "" : "s"})` : ""),
     `Sectors: ${T.n.toLocaleString()} · Landings: ${T.ldg.toLocaleString()}`);
@@ -4451,7 +4471,7 @@ function statSummary(){
   const by = {}; for (const f of flown) (by[f.acType || "Type not given"] ||= []).push(f);
   const types = Object.entries(by).map(([t, fl]) => [t, statTotals(fl)]).sort((a, b) => b[1].total - a[1].total);
   if (types.length) out.push("", "BY AIRCRAFT TYPE", ...types.map(([t, o]) => `${t}: ${h(o.total)}` +
-    [o.pic && `PIC ${h(o.pic)}`, o.copilot && `co-pilot ${h(o.copilot)}`, o.instructor && `instructor ${h(o.instructor)}`, o.dual && `dual ${h(o.dual)}`, `${o.n.toLocaleString()} sector${o.n === 1 ? "" : "s"}`, o.last && `last flown ${fmtDate(o.last).slice(3)}`].filter(Boolean).map(x => " · " + x).join("")));
+    [o.pic && `PIC ${h(o.pic)}`, o.picus && `PICUS ${h(o.picus)}`, o.copilot && `co-pilot ${h(o.copilot)}`, o.instructor && `instructor ${h(o.instructor)}`, o.dual && `dual ${h(o.dual)}`, `${o.n.toLocaleString()} sector${o.n === 1 ? "" : "s"}`, o.last && `last flown ${fmtDate(o.last).slice(3)}`].filter(Boolean).map(x => " · " + x).join("")));
   // recent flying: only the periods with any
   const ago = d => new Date(Date.now() - d * 864e5).toISOString().slice(0, 10);
   const rec = [["Last 28 days", 28], ["Last 90 days", 90], ["Last 12 months", 365], ["Last 24 months", 730]].map(([k, d]) => [k, statTotals(F.filter(f => f.date >= ago(d)))]).filter(([, o]) => o.total);
