@@ -434,6 +434,7 @@ td.r,th.r{text-align:right}
 @media (prefers-color-scheme: dark){.routemap{background:#1b2b36}.routemap:not(.mt) .leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness(.9) contrast(.9)}}
 .hlimhead{display:flex;justify-content:space-between;align-items:baseline;margin:0 0 6px}.linkbtn{background:none;border:0;color:var(--brand);font:600 13.5px Inter,sans-serif;cursor:pointer;padding:4px 0}
 .limrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 0;border-bottom:1px solid var(--line)}.limrow select{width:auto;flex:1 1 170px}.limrow input{width:84px}
+.routemap .leaflet-control-layers{border-radius:10px;font:500 12.5px Inter,sans-serif;box-shadow:0 2px 10px rgba(0,0,0,.25)}.routemap .leaflet-control-layers-expanded{padding:6px 10px}
 .repcard{border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:0 0 12px;background:var(--bg)}
 .rephd{display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap;word-break:break-all}
 .repctl{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;margin-top:8px}
@@ -1983,7 +1984,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "31 Oct 2026 · 25";
+const APP_VERSION = "31 Oct 2026 · 26";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
@@ -4500,20 +4501,27 @@ async function renderRouteMap(){
     rMap._tiles = mapTiles().addTo(rMap); }
   rLayer?.remove(); rLayer = L.layerGroup().addTo(rMap);
   for (const l of Ls) L.polyline(gcPath(l.A, l.B), { color: acc, weight: line(l), opacity: .75, interactive: false }).addTo(rLayer);
-  for (const a of A) L.circleMarker(a.ll, { radius: dot(a), color: "#fff", weight: 1, fillColor: brand, fillOpacity: .95 }).bindTooltip(esc(label(a))).addTo(rLayer);
+  const sat = $("#routeMap").classList.contains("sat");
+  for (const a of A) L.circleMarker(a.ll, { radius: dot(a), color: sat ? "#0b1a26" : "#fff", weight: 1, fillColor: sat ? "#fff" : brand, fillOpacity: .95 }).bindTooltip(esc(label(a))).addTo(rLayer);
   rMap.invalidateSize();
   const pts = A.map(a => a.ll); if (pts.length > 1) rMap.fitBounds(pts, { padding: [24, 24], maxZoom: 7 }); else if (pts.length) rMap.setView(pts[0], 6);
 }
-// the map underneath: MapTiler "Dataviz" (light or dark, like the phone) with a key, else OpenStreetMap. A refused MapTiler key
-// (no tile loads, several errors) falls back to OpenStreetMap
+// the map underneath: with a MapTiler key, satellite imagery (default) or the calm Dataviz map, switched in the map's corner and
+// remembered on this device; without a key, or if MapTiler refuses it (no tile loads, several errors), OpenStreetMap
 function mapTiles(){
   const osm = () => L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 12, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' });
-  if (!CONFIG.MAPTILER_KEY) { $("#routeMap").classList.remove("mt"); return osm(); }
-  const style = matchMedia("(prefers-color-scheme: dark)").matches ? "dataviz-dark" : "dataviz";
-  const t = L.tileLayer(`https://api.maptiler.com/maps/${style}/{z}/{x}/{y}.png?key=${encodeURIComponent(CONFIG.MAPTILER_KEY)}`, { tileSize: 512, zoomOffset: -1, minZoom: 1, maxZoom: 12, crossOrigin: true,
-    attribution: '<a href="https://www.maptiler.com/copyright/" target="_blank">&copy; MapTiler</a> <a href="https://www.openstreetmap.org/copyright" target="_blank">&copy; OpenStreetMap contributors</a>' });
-  let ok = 0, bad = 0; t.on("tileload", () => ok++); t.on("tileerror", () => { if (++bad >= 4 && !ok && rMap) { console.warn("MapTiler tiles refused: OpenStreetMap instead"); rMap.removeLayer(t); $("#routeMap").classList.remove("mt"); rMap._tiles = osm().addTo(rMap); } });
-  $("#routeMap").classList.add("mt"); return t;
+  const box = $("#routeMap"); if (!CONFIG.MAPTILER_KEY) { box.classList.remove("mt"); return osm(); }
+  const attr = '<a href="https://www.maptiler.com/copyright/" target="_blank">&copy; MapTiler</a> <a href="https://www.openstreetmap.org/copyright" target="_blank">&copy; OpenStreetMap contributors</a>';
+  const mt = (style, ext) => { const t = L.tileLayer(`https://api.maptiler.com/maps/${style}/{z}/{x}/{y}.${ext}?key=${encodeURIComponent(CONFIG.MAPTILER_KEY)}`, { tileSize: 512, zoomOffset: -1, minZoom: 1, maxZoom: 12, crossOrigin: true, attribution: attr });
+    let ok = 0, bad = 0; t.on("tileload", () => ok++);
+    t.on("tileerror", () => { if (++bad >= 4 && !ok && rMap?.hasLayer(t)) { console.warn("MapTiler tiles refused: OpenStreetMap instead"); rMap.removeLayer(t); box.classList.remove("mt"); osm().addTo(rMap); } });
+    return t; };
+  const layers = { Satellite: mt("satellite", "jpg"), Map: mt(matchMedia("(prefers-color-scheme: dark)").matches ? "dataviz-dark" : "dataviz", "png") };
+  let pick = "Satellite"; try { pick = localStorage.getItem("cbl_maplayer") === "Map" ? "Map" : "Satellite"; } catch {}
+  box.classList.add("mt"); box.classList.toggle("sat", pick === "Satellite");
+  setTimeout(() => { if (!rMap) return; L.control.layers(layers, null, { position: "topright", collapsed: false }).addTo(rMap);
+    rMap.on("baselayerchange", e => { box.classList.toggle("sat", e.name === "Satellite"); try { localStorage.setItem("cbl_maplayer", e.name); } catch {} renderRouteMap(); }); });
+  return layers[pick];
 }
 // Google Maps: loaded once with the site's key; false if it can't load (no connection, key refused), and OpenStreetMap is used
 let gmapsP = null, gMap = null, gItems = [];
