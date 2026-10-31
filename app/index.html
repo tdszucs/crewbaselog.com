@@ -437,6 +437,7 @@ td.r,th.r{text-align:right}
 .rmdates{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:-4px 0 12px}.rmdates label{margin:0;font-size:13px;color:var(--muted)}.rmdates input{width:auto}
 .rmpop{font:13px/1.45 Inter,sans-serif;min-width:190px}.rmpop b{font-size:15px}.rmpoph{display:flex;gap:10px;align-items:flex-start}.rmflag{font-size:28px;line-height:1}.rmpopn{font:600 15px "JetBrains Mono",monospace;margin:6px 0 2px}
 .routemap path.leaflet-interactive{cursor:pointer}
+.flagimg{vertical-align:-2px;border-radius:2px;box-shadow:0 0 0 1px rgba(0,0,0,.12);object-fit:cover}.rmflag .flagimg{vertical-align:top;margin-top:2px}
 .repcard{border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:0 0 12px;background:var(--bg)}
 .rephd{display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap;word-break:break-all}
 .repctl{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;margin-top:8px}
@@ -1987,7 +1988,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "31 Oct 2026 · 34";
+const APP_VERSION = "31 Oct 2026 · 35";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
@@ -2524,6 +2525,8 @@ function loadAptNames(){
     if (!L.length) aptNamesP = null; return L; });
 }
 // a country's flag from its two-letter code (emoji: regional indicator letters)
+// as a small picture (flagcdn.com): Windows doesn't draw flag emoji, a picture shows everywhere
+const flagImg = (cc, w = 20) => /^[A-Z]{2}$/.test(cc || "") ? `<img class="flagimg" src="https://flagcdn.com/w40/${cc.toLowerCase()}.png" alt="${cc}" width="${w}" height="${Math.round(w * 3 / 4)}" loading="lazy">` : "";
 const flagOf = cc => /^[A-Z]{2}$/.test(cc || "") ? String.fromCodePoint(...[...cc].map(ch => 0x1F1A5 + ch.charCodeAt(0))) : "";
 // the country: from the airport list, else (a small airfield) from its ICAO prefix (LH → Hungary, K → United States)
 let ICAO_CC = null;
@@ -2540,7 +2543,7 @@ function aptFlags(pre){
     const i = $("#" + pre + k), f = $("#" + pre + k + "Flag"); if (!i || !f) continue;
     // 3 letters while still typing may be the start of an ICAO code (EDD… for EDDF): its flag waits until the box is left
     const c = i.value.trim().toUpperCase(), cc = c.length === 4 || (c.length === 3 && document.activeElement !== i) ? aptCountry(c) : "";
-    f.textContent = flagOf(cc); f.title = cc ? aptName(c) || aptName(aptAlt()[c]) : ""; i.classList.toggle("hasflag", !!cc);
+    f.innerHTML = flagImg(cc, 18); f.title = cc ? aptName(c) || aptName(aptAlt()[c]) : ""; i.classList.toggle("hasflag", !!cc);
   }
 }
 document.addEventListener("focusout", e => { const m = (e.target.id || "").match(/^(n_|e_)(from|to)$/); if (m) setTimeout(() => aptFlags(m[1])); });
@@ -3847,7 +3850,7 @@ function flightSuggest(pre, k){
       for (const r of [...byCode, ...byName]) { const v = show(r); if (!v || seen.has(r[0]) || seen.has(r[1])) continue; seen.add(r[0]); seen.add(r[1]); list.push({ v, note: "" }); if (list.length >= 40) break; }
     }
     if (val.length >= 3 && AIRPORTS && !list.some(o => o.v === sty(val) || alt(o.v) === val)) { const c = AIRPORTS[val] ? sty(val) : ""; if (c) list.push({ v: c, note: "airfield" }); }
-    return list.slice(0, 40).map(o => ({ ...o, label: o.v + (alt(o.v) ? ` · ${alt(o.v)}` : ""), name: (f => f ? f + " " : "")(flagOf(aptCountry(o.v) || aptCountry(alt(o.v)))) + (aptName(o.v) || aptName(alt(o.v))) }));
+    return list.slice(0, 40).map(o => ({ ...o, label: o.v + (alt(o.v) ? ` · ${alt(o.v)}` : ""), cc: aptCountry(o.v) || aptCountry(alt(o.v)), name: aptName(o.v) || aptName(alt(o.v)) }));
   }
   // total and function times: the block time worked out from off-block and on-block (and the total, once entered)
   if (FN_KEYS.includes(k)) {
@@ -4338,7 +4341,7 @@ function showSuggest(inp){
   if (!list.length || (list.length === 1 && list[0].v.toUpperCase() === inp.value.trim().toUpperCase())) { box?.remove(); return; }
   inp.parentNode.classList.add("sugwrap");   // the field's own box anchors the list: moving the input would take its focus (and the keyboard) away
   box ||= inp.parentNode.appendChild(Object.assign(document.createElement("div"), { className: "sugbox" }));
-  box.innerHTML = list.map((o, i) => `<button type="button" data-sug="${i}"${o.name ? ' class="apt"' : ""}><b>${esc(o.label)}</b><span>${esc(o.note || "")}</span>${o.name ? `<small>${esc(o.name)}</small>` : ""}</button>`).join("");
+  box.innerHTML = list.map((o, i) => `<button type="button" data-sug="${i}"${o.name ? ' class="apt"' : ""}><b>${esc(o.label)}</b><span>${esc(o.note || "")}</span>${o.name ? `<small>${o.cc ? flagImg(o.cc, 16) + " " : ""}${esc(o.name)}</small>` : ""}</button>`).join("");
   box._list = list; box._inp = inp;
   // a field in the right-hand column: the list opens leftwards, so it stays on screen
   const r = inp.getBoundingClientRect(); box.style.left = r.left > innerWidth / 2 ? "auto" : "0"; box.style.right = r.left > innerWidth / 2 ? "0" : "auto";
@@ -4503,7 +4506,7 @@ async function renderRouteMap(){
   // a tap on an airport: its name, visits (departures and arrivals), first and last visit, and the places flown to and from most
   const pop = a => { const r = APT_NAME?.[a.c] || APT_NAME?.[aptAlt()[a.c]], cc = aptCountry(a.c), top = Object.entries(a.peers).sort((x, y) => y[1] - x[1]).slice(0, 5);
     const codes = r ? [r[1], r[0]].filter(Boolean).filter((x, i, A) => A.indexOf(x) === i).join(" / ") : a.c;
-    return `<div class="rmpop"><div class="rmpoph">${cc ? `<span class="rmflag" title="${esc(cc)}">${flagOf(cc)}</span>` : ""}<div><b>${esc(r ? r[2] : a.c)}</b>` +
+    return `<div class="rmpop"><div class="rmpoph">${cc ? `<span class="rmflag" title="${esc(countryName(cc))}">${flagImg(cc, 32)}</span>` : ""}<div><b>${esc(r ? r[2] : a.c)}</b>` +
       `<div class="hint" style="margin:0">${esc([codes, r?.[3], r?.[4] && r[4] !== r?.[3] ? countryName(r[4]) : ""].filter(Boolean).join(" · "))}</div></div></div><div class="rmpopn">${a.n.toLocaleString()} visit${a.n === 1 ? "" : "s"}</div>` +
       `<div>${a.dep.toLocaleString()} departure${a.dep === 1 ? "" : "s"} · ${a.arr.toLocaleString()} arrival${a.arr === 1 ? "" : "s"}</div><div class="hint" style="margin:0">${a.first === a.last ? fmtDate(a.first) : `first ${fmtDate(a.first)} · last ${fmtDate(a.last)}`}</div>` +
       (top.length ? `<div style="margin-top:6px">${top.map(([c, n]) => `${esc(c)} <span class="hint" style="margin:0">${n}×</span>`).join(" · ")}</div>` : "") + `</div>`; };
