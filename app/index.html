@@ -816,7 +816,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
         <div class="stats" id="stTiles"></div>
         <div class="card" id="rmCard">
           <div class="rmhead"><h3 style="margin:0">Routes flown</h3>
-            <div class="rmctl"><div class="rmseg" role="group" aria-label="Period"><button type="button" data-rm="30" class="on">Last 30 days</button><button type="button" data-rm="ytd">This year</button><select id="rmYear" aria-label="Year"></select><button type="button" data-rm="all">All flights</button></div>
+            <div class="rmctl"><div class="rmseg" role="group" aria-label="Period"><button type="button" data-rm="30">Last 30 days</button><button type="button" data-rm="ytd">This year</button><select id="rmYear" aria-label="Year"></select><button type="button" data-rm="all" class="on">All flights</button></div>
               <label class="tick" style="margin:0"><input type="checkbox" id="rmLines" checked> <span>Connect with lines</span></label></div></div>
           <div class="rmstats" id="rmStats"></div>
           <div id="routeMap" class="routemap"><p class="hint" style="padding:16px;margin:0">Loading the map…</p></div>
@@ -1984,7 +1984,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "31 Oct 2026 · 27";
+const APP_VERSION = "31 Oct 2026 · 28";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
@@ -4450,7 +4450,7 @@ const RM_ICON = {
   plane: RM_SVG('<path d="M10.5 21l1.5-3 1.5 3M12 18V14M21 13l-9-4.5V4.5a1.5 1.5 0 0 0-3 0v4L3 12v2l6-1.5v3.5l-2 1.5V19l3.5-1"/>'),
   apt: RM_SVG('<path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/>')
 };
-let rMap = null, rLayer = null, rRange = "30";
+let rMap = null, rLayer = null, rRange = "all";
 function loadCss(href){ return new Promise(r => { if ($(`link[href="${href}"]`)) return r(); const l = document.createElement("link"); l.rel = "stylesheet"; l.href = href; l.onload = l.onerror = r; document.head.appendChild(l); }); }
 // an airport's [lat, lon], by the code as logged or its ICAO / IATA twin
 const aptLL = c => AIRPORTS?.[c] || AIRPORTS?.[aptAlt()[c]] || null;
