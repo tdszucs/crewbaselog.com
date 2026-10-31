@@ -177,7 +177,7 @@ h2{font-size:24px;letter-spacing:-.02em;margin:0 0 6px}
 .sigthumb{height:30px;vertical-align:middle;background:#fff;border:1px solid var(--line);border-radius:6px;padding:1px 6px}
 .ldsig{display:flex;align-items:center;gap:10px;margin:10px 0 0}.ldsig img{height:40px;max-width:60%;background:#fff;border:1px solid var(--line);border-radius:8px;padding:2px 8px}
 .extras{display:flex;flex-direction:column;gap:12px;padding:12px 0 0;border-top:1px solid var(--line)}.tick{display:flex;gap:10px;align-items:flex-start;font-weight:400;margin:0;cursor:pointer}.tick input{width:22px;height:22px;flex:none;margin:1px 0 0}.tick .hint{display:block;font-size:13px}
-.crewbox{display:flex;flex-wrap:wrap;align-items:center;gap:8px}.clabel{font-weight:600;font-size:14px;margin-right:4px}.crewlist{display:contents}.crewchip{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:10px;background:var(--bg);padding:0 2px 0 0}.crewchip input{border:0;background:transparent;width:120px;padding:8px 10px;text-transform:uppercase}.crewx{border:0;background:none;font-size:18px;color:var(--muted);cursor:pointer;padding:0 8px}
+.crewbox{display:flex;flex-wrap:wrap;align-items:center;gap:8px}.clabel{font-weight:600;font-size:14px;margin-right:4px}.crewlist{display:contents}.crewchip{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:10px;background:var(--bg);padding:0 2px 0 0}.crole{font-size:11.5px;font-weight:600;color:var(--muted);padding:0 4px 0 10px;white-space:nowrap}.crewchip input{border:0;background:transparent;width:120px;padding:8px 10px;text-transform:uppercase}.crewx{border:0;background:none;font-size:18px;color:var(--muted);cursor:pointer;padding:0 8px}
 .lbline tr.mark td{background:var(--accent-soft);font-weight:600}
 .lbdetail{border:1px solid var(--brand);border-top:0;border-radius:0 0 12px 12px;background:var(--surface);padding:10px 14px 14px;margin:0 0 8px}
 .ldhead{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:0 0 8px;font-size:14px}.ldx{border:0;background:var(--bg);color:var(--ink);width:32px;height:32px;border-radius:50%;font-size:20px;line-height:1;cursor:pointer;flex:none}
@@ -1760,7 +1760,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "31 Oct 2026 · 6";
+const APP_VERSION = "31 Oct 2026 · 7";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
@@ -3256,7 +3256,7 @@ const draftKey = () => "cbl_draft_" + (user?.id || "");
 function draftValues(){
   const v = {}; for (const el of $$("#addFields [id^=n_]")) if (el.type === "checkbox" ? el.checked : el.value) v[el.id.slice(2)] = el.type === "checkbox" ? true : el.value;
     const pf = pfOf("n_"); if (pf) v._pf = pf; const rs = $("#n_relShare")?.dataset; if (rs?.share) Object.assign(v, { _share: rs.share, _keys: rs.keys || "", _full: rs.full || "" }); if ($("#n_total")?.dataset.auto) v._auto = 1; v._kind = addSim() ? "sim" : "flight";
-  return Object.keys(v).some(k => !k.startsWith("_") && !(k === "flightNo" && v[k] === data.profile.airline) && !(k === "date" && v[k] === logToday()) && !(k === "reg" && /-$/.test(v[k]))) ? v : null;
+  return Object.keys(v).some(k => !k.startsWith("_") && !(k === "flightNo" && v[k] === data.profile.airline) && !(k === "date" && v[k] === logToday()) && !(k === "reg" && /-$/.test(v[k])) && !(k === "crew" && v[k] === "SELF")) ? v : null;
 }
 function saveDraft(){ try { const v = draftValues(); if (v) localStorage.setItem(draftKey(), JSON.stringify(v)); else localStorage.removeItem(draftKey()); } catch {} }
 const dropDraft = () => { try { localStorage.removeItem(draftKey()); } catch {} };
@@ -4238,25 +4238,36 @@ const addSigHTML = () => addSig ? `<img src="${addSig}" alt="PIC signature" clas
   : `<button class="btn small" type="button" data-addsign>✍ PIC signs</button><span class="hint" style="margin:0">opens a signing pad</span>`;
 /* above Remarks: PICUS (a tick: PIC time, "(PICUS)" in the remarks, the PIC signs) and the crew on board (+ to add a name) */
 function extrasHTML(pre, f){
-  const picus = /\bPIC\s*\(?\s*US\s*\)?|\bPICUS\b/i.test(f.remarks || ""), crew = f.crew || [];
+  // a new flight of a first officer: SELF is the SIC from the start
+  const picus = /\bPIC\s*\(?\s*US\s*\)?|\bPICUS\b/i.test(f.remarks || ""), crew = f.crew || (pre === "n_" && data.profile.role === "CP" ? ["SELF"] : []);
   return `<div class="field wide extras"><label class="tick"><input type="checkbox" id="${pre}picus"${picus ? " checked" : ""}> <span><b>PICUS</b> <span class="hint">pilot in command under supervision: PIC time, (PICUS) in the remarks, signed by the PIC</span></span></label>` +
     (pre === "n_" ? (addSig = "", `<div class="${picus ? "" : "hidden "}sigbox" id="n_sigBox" style="margin:8px 0 4px"><div class="sigline" id="n_sigLine">${addSigHTML()}</div></div>`) : "") +
-    `<div class="crewbox"><span class="clabel">Crew</span><span class="crewlist" id="${pre}crewList">${crew.map(n => crewChip(n)).join("")}</span><button class="btn ghost small" type="button" data-crewadd="${pre}">+ Add crew</button>
+    `<div class="crewbox"><span class="clabel">Crew</span><span class="crewlist" id="${pre}crewList">${crew.map(crewChip).join("")}</span><button class="btn ghost small" type="button" data-crewadd="${pre}">${crewAddLabel(crew.length)}</button>
       <input type="hidden" id="${pre}crew" value="${esc(crew.join(";"))}"></div></div>`;
 }
-const crewChip = n => `<span class="crewchip"><input class="crewin" list="crewNames" value="${esc(n)}" placeholder="Name" autocapitalize="characters" autocomplete="off" aria-label="Crew member"><button type="button" class="crewx" aria-label="Remove">×</button></span>`;
+/* Crew by position: the first is the SIC (second in command), then Relief 1, Relief 2 ... */
+const crewRole = i => i ? "Relief " + i : "SIC";
+const crewAddLabel = n => n ? "+ Add relief" : "+ Add SIC";
+const crewText = crew => (crew || []).map((n, i) => n && `${crewRole(i)} ${n}`).filter(Boolean).join(", ");
+const crewTrim = a => { a = a.slice(); while (a.length && !a[a.length - 1]) a.pop(); return a; };
+const crewChip = (n, i) => `<span class="crewchip"><span class="crole">${crewRole(i)}</span><input class="crewin" list="crewNames" value="${esc(n)}" placeholder="Name" autocapitalize="characters" autocomplete="off" aria-label="${crewRole(i)}"><button type="button" class="crewx" aria-label="Remove">×</button></span>`;
 // the names in the hidden box (kept in the draft), and the names to suggest: crew and PICs of earlier flights
-function crewSync(pre){ const h = $("#" + pre + "crew"); if (!h) return; h.value = $$(`#${pre}crewList .crewin`).map(i => i.value.trim().toUpperCase()).filter(Boolean).join(";"); }
+function crewSync(pre){ const h = $("#" + pre + "crew"); if (!h) return; h.value = crewTrim($$(`#${pre}crewList .crewin`).map(i => i.value.trim().toUpperCase())).join(";"); }
+function crewRelabel(pre){ $$(`#${pre}crewList .crewchip`).forEach((c, i) => { c.querySelector(".crole").textContent = crewRole(i); c.querySelector("input").setAttribute("aria-label", crewRole(i)); });
+  const b = $(`[data-crewadd="${pre}"]`); if (b) b.textContent = crewAddLabel($$(`#${pre}crewList .crewchip`).length); }
 function crewNames(){
   let dl = $("#crewNames"); if (!dl) { dl = document.createElement("datalist"); dl.id = "crewNames"; document.body.appendChild(dl); }
-  const n = new Map(); for (const f of data.flights) for (const x of [...(f.crew || []), /^self$/i.test(f.picName || "") ? "" : f.picName]) if (x) n.set(x.toUpperCase(), (n.get(x.toUpperCase()) || 0) + 1);
+  const n = new Map(); for (const f of data.flights) for (const x of [...(f.crew || []), f.picName]) if (x && !/^self$/i.test(x)) n.set(x.toUpperCase(), (n.get(x.toUpperCase()) || 0) + 1);
   dl.innerHTML = [...n.entries()].sort((a, b) => b[1] - a[1]).slice(0, 200).map(([v]) => `<option value="${esc(v)}">`).join("");
 }
-function crewRender(pre){ const h = $("#" + pre + "crew"), L = $("#" + pre + "crewList"); if (h && L) L.innerHTML = h.value.split(";").filter(Boolean).map(crewChip).join(""); }
+function crewRender(pre){ const h = $("#" + pre + "crew"), L = $("#" + pre + "crewList"); if (h && L) { L.innerHTML = (h.value ? h.value.split(";") : []).map(crewChip).join(""); crewRelabel(pre); } }
 document.addEventListener("click", e => {
   const add = e.target.closest("[data-crewadd]"), x = e.target.closest(".crewx");
-  if (add) { const pre = add.dataset.crewadd; crewNames(); $("#" + pre + "crewList").insertAdjacentHTML("beforeend", crewChip("")); $(`#${pre}crewList .crewchip:last-child input`).focus(); }
-  if (x) { const L = x.closest(".crewlist"), pre = L.id.slice(0, 2); x.closest(".crewchip").remove(); crewSync(pre); $("#" + pre + "crew").dispatchEvent(new Event("input", { bubbles: true })); }
+  if (add) { const pre = add.dataset.crewadd; crewNames(); $("#" + pre + "crewList").insertAdjacentHTML("beforeend", crewChip("", $$(`#${pre}crewList .crewchip`).length)); crewRelabel(pre); $(`#${pre}crewList .crewchip:last-child input`).focus(); }
+  if (x) { const L = x.closest(".crewlist"), pre = L.id.slice(0, 2), chip = x.closest(".crewchip"), all = [...L.querySelectorAll(".crewchip")];
+    // the SIC with relief crew after it: only the name goes, so Relief 1 stays Relief 1
+    if (chip === all[0] && all.length > 1) chip.querySelector("input").value = ""; else chip.remove();
+    crewSync(pre); crewRender(pre); $("#" + pre + "crew").dispatchEvent(new Event("input", { bubbles: true })); }
 });
 document.addEventListener("input", e => { if (!e.target.classList?.contains("crewin")) return; const el = e.target, at = el.selectionStart; el.value = el.value.toUpperCase(); try { el.setSelectionRange(at, at); } catch {} const pre = el.closest(".crewlist").id.slice(0, 2); crewSync(pre); if (pre === "n_") saveDraft(); });
 // PICUS ticked: PIC time (the whole flight), no co-pilot time, "(PICUS)" in front of the remarks, and the PIC signs
@@ -4304,7 +4315,7 @@ function readFlightForm(pre, base = {}){
   f.flightNo = f.flightNo === data.profile.airline ? "" : withAirline(f.flightNo);
   f.from = aptStyle(f.from); f.to = aptStyle(f.to);
   f.acType = acTypeName(g("acType")); f.picName = g("picName"); f.remarks = g("remarks");
-  const crew = ($("#" + pre + "crew")?.value || "").split(";").map(x => x.trim()).filter(Boolean); if (crew.length) f.crew = crew; else delete f.crew;
+  const crew = crewTrim(($("#" + pre + "crew")?.value || "").split(";").map(x => x.trim().toUpperCase())); if (crew.some(Boolean)) f.crew = crew; else delete f.crew;
   for (const k of LB_TIME) { f[k] = formTime(g(k)); if (g(k) && !f[k]) bad.push(k); }
   for (const k of LB_DUR) { f[k] = parseDur(g(k)); if (g(k) && !f[k] && !/^0*[:.]?0*$/.test(g(k))) bad.push(k); }
   for (const k of ["ldgDay","ldgNight"]) f[k] = Math.max(0, parseInt(g(k)) || 0);
@@ -4401,7 +4412,7 @@ function lbShow(i, card){
     ["Date", fmtDate(f.date)], ["Flight", f.flightNo || "–"], ["Route", `${f.from || "?"} → ${f.to || "?"}`], ["Aircraft", [f.acType, f.reg].filter(Boolean).join(" · ") || "–"],
     ["Off-block / take-off", `${f.out || "–"} / ${f.off || "–"}`], ["Landing / on-block", `${f.on || "–"} / ${f.in || "–"}`], ["Name of PIC", f.picName || "–"], ["Total time", t(f.total)],
     ["PIC", t(f.pic)], ["Co-pilot", t(f.copilot)], ["Dual", t(f.dual)], ["Instructor", t(f.instructor)], ["Night", t(f.night)], ["IFR", t(f.ifr)],
-    ["Landings day / night", `${f.ldgDay || 0} / ${f.ldgNight || 0}`], ["Crew", (f.crew || []).join(", ") || "–"], ["Remarks", f.remarks || "–"]];
+    ["Landings day / night", `${f.ldgDay || 0} / ${f.ldgNight || 0}`], ["Crew", crewText(f.crew) || "–"], ["Remarks", f.remarks || "–"]];
   (card || $(`#lbTable .lbcard[data-edit="${i}"]`))?.classList.add("open");
   (card || $(`#lbTable .lbcard[data-edit="${i}"]`))?.insertAdjacentHTML("afterend", `<div class="lbdetail" data-i="${i}">
     <div class="ldhead"><b>${esc(flightLabel(f))}</b><button type="button" class="ldx" data-dclose aria-label="Close">×</button></div>
