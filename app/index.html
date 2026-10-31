@@ -434,7 +434,9 @@ td.r,th.r{text-align:right}
 @media (prefers-color-scheme: dark){.routemap{background:#1b2b36}.routemap:not(.mt) .leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness(.9) contrast(.9)}}
 .hlimhead{display:flex;justify-content:space-between;align-items:baseline;margin:0 0 6px}.linkbtn{background:none;border:0;color:var(--brand);font:600 13.5px Inter,sans-serif;cursor:pointer;padding:4px 0}
 .limrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 0;border-bottom:1px solid var(--line)}.limrow select{width:auto;flex:1 1 170px}.limrow input{width:84px}
-.routemap .leaflet-control-layers{border-radius:10px;font:500 12.5px Inter,sans-serif;box-shadow:0 2px 10px rgba(0,0,0,.25)}.routemap .leaflet-control-layers-expanded{padding:6px 10px}
+.rmdates{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:-4px 0 12px}.rmdates label{margin:0;font-size:13px;color:var(--muted)}.rmdates input{width:auto}
+.rmpop{font:13px/1.45 Inter,sans-serif;min-width:170px}.rmpop b{font-size:15px}.rmpopn{font:600 15px "JetBrains Mono",monospace;margin:6px 0 2px}
+.routemap path.leaflet-interactive{cursor:pointer}
 .repcard{border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:0 0 12px;background:var(--bg)}
 .rephd{display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap;word-break:break-all}
 .repctl{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;margin-top:8px}
@@ -816,8 +818,9 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
         <div class="stats" id="stTiles"></div>
         <div class="card" id="rmCard">
           <div class="rmhead"><h3 style="margin:0">Routes flown</h3>
-            <div class="rmctl"><div class="rmseg" role="group" aria-label="Period"><button type="button" data-rm="30">Last 30 days</button><button type="button" data-rm="ytd">This year</button><select id="rmYear" aria-label="Year"></select><button type="button" data-rm="all" class="on">All flights</button></div>
+            <div class="rmctl"><div class="rmseg" role="group" aria-label="Period"><button type="button" data-rm="30">Last 30 days</button><button type="button" data-rm="ytd">This year</button><select id="rmYear" aria-label="Year"></select><button type="button" data-rm="all" class="on">All flights</button><button type="button" data-rm="dates">Dates…</button></div>
               <label class="tick" style="margin:0"><input type="checkbox" id="rmLines" checked> <span>Connect with lines</span></label></div></div>
+          <div class="rmdates hidden" id="rmDates"><label for="rmFrom">From</label><input type="date" id="rmFrom"><label for="rmTo">to</label><input type="date" id="rmTo"><span class="err" id="rmDateErr" style="margin:0"></span></div>
           <div class="rmstats" id="rmStats"></div>
           <div id="routeMap" class="routemap"><p class="hint" style="padding:16px;margin:0">Loading the map…</p></div>
           <p class="hint" id="rmNote" style="margin:8px 0 0;font-size:12.5px"></p>
@@ -1984,7 +1987,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "31 Oct 2026 · 28";
+const APP_VERSION = "31 Oct 2026 · 30";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
@@ -4450,7 +4453,7 @@ const RM_ICON = {
   plane: RM_SVG('<path d="M10.5 21l1.5-3 1.5 3M12 18V14M21 13l-9-4.5V4.5a1.5 1.5 0 0 0-3 0v4L3 12v2l6-1.5v3.5l-2 1.5V19l3.5-1"/>'),
   apt: RM_SVG('<path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/>')
 };
-let rMap = null, rLayer = null, rRange = "all";
+let rMap = null, rLayer = null, rRange = "all", rFrom = "", rTo = "";
 function loadCss(href){ return new Promise(r => { if ($(`link[href="${href}"]`)) return r(); const l = document.createElement("link"); l.rel = "stylesheet"; l.href = href; l.onload = l.onerror = r; document.head.appendChild(l); }); }
 // an airport's [lat, lon], by the code as logged or its ICAO / IATA twin
 const aptLL = c => AIRPORTS?.[c] || AIRPORTS?.[aptAlt()[c]] || null;
@@ -4468,18 +4471,21 @@ function gcPath(A, B, n = 48){
 }
 function routeFlights(){
   const F = data.flights.filter(f => !isSim(f) && f.from && f.to), t = todayISO();
-  return rRange === "30" ? F.filter(f => f.date >= isoDaysAgo(29)) : rRange === "ytd" ? F.filter(f => f.date >= t.slice(0, 4) + "-01-01") : rRange === "all" ? F : F.filter(f => f.date.startsWith(rRange));
+  return rRange === "30" ? F.filter(f => f.date >= isoDaysAgo(29)) : rRange === "ytd" ? F.filter(f => f.date >= t.slice(0, 4) + "-01-01") : rRange === "all" ? F
+    : rRange === "dates" ? F.filter(f => (!rFrom || f.date >= rFrom) && (!rTo || f.date <= rTo)) : F.filter(f => f.date.startsWith(rRange));
 }
 async function renderRouteMap(){
   const box = $("#routeMap"); if (!box) return;
   const years = [...new Set(data.flights.filter(f => !isSim(f)).map(f => f.date.slice(0, 4)))].sort().reverse(), ys = $("#rmYear");
   ys.innerHTML = '<option value="">Year…</option>' + years.map(y => `<option${rRange === y ? " selected" : ""}>${y}</option>`).join(""); ys.classList.toggle("on", /^\d{4}$/.test(rRange));
-  $$("[data-rm]").forEach(b => b.classList.toggle("on", b.dataset.rm === rRange));
+  $$("[data-rm]").forEach(b => b.classList.toggle("on", b.dataset.rm === rRange)); $("#rmDates").classList.toggle("hidden", rRange !== "dates");
+  if (rRange === "dates" && !$("#rmFrom").value && !$("#rmTo").value) { const D = data.flights.filter(f => !isSim(f)).map(f => f.date).sort(); $("#rmFrom").value = rFrom = D[0] || ""; $("#rmTo").value = rTo = D[D.length - 1] || ""; }
   await loadAirports(); loadAptNames();
   const F = routeFlights(), apts = new Map(), legs = new Map(); let km = 0, longest = null, unknown = 0;
   for (const f of F) {
     const A = aptLL(f.from), B = aptLL(f.to); if (!A || !B) { unknown++; continue; }
-    for (const [c, ll] of [[f.from, A], [f.to, B]]) { const a = apts.get(c) || { c, ll, n: 0 }; a.n++; apts.set(c, a); }
+    for (const [c, ll, dir, other] of [[f.from, A, "dep", f.to], [f.to, B, "arr", f.from]]) { const a = apts.get(c) || { c, ll, n: 0, dep: 0, arr: 0, first: f.date, last: f.date, peers: {} };
+      a.n++; a[dir]++; if (f.date < a.first) a.first = f.date; if (f.date > a.last) a.last = f.date; if (other !== c) a.peers[other] = (a.peers[other] || 0) + 1; apts.set(c, a); }
     const k = gcKm(A, B); km += k; if (!longest || k > longest.k) longest = { k, f };
     if (f.from !== f.to) { const key = [f.from, f.to].sort().join("-"), l = legs.get(key) || { A, B, n: 0, k }; l.n++; legs.set(key, l); }
   }
@@ -4493,8 +4499,13 @@ async function renderRouteMap(){
   const A = [...apts.values()], Ls = $("#rmLines").checked ? [...legs.values()] : [];
   const label = a => `${a.c}${aptName(a.c) || aptName(aptAlt()[a.c]) ? " · " + (aptName(a.c) || aptName(aptAlt()[a.c])) : ""} · ${a.n} visit${a.n === 1 ? "" : "s"}`;
   // small dots (a little bigger for the airports used most) and thin lines, thicker only for routes flown often
+  // a tap on an airport: its name, visits (departures and arrivals), first and last visit, and the places flown to and from most
+  const pop = a => { const nm = aptName(a.c) || aptName(aptAlt()[a.c]), top = Object.entries(a.peers).sort((x, y) => y[1] - x[1]).slice(0, 5);
+    return `<div class="rmpop"><b>${esc(a.c)}</b>${nm ? `<div class="hint" style="margin:0">${esc(nm)}</div>` : ""}<div class="rmpopn">${a.n.toLocaleString()} visit${a.n === 1 ? "" : "s"}</div>` +
+      `<div>${a.dep.toLocaleString()} departure${a.dep === 1 ? "" : "s"} · ${a.arr.toLocaleString()} arrival${a.arr === 1 ? "" : "s"}</div><div class="hint" style="margin:0">${a.first === a.last ? fmtDate(a.first) : `first ${fmtDate(a.first)} · last ${fmtDate(a.last)}`}</div>` +
+      (top.length ? `<div style="margin-top:6px">${top.map(([c, n]) => `${esc(c)} <span class="hint" style="margin:0">${n}×</span>`).join(" · ")}</div>` : "") + `</div>`; };
   const dot = a => 2.5 + Math.min(2.5, Math.sqrt(a.n) / 3), line = l => 0.8 + Math.min(1.2, Math.log2(l.n) / 4);
-  if (CONFIG.GOOGLE_MAPS_KEY && await gmapsReady()) return drawGoogle(box, A, Ls, { brand, acc, dot, line, label });
+  if (CONFIG.GOOGLE_MAPS_KEY && await gmapsReady()) return drawGoogle(box, A, Ls, { brand, acc, dot, line, label, pop });
   try { if (!window.L) { await loadCss(LEAFLET + "leaflet.min.css"); await loadScript(LEAFLET + "leaflet.min.js"); } }
   catch { box.innerHTML = '<p class="hint" style="padding:16px;margin:0">The map couldn\'t load (no connection?). The figures above are still right.</p>'; return; }
   if (!rMap) { box.innerHTML = ""; rMap = L.map(box, { worldCopyJump: true, minZoom: 1, zoomSnap: 0.5 }).setView([25, 10], 2);
@@ -4502,26 +4513,20 @@ async function renderRouteMap(){
   rLayer?.remove(); rLayer = L.layerGroup().addTo(rMap);
   for (const l of Ls) L.polyline(gcPath(l.A, l.B), { color: acc, weight: line(l), opacity: .75, interactive: false }).addTo(rLayer);
   const sat = $("#routeMap").classList.contains("sat");
-  for (const a of A) L.circleMarker(a.ll, { radius: dot(a), color: sat ? "#0b1a26" : "#fff", weight: 1, fillColor: sat ? "#fff" : brand, fillOpacity: .95 }).bindTooltip(esc(label(a))).addTo(rLayer);
+  for (const a of A) L.circleMarker(a.ll, { radius: dot(a), color: sat ? "#0b1a26" : "#fff", weight: 1, fillColor: sat ? "#fff" : brand, fillOpacity: .95 }).bindTooltip(esc(label(a))).bindPopup(pop(a), { maxWidth: 260 }).on("popupopen", e => e.target.closeTooltip()).addTo(rLayer);
   rMap.invalidateSize();
   const pts = A.map(a => a.ll); if (pts.length > 1) rMap.fitBounds(pts, { padding: [24, 24], maxZoom: 7 }); else if (pts.length) rMap.setView(pts[0], 6);
 }
-// the map underneath: with a MapTiler key, satellite imagery with borders and place names (MapTiler "hybrid", default) or the calm Dataviz map, switched in the map's corner and
-// remembered on this device; without a key, or if MapTiler refuses it (no tile loads, several errors), OpenStreetMap
+// the map underneath: satellite imagery with borders and place names (MapTiler "hybrid") with a key; without one, or if MapTiler
+// refuses it (no tile loads, several errors), OpenStreetMap
 function mapTiles(){
   const osm = () => L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 12, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' });
-  const box = $("#routeMap"); if (!CONFIG.MAPTILER_KEY) { box.classList.remove("mt"); return osm(); }
-  const attr = '<a href="https://www.maptiler.com/copyright/" target="_blank">&copy; MapTiler</a> <a href="https://www.openstreetmap.org/copyright" target="_blank">&copy; OpenStreetMap contributors</a>';
-  const mt = (style, ext) => { const t = L.tileLayer(`https://api.maptiler.com/maps/${style}/{z}/{x}/{y}.${ext}?key=${encodeURIComponent(CONFIG.MAPTILER_KEY)}`, { tileSize: 512, zoomOffset: -1, minZoom: 1, maxZoom: 12, crossOrigin: true, attribution: attr });
-    let ok = 0, bad = 0; t.on("tileload", () => ok++);
-    t.on("tileerror", () => { if (++bad >= 4 && !ok && rMap?.hasLayer(t)) { console.warn("MapTiler tiles refused: OpenStreetMap instead"); rMap.removeLayer(t); box.classList.remove("mt"); osm().addTo(rMap); } });
-    return t; };
-  const layers = { Satellite: mt("hybrid", "jpg"), Map: mt(matchMedia("(prefers-color-scheme: dark)").matches ? "dataviz-dark" : "dataviz", "png") };
-  let pick = "Satellite"; try { pick = localStorage.getItem("cbl_maplayer") === "Map" ? "Map" : "Satellite"; } catch {}
-  box.classList.add("mt"); box.classList.toggle("sat", pick === "Satellite");
-  setTimeout(() => { if (!rMap) return; L.control.layers(layers, null, { position: "topright", collapsed: false }).addTo(rMap);
-    rMap.on("baselayerchange", e => { box.classList.toggle("sat", e.name === "Satellite"); try { localStorage.setItem("cbl_maplayer", e.name); } catch {} renderRouteMap(); }); });
-  return layers[pick];
+  const box = $("#routeMap"); if (!CONFIG.MAPTILER_KEY) { box.classList.remove("mt", "sat"); return osm(); }
+  const t = L.tileLayer(`https://api.maptiler.com/maps/hybrid/{z}/{x}/{y}.jpg?key=${encodeURIComponent(CONFIG.MAPTILER_KEY)}`, { tileSize: 512, zoomOffset: -1, minZoom: 1, maxZoom: 12, crossOrigin: true,
+    attribution: '<a href="https://www.maptiler.com/copyright/" target="_blank">&copy; MapTiler</a> <a href="https://www.openstreetmap.org/copyright" target="_blank">&copy; OpenStreetMap contributors</a>' });
+  let ok = 0, bad = 0; t.on("tileload", () => ok++);
+  t.on("tileerror", () => { if (++bad >= 4 && !ok && rMap?.hasLayer(t)) { console.warn("MapTiler tiles refused: OpenStreetMap instead"); rMap.removeLayer(t); box.classList.remove("mt", "sat"); osm().addTo(rMap); renderRouteMap(); } });
+  box.classList.add("mt", "sat"); return t;
 }
 // Google Maps: loaded once with the site's key; false if it can't load (no connection, key refused), and OpenStreetMap is used
 let gmapsP = null, gMap = null, gItems = [];
@@ -4540,13 +4545,16 @@ function drawGoogle(box, A, Ls, o){
   gItems.forEach(x => x.setMap(null)); gItems = [];
   for (const l of Ls) gItems.push(new G.Polyline({ map: gMap, path: [{ lat: l.A[0], lng: l.A[1] }, { lat: l.B[0], lng: l.B[1] }], geodesic: true, strokeColor: o.acc, strokeOpacity: .8, strokeWeight: o.line(l), clickable: false }));
   for (const a of A) { const m = new G.Marker({ map: gMap, position: { lat: a.ll[0], lng: a.ll[1] }, title: o.label(a),
-    icon: { path: G.SymbolPath.CIRCLE, scale: o.dot(a), fillColor: o.brand, fillOpacity: .95, strokeColor: "#fff", strokeWeight: 1 } }); gItems.push(m); }
+    icon: { path: G.SymbolPath.CIRCLE, scale: o.dot(a), fillColor: o.brand, fillOpacity: .95, strokeColor: "#fff", strokeWeight: 1 } }); gItems.push(m);
+    m.addListener("click", () => { (gMap._iw ||= new G.InfoWindow()).setContent(o.pop(a)); gMap._iw.open({ map: gMap, anchor: m }); }); }
   if (A.length > 1) { const b = new G.LatLngBounds(); A.forEach(a => b.extend({ lat: a.ll[0], lng: a.ll[1] })); gMap.fitBounds(b, 24); }
   else if (A.length) { gMap.setCenter({ lat: A[0].ll[0], lng: A[0].ll[1] }); gMap.setZoom(6); }
 }
 document.addEventListener("click", e => { const b = e.target.closest("[data-rm]"); if (!b) return; rRange = b.dataset.rm; $("#rmYear").value = ""; renderRouteMap(); });
 $("#rmYear").addEventListener("change", e => { if (e.target.value) { rRange = e.target.value; renderRouteMap(); } });
 $("#rmLines").addEventListener("change", renderRouteMap);
+["#rmFrom", "#rmTo"].forEach(id => $(id).addEventListener("change", () => { rFrom = $("#rmFrom").value; rTo = $("#rmTo").value;
+  $("#rmDateErr").textContent = rFrom && rTo && rFrom > rTo ? "The From date is after the To date." : ""; if (!$("#rmDateErr").textContent) renderRouteMap(); }));
 /* The hours summary to paste or share (job applications): a plain list, most asked-for first, that reads well in a mail,
    a note or a message. Totals, then each aircraft type (most hours first), then recent flying; lines with nothing are left out */
 function statSummary(){
