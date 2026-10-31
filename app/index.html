@@ -679,7 +679,7 @@ dialog.kofi iframe{display:block;width:100%;height:min(690px,calc(100dvh - 150px
         <div style="margin-top:22px;padding-top:18px;border-top:1px solid var(--line)">
           <h4 style="margin:0 0 10px">Full backup</h4>
           <p class="hint" style="margin:0 0 14px;font-size:14px">Everything in one file: flights, profile, expiries, signature and rosters. Use it to move to a new phone or browser.</p>
-          <div class="row-actions" style="margin:0"><button class="btn ghost" type="button" id="btnBackup">Download full backup</button><label class="btn ghost" style="margin:0">Restore backup<input type="file" id="restoreFile" accept=".json" class="hidden"></label></div>
+          <div class="row-actions" style="margin:0"><button class="btn ghost" type="button" id="btnBackup">Download full backup</button><button class="btn ghost hidden" type="button" id="btnBefore"></button><label class="btn ghost" style="margin:0">Restore backup<input type="file" id="restoreFile" accept=".json" class="hidden"></label></div>
         </div>
       </div>
       <div class="card hidden" id="pdfCard" style="padding:0;overflow:hidden"><iframe id="pdfFrame" title="Logbook preview" style="width:100%;height:78vh;border:0;display:block;background:#fff"></iframe></div>
@@ -1124,17 +1124,37 @@ async function syncPull(clash){
     if (user?.id !== uid || !r.data) return;
     const theirs = r.data, mine = data, local = m.seq !== m.done || !m.rev;   // this device has changes the account hasn't
     const same = JSON.stringify(theirs.data) === JSON.stringify(mine), emptyHere = !flightsOf(mine) && !mine.onboarded;
+    if (!same && !emptyHere && muchFewer(theirs.data, mine)) return syncAskFewer(theirs);   // emptied or cut down elsewhere: ask first
     if (same || !local || emptyHere) return syncTake(theirs);
     syncAsk(theirs);
   } catch (e) { console.warn("sync", e); syncShow("off"); }
 }
+// the account's copy has far fewer flights than this device: 10 or more fewer, or a fifth fewer (deleting a flight or two passes)
+const muchFewer = (theirs, mine) => { const a = flightsOf(theirs), b = flightsOf(mine); return a < b && (b - a >= 10 || a < b * 0.8); };
+// before this device's logbook is replaced by the account's, it keeps its own copy (Your data: download it)
+const beforeKey = () => "cbl_before_" + user.id;
+function keepBefore(){ if (flightsOf(data) || data.profile?.name) store.set(beforeKey(), { at: new Date().toISOString(), data }); }
 function syncTake(row){
   const m = syncMeta(), was = JSON.stringify(data);
   m.rev = row.rev; m.done = m.seq; syncSave();
-  if (JSON.stringify(row.data) !== was) { store.set(key(), row.data); load();
+  if (JSON.stringify(row.data) !== was) { keepBefore(); store.set(key(), row.data); load();
     if ((data.onboarded || flightsOf(data)) && !$("#setup").classList.contains("hidden")) closeSetup(false);   // a new device: the account already has the logbook
     const t = location.hash.slice(1); tab($$("#tabs button").some(b => b.dataset.t === t) ? t : "overview"); }
   syncShow("ok");
+}
+// the account's copy is much smaller than this device's: never taken without asking
+function beforeBtn(){
+  const b = $("#btnBefore"), k = store.get(beforeKey(), null); if (!b) return; b.classList.toggle("hidden", !k);
+  if (k) b.textContent = `Download this device's copy from ${fmtDate(k.at.slice(0, 10))} (${flightsOf(k.data).toLocaleString()} flights)`;
+}
+document.addEventListener("click", e => { if (e.target.id !== "btnBefore") return; const k = store.get(beforeKey(), null); if (k) download(`crewbaselog-device-copy-${k.at.slice(0, 10)}.json`, "application/json", JSON.stringify({ app: "CrewBase Log", version: 1, exported: k.at, data: k.data }, null, 1)); });
+function syncAskFewer(theirs){
+  const box = $("#syncAsk") || document.body.appendChild(Object.assign(document.createElement("div"), { id: "syncAsk", className: "toast bad" }));
+  const when = new Date(theirs.updated_at).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }), n = x => `${x.toLocaleString()} flight${x === 1 ? "" : "s"}`;
+  box.innerHTML = `<div class="toast-ic" aria-hidden="true">!</div><div><div class="toast-h">Your account's logbook has fewer flights</div><div class="toast-b">The copy in your account has ${n(flightsOf(theirs.data))} (saved ${esc(when)}); this device has ${n(flightsOf(data))}. If you didn't delete them, keep this device's.
+    <div class="fl-btns" style="margin-top:8px;flex-direction:column;align-items:stretch"><button class="btn small" type="button" data-sync="mine">Keep this device's: ${n(flightsOf(data))}</button>
+    <button class="btn ghost small" type="button" data-sync="theirs">Use the account's: ${n(flightsOf(theirs.data))} (this device's is kept on Your data)</button></div></div></div>`;
+  box._theirs = theirs; syncShow("off", "Waiting for your choice: the account's copy has fewer flights");
 }
 // both changed: the pilot picks; the one not kept can be downloaded first
 function syncAsk(theirs){
@@ -1674,7 +1694,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-restore]")
 /* ---------- feedback (emailed via FormSubmit) ---------- */
 const FEEDBACK_TO = "t.d.szucs@gmail.com";
 // shown at the bottom of Profile, to tell which version a phone is running
-const APP_VERSION = "31 Oct 2026 · 1";
+const APP_VERSION = "31 Oct 2026 · 2";
 $("#fbForm").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("#fbMsg").value.trim(), email = $("#fbEmail").value.trim(), st = $("#fbStatus");
@@ -3150,6 +3170,7 @@ $("#fixCard").addEventListener("click", e => {
 
 /* ---------- your data: eCrew import, add a flight by hand ---------- */
 function renderYourData(){
+  if (user && user.id !== "sample") beforeBtn();
   renderPrint(); renderPrev(); renderCheck(); renderFix();
 }
 // adding a flight by hand lives on the Logbook tab, behind a button: most airline pilots import everything
